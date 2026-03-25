@@ -1,0 +1,32 @@
+<!doctype html>
+
+<html>
+	<head>
+		<title>Constellation</title>
+	</head>
+
+	<body>
+		<script type="module">
+			import Constellation from "/dist/kernel.js";
+
+			const kernel = new Constellation(async (fs) => {
+				await fs.mkdir("/bin");
+
+				// init
+				const initSrc = await (await fetch("/dist/bin/init.js")).text();
+
+				await fs.writeFile("/bin/init.js", initSrc);
+
+				// installer
+				const installerSrc = await (
+					await fetch("/dist/bin/installd.js")
+				).text();
+
+				await fs.writeFile("/bin/installd.js", installerSrc);
+			});
+			kernel.init();
+
+			window.kernel = kernel;
+		</script>
+	</body>
+</html>

@@ -1,0 +1,16 @@
+{
+  "scripts": {
+    "build": "sh build.sh"
+  },
+  "dependencies": {
+    "glob": "^13.0.6",
+    "path-browserify": "^1.0.1",
+    "prettier": "^3.8.1",
+    "rollup": "^4.59.0",
+    "typescript": "^5.9.3"
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.5",
+    "@typescript/lib-webworker": "npm:@types/webworker@^0.0.72"
+  }
+}
