@@ -93,6 +93,7 @@ div.LogBox > div.input {
 
 	display: flex;
 	flex-direction: row;
+	order: 999999;
 
     margin: 0px;
     padding: 0px;
