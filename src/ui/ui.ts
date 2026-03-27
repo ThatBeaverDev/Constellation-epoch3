@@ -10,7 +10,8 @@ export interface UiManager {
 	clear(): void;
 	input(
 		message?: string,
-		hideTyping?: boolean
+		hideTyping?: boolean,
+		keepInput?: boolean
 	): Promise<{ response: string; displayText: string }>;
 
 	controller?: Session;
@@ -183,7 +184,11 @@ div.LogBox > div.input > input.reqInput {
 		this.#newLog(text);
 	}
 
-	input(prompt: string, hideTyping: boolean = false) {
+	input(
+		prompt: string,
+		hideTyping: boolean = false,
+		showLogAfter: boolean = true
+	) {
 		return new Promise<{ response: string; displayText: string }>(
 			(resolve) => {
 				const text = document.createElement("p");
@@ -199,20 +204,23 @@ div.LogBox > div.input > input.reqInput {
 				div.appendChild(text);
 				div.appendChild(input);
 
+				let interval = 0;
+
 				input.addEventListener("keydown", (e) => {
 					if (e.key == "Enter") {
 						const response = input.value;
 
 						div.remove();
 						const displayText = `${prompt}${response}`;
-						this.#post(displayText);
+						if (showLogAfter) this.#post(displayText);
 
+						clearInterval(interval);
 						resolve({ response, displayText });
 					}
 				});
 
 				this.#newLog(div);
-				input.focus();
+				interval = setInterval(() => input.focus(), 10);
 			}
 		);
 	}

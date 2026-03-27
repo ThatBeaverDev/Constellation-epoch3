@@ -768,23 +768,23 @@ export async function workerFunction(this: undefined) {
 	const { sendMessage, emit, handle } = workerMessageHandler();
 
 	function log(message: string) {
-		sendMessage("worker_log", { data: message });
+		emit("worker_log", { data: message });
 	}
 	function warn(message: string) {
-		sendMessage("worker_warn", { data: message });
+		emit("worker_warn", { data: message });
 	}
 	function error(message: string) {
-		sendMessage("worker_error", { data: message });
+		emit("worker_error", { data: message });
 	}
 
 	function programLog(pid: number, data: string) {
-		sendMessage("program_log", { pid, data });
+		emit("program_log", { pid, data });
 	}
 	function programWarn(pid: number, data: string) {
-		sendMessage("program_warn", { pid, data });
+		emit("program_warn", { pid, data });
 	}
 	function programError(pid: number, data: string) {
-		sendMessage("program_error", { pid, data });
+		emit("program_error", { pid, data });
 	}
 
 	/* =============== Worker Code  =============== */
@@ -831,17 +831,22 @@ export async function workerFunction(this: undefined) {
 				programError(pid, data.join(" "));
 			},
 
-			input: async function (message: string, conceal: boolean = false) {
-				const text = await sendMessage("env_input", {
+			input: async function (
+				message: string,
+				conceal: boolean = false,
+				keepInput: boolean = false
+			) {
+				const text = await sendMessage<string>("env_input", {
 					pid,
 					message,
-					conceal
+					conceal,
+					keepInput
 				});
 
 				return text;
 			},
-			clearLogs: async function (): Promise<void> {
-				await sendMessage("env_clear_logs", { pid });
+			clearLogs() {
+				emit("env_clear_logs", { pid });
 			},
 
 			fs,
@@ -854,15 +859,18 @@ export async function workerFunction(this: undefined) {
 				args?: string[],
 				config?: { handOverDisplay?: boolean }
 			): Promise<{ onExit: Promise<{ return: T; logs: string[] }> }> {
-				const { pid: executedPID } = await sendMessage("env_exec", {
-					path,
-					args,
-					pid,
-					handoverDisplayPid: config?.handOverDisplay
-						? pid
-						: undefined,
-					workingDirectory: this.workingDirectory
-				});
+				const { pid: executedPID } = await sendMessage<{ pid: string }>(
+					"env_exec",
+					{
+						path,
+						args,
+						pid,
+						handoverDisplayPid: config?.handOverDisplay
+							? pid
+							: undefined,
+						workingDirectory: this.workingDirectory
+					}
+				);
 
 				const obj: Partial<
 					(typeof activePrograms)[keyof typeof activePrograms]
@@ -1074,12 +1082,16 @@ export interface Environment {
 	 * @param message Text prompt
 	 * @returns User entry
 	 */
-	input: (message: string, conceal?: boolean) => Promise<string> | never;
+	input: (
+		message: string,
+		conceal?: boolean,
+		keepInput?: boolean
+	) => Promise<string> | never;
 
 	/**
 	 * Clear the display terminal. Requires input access.
 	 */
-	clearLogs(): Promise<void>;
+	clearLogs(): void;
 
 	/**
 	 * Access to the system's filesystem

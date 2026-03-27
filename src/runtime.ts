@@ -273,11 +273,13 @@ export default class Runtime {
 				async ({
 					pid,
 					message = "Messsage not provided.",
-					conceal = false
+					conceal = false,
+					keepInput = false
 				}: {
 					pid: number;
 					message: string;
 					conceal: boolean;
+					keepInput: boolean;
 				}) => {
 					const program = this.#sessionByID(pid);
 					if (this.#kernel.ui.controller !== program) {
@@ -287,7 +289,11 @@ export default class Runtime {
 					}
 
 					const { response, displayText } =
-						await this.#kernel.ui.input(message, conceal);
+						await this.#kernel.ui.input(
+							message,
+							conceal,
+							keepInput
+						);
 					program.logs.push({ type: "log", text: displayText });
 
 					return response;
