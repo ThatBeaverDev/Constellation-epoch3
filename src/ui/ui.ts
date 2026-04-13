@@ -418,9 +418,6 @@ div.LogBox > div.input > input.reqInput {
 					const clipboardData = event.clipboardData;
 					if (!clipboardData || !onPaste) return;
 
-					// nah
-					//event.preventDefault();
-
 					for (let i = 0; i < clipboardData.items.length; i++) {
 						const item = clipboardData.items[i];
 						const { type } = item;
@@ -431,6 +428,8 @@ div.LogBox > div.input > input.reqInput {
 							});
 							return;
 						} else {
+							event.preventDefault();
+
 							const isSvg = type == "application/svg+xml";
 							const isImage = isSvg || type.startsWith("image/");
 
