@@ -1,4 +1,4 @@
-import { Environment } from "../lib/worker";
+import { Environment } from "../types/worker";
 import { formatTable } from "../usrlib/table";
 
 export default async function* getInfo(env: Environment) {
@@ -65,11 +65,10 @@ export default async function* getInfo(env: Environment) {
 		"                         "
 	];
 
-	const finalLines = tableLines.map(
-		(item, i) => constellationLogo[i] + "  " + item
-	);
-
-	const finalText = finalLines.join("\n");
-
-	return finalText;
+	for (const i in tableLines) {
+		env.print([
+			{ text: constellationLogo[i], colour: "#dba2fa" },
+			{ text: "  " + tableLines[i] }
+		]);
+	}
 }

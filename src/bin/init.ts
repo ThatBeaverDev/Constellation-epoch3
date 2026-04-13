@@ -1,4 +1,4 @@
-import { type Environment } from "../lib/worker.js";
+import { type Environment } from "../types/worker.js";
 import { objectFallback } from "../usrlib/object.js";
 
 interface Service {

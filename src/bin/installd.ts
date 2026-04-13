@@ -1,4 +1,4 @@
-import { Environment } from "../lib/worker";
+import { Environment } from "../types/worker";
 import { objectFallback } from "../usrlib/object";
 
 interface InstallerData {
@@ -34,8 +34,10 @@ export default async function* install(env: Environment) {
 		yield env.fs.mkdir("/config");
 
 		yield env.fs.mkdir("/user");
+		yield env.fs.mkdir("/users");
 
-		const installerJSON = await env.network.get<InstallationDataFile>(
+		const installerJSON = await env.network.request<InstallationDataFile>(
+			"get",
 			"/build/data.json",
 			"json"
 		);

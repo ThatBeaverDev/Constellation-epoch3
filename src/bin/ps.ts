@@ -1,4 +1,4 @@
-import { Environment } from "../lib/worker";
+import { Environment } from "../types/worker";
 import { formatTable } from "../usrlib/table";
 
 export default async function* ps(env: Environment) {

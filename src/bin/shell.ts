@@ -1,4 +1,5 @@
-import { Environment } from "../lib/worker";
+import { Environment } from "../types/worker";
+import { Log } from "../ui/ui";
 
 export default async function* Shell(env: Environment) {
 	while (true) {
@@ -51,7 +52,12 @@ export default async function* Shell(env: Environment) {
 				);
 				const { return: programDirectory } = await envExec.onExit;
 				if (!programDirectory) {
-					env.print("shell: command not found: ", command);
+					const log: Log = [
+						{ text: "shell: ", colour: "#888888" },
+						{ text: "command not found: " },
+						{ text: command }
+					];
+					env.print(log);
 					break;
 				}
 

@@ -1,4 +1,9 @@
-import { Environment } from "../lib/worker";
+import { Environment } from "../types/worker";
+import {
+	directoryColour,
+	executableColour,
+	structureColour
+} from "../usrlib/colours";
 
 export default async function* tree(
 	env: Environment,
@@ -6,18 +11,16 @@ export default async function* tree(
 ) {
 	const dir = env.path.resolve(env.workingDirectory, directory);
 
-	let result = dir + "\n";
+	env.print([{ text: dir, colour: directoryColour }]);
 
 	const counts = {
 		files: 0,
 		dirs: 0
 	};
 
-	result += await treeWalk(env, dir, "", Infinity, 0, counts);
+	await treeWalk(env, dir, "", Infinity, 0, counts);
 
-	result += `${counts.dirs} directories, ${counts.files} files`;
-
-	return result;
+	env.print(`${counts.dirs} directories, ${counts.files} files`);
 }
 
 async function treeWalk(
@@ -28,17 +31,15 @@ async function treeWalk(
 	depth: number,
 	counts: { files: number; dirs: number }
 ) {
-	//if (depth > maxDepth) {
-	//	return;
-	//}
-
-	let result = "";
-
 	let contents: string[];
 	try {
 		contents = await env.fs.readdir(directory);
 	} catch (e) {
-		return prefix + "└── " + String(e) + "\n";
+		env.print([
+			{ text: prefix + "└── ", colour: structureColour },
+			{ text: String(e) }
+		]);
+		return;
 	}
 
 	contents.sort();
@@ -63,9 +64,12 @@ async function treeWalk(
 			const isDir = await env.fs.isDirectory(asDir);
 
 			if (isDir) {
-				result += prefix + parts[0] + dispFile + `\n`;
+				env.print([
+					{ text: prefix + parts[0], colour: structureColour },
+					{ text: dispFile + "/", colour: directoryColour }
+				]);
 				counts.dirs++;
-				result += await treeWalk(
+				await treeWalk(
 					env,
 					asDir,
 					prefix + parts[1],
@@ -75,12 +79,18 @@ async function treeWalk(
 				);
 			} else {
 				//if (!obj.dirOnly) {
-				result += prefix + parts[0] + dispFile + `\n`;
+				env.print([
+					{ text: prefix + parts[0], colour: structureColour },
+					{
+						text: dispFile,
+						colour: dispFile.endsWith(".js")
+							? executableColour
+							: undefined
+					}
+				]);
 				//};
 				counts.files++;
 			}
 		}
 	}
-
-	return result;
 }

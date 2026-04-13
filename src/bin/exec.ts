@@ -1,4 +1,4 @@
-import { Environment } from "../lib/worker";
+import { Environment } from "../types/worker";
 
 export default async function* exec(env: Environment, args: string[]) {
 	const path = args[0];

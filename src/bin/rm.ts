@@ -1,5 +1,5 @@
-import { Environment } from "../lib/worker";
+import { Environment } from "../types/worker";
 
-export default async function* rm(env: Environment, [path]: [string]) {
-	await env.fs.rm(path);
+export default async function* rm(env: Environment, ...files: string[]) {
+	for (const path of files) await env.fs.rm(path);
 }
