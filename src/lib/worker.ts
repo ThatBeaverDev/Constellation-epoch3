@@ -1,4 +1,24 @@
-import { FilesystemInterface } from "./fs.js";
+import { Log } from "../ui/ui.js";
+import {
+	EnvironmentFilesystem,
+	NetworkRequestType,
+	onPasteData,
+	Process,
+	WorkerProgramStore,
+	type Environment
+} from "../types/worker.js";
+import {
+	WorkerEnv_Exec,
+	WorkerEnv_Input,
+	WorkerEnv_Network_Get
+} from "../types/workerMessages.js";
+import {
+	RuntimeExecuteProgram,
+	RuntimeProgramInputEvent,
+	RuntimeProgramInputOnKeyDown,
+	RuntimeProgramInputOnPaste
+} from "../types/runtimeMessages.js";
+import { RuntimeProgramLogEvent } from "../types/runtimeMessages.js";
 
 /// <reference path="@typescript/lib-webworker@npm:@types/webworker" />
 
@@ -31,8 +51,7 @@ type Pending = {
 	resolve: (v: any) => void;
 	reject: (e: any) => void;
 };
-
-type RequestHandler = (data: any) => Promise<any> | any;
+type RequestHandler<T = any> = (data: T) => Promise<any> | any;
 
 export async function workerFunction(this: undefined) {
 	/* ===== PATH-BROWSERIFY, SLIGHTLY MODIFIED ===== */
@@ -659,7 +678,10 @@ export async function workerFunction(this: undefined) {
 			}
 		};
 
-		function sendMessage<T = any>(intent: string, data?: any): Promise<T> {
+		function sendMessage<T = any, K = any>(
+			intent: string,
+			data?: K
+		): Promise<T> {
 			const id = nextMessageID++;
 
 			return new Promise((resolve, reject) => {
@@ -682,7 +704,7 @@ export async function workerFunction(this: undefined) {
 			});
 		}
 
-		function handle(event: string, handler: RequestHandler) {
+		function handle<T = any>(event: string, handler: RequestHandler<T>) {
 			requestHandlers.set(event, handler);
 		}
 
@@ -725,7 +747,16 @@ export async function workerFunction(this: undefined) {
 		return text;
 	};
 
-	class WorkerFS implements WorkerFS {
+	/* Secure some bases */
+
+	// @ts-expect-error
+	delete self.eval;
+	// @ts-expect-error
+	delete self.fetch;
+	// @ts-expect-error
+	delete self.XMLHttpRequest;
+
+	class WorkerFS implements EnvironmentFilesystem {
 		ready = true;
 		waitForReady(): Promise<void> {
 			return new Promise((resolve) => resolve());
@@ -763,27 +794,35 @@ export async function workerFunction(this: undefined) {
 		async isDirectory(path: string): Promise<boolean> {
 			return await this.#sendMessage("fs_isdir", { path });
 		}
+
+		async exists(path: string): Promise<boolean> {
+			return await this.#sendMessage("fs_exists", { path });
+		}
 	}
 
 	const { sendMessage, emit, handle } = workerMessageHandler();
 
-	function log(message: string) {
+	setInterval(() => {
+		emit("keepAlive");
+	}, 100);
+
+	function log(message: Log) {
 		emit("worker_log", { data: message });
 	}
-	function warn(message: string) {
+	function warn(message: Log) {
 		emit("worker_warn", { data: message });
 	}
-	function error(message: string) {
+	function error(message: Log) {
 		emit("worker_error", { data: message });
 	}
 
-	function programLog(pid: number, data: string) {
+	function programLog(pid: number, data: Log) {
 		emit("program_log", { pid, data });
 	}
-	function programWarn(pid: number, data: string) {
+	function programWarn(pid: number, data: Log) {
 		emit("program_warn", { pid, data });
 	}
-	function programError(pid: number, data: string) {
+	function programError(pid: number, data: Log) {
 		emit("program_error", { pid, data });
 	}
 
@@ -800,17 +839,6 @@ export async function workerFunction(this: undefined) {
 		return btoa(binary);
 	}
 
-	interface WorkerProgramStore {
-		generator?:
-			| Generator<Promise<any> | void, any, any>
-			| AsyncGenerator<Promise<any> | void, any, any>;
-		pid: number;
-		directory: string;
-
-		locked: boolean;
-		passValue?: any;
-	}
-
 	const programs: WorkerProgramStore[] = [];
 	const fs = new WorkerFS(sendMessage);
 
@@ -818,33 +846,54 @@ export async function workerFunction(this: undefined) {
 		program: WorkerProgramStore,
 		workingDirectory?: string
 	): Environment {
-		const { directory, pid } = program;
+		const { pid } = program;
+		let handlingInput = false;
 
-		const env = {
-			print(...data: string[]) {
-				programLog(pid, data.join(" "));
+		const env: Environment = {
+			print(data: Log) {
+				programLog(pid, data);
 			},
-			warn(...data: string[]) {
-				programWarn(pid, data.join(" "));
+			warn(data: Log) {
+				programWarn(pid, data);
 			},
-			error(...data: string[]) {
-				programError(pid, data.join(" "));
+			error(data: Log) {
+				programError(pid, data);
 			},
 
 			input: async function (
 				message: string,
 				conceal: boolean = false,
-				keepInput: boolean = false
+				keepInput: boolean = true,
+				onKeyDown?: (keyname: string) => any,
+				onPaste?: (data: onPasteData) => any
 			) {
-				const text = await sendMessage<string>("env_input", {
-					pid,
-					message,
-					conceal,
-					keepInput
-				});
+				if (handlingInput == true) {
+					throw new Error("Maximum of one input request at a time.");
+				}
+				handlingInput = true;
 
+				program.inputRequest = {
+					onKeyDown,
+					onPaste
+				};
+
+				const text = await sendMessage<string, WorkerEnv_Input>(
+					"env_input",
+					{
+						pid,
+						message,
+						conceal,
+						keepInput,
+
+						onKeyDownFunctionPresent: Boolean(onKeyDown),
+						onPasteFunctionPresent: Boolean(onPaste)
+					}
+				);
+
+				handlingInput = false;
 				return text;
 			},
+
 			clearLogs() {
 				emit("env_clear_logs", { pid });
 			},
@@ -857,20 +906,40 @@ export async function workerFunction(this: undefined) {
 			async execute<T = unknown>(
 				path: string,
 				args?: string[],
-				config?: { handOverDisplay?: boolean }
+				config?: {
+					handOverDisplay?: boolean;
+					outputProxy: {
+						onLog(
+							type: "log" | "warning" | "error",
+							contents: Log
+						): any;
+
+						onInput(prompt: string): string | Promise<string>;
+					};
+				}
 			): Promise<{ onExit: Promise<{ return: T; logs: string[] }> }> {
-				const { pid: executedPID } = await sendMessage<{ pid: string }>(
+				const data: WorkerEnv_Exec = {
+					path,
+					args,
+					parentPid: pid,
+					handoverDisplayPid: config?.handOverDisplay
+						? pid
+						: undefined,
+					workingDirectory: this.workingDirectory,
+
+					outputProxy: config?.outputProxy !== undefined
+				};
+
+				const { pid: executedPID } = await sendMessage<{ pid: number }>(
 					"env_exec",
-					{
-						path,
-						args,
-						pid,
-						handoverDisplayPid: config?.handOverDisplay
-							? pid
-							: undefined,
-						workingDirectory: this.workingDirectory
-					}
+					data
 				);
+
+				if (config?.outputProxy) {
+					if (!program.outputHandlers) program.outputHandlers = {};
+
+					program.outputHandlers[executedPID] = config.outputProxy;
+				}
 
 				const obj: Partial<
 					(typeof activePrograms)[keyof typeof activePrograms]
@@ -901,11 +970,21 @@ export async function workerFunction(this: undefined) {
 			},
 
 			network: {
-				get: async (url: string, format: "text" | "json" = "text") => {
-					return await sendMessage("env_network_get", {
-						url,
-						format
-					});
+				request: async (
+					type: NetworkRequestType,
+					url: string,
+					format: "text" | "json" | "datauri" = "text",
+					body?: Object
+				) => {
+					return await sendMessage<any, WorkerEnv_Network_Get>(
+						"env_network_get",
+						{
+							type,
+							url,
+							format,
+							body
+						}
+					);
 				}
 			},
 
@@ -916,6 +995,12 @@ export async function workerFunction(this: undefined) {
 
 				async kernelVersion() {
 					return await sendMessage<number>("kernel_version");
+				},
+
+				async workerStats() {
+					return await sendMessage<
+						{ id: number; processes: number; activeTime: number }[]
+					>("worker_stats");
 				}
 			}
 		};
@@ -938,14 +1023,10 @@ export async function workerFunction(this: undefined) {
 		async ({
 			directory,
 			pid,
+
 			args,
 			workingDirectory
-		}: {
-			directory: string;
-			pid: number;
-			args?: string[];
-			workingDirectory: string;
-		}) => {
+		}: RuntimeExecuteProgram) => {
 			if (!directory) throw new Error("Directory is required!");
 			if (!pid) throw new Error("PID is required!");
 
@@ -964,7 +1045,9 @@ export async function workerFunction(this: undefined) {
 				pid,
 				directory,
 
-				locked: false
+				locked: false,
+
+				outputHandlers: {}
 			};
 			const env = newEnv(store, workingDirectory);
 
@@ -982,21 +1065,52 @@ export async function workerFunction(this: undefined) {
 		}
 	);
 
+	function programByPid(id: number) {
+		const index = programs.map((program) => program.pid).indexOf(id);
+
+		if (index == -1) {
+			throw new Error(
+				`Program by PID ${id} does not exist on this worker.`
+			);
+		}
+
+		return programs[index];
+	}
+
+	handle<RuntimeProgramLogEvent>("program_log", (event) => {
+		const targetProgram = programByPid(event.handler);
+
+		const logger = targetProgram.outputHandlers[event.origin].onLog;
+		if (logger) logger(event.type, event.data);
+	});
+
+	handle<RuntimeProgramInputEvent>("program_input", async (event) => {
+		const targetProgram = programByPid(event.handler);
+
+		const inputGetter = targetProgram.outputHandlers[event.origin].onInput;
+		return await inputGetter(event.message);
+	});
+
+	function terminateProgram(program: WorkerProgramStore, data: any) {
+		completedQueue.push({ pid: program.pid });
+		programs.splice(programs.indexOf(program), 1);
+		sendMessage("termination", { pid: program.pid, data });
+	}
+
 	const completedQueue: { pid: number }[] = [];
 
+	const computeCalculationWindow = 2000;
+	const computeSlices: { start: number; end: number }[] = [];
+
 	handle("execLoop", () => {
+		const start = performance.now();
+
 		for (const program of programs.slice()) {
 			if (program.locked) continue;
 
-			function done(data: any) {
-				completedQueue.push({ pid: program.pid });
-				programs.splice(programs.indexOf(program), 1);
-				sendMessage("termination", { pid: program.pid, data });
-			}
-
 			try {
 				if (!program.generator) {
-					done(undefined);
+					terminateProgram(program, undefined);
 					continue;
 				}
 
@@ -1010,10 +1124,10 @@ export async function workerFunction(this: undefined) {
 						program.passValue = val;
 						program.locked = false;
 
-						if (val.done) done(val.value);
+						if (val.done) terminateProgram(program, val.value);
 					});
 				} else if (result.done) {
-					done(result.value);
+					terminateProgram(program, result.value);
 				} else {
 					// result.value is a regular value, pass it next time
 					program.passValue = result.value;
@@ -1022,7 +1136,7 @@ export async function workerFunction(this: undefined) {
 				console.error(`Program ${program.pid} failed:`, err);
 
 				// kill it.
-				done(undefined);
+				terminateProgram(program, undefined);
 			}
 		}
 
@@ -1031,9 +1145,35 @@ export async function workerFunction(this: undefined) {
 			directory: item.directory
 		}));
 
+		const end = performance.now();
+
+		// Store this active compute period
+		computeSlices.push({ start, end });
+
+		// Remove anything completely outside the window
+		const cutoff = end - computeCalculationWindow;
+		while (computeSlices.length && computeSlices[0].end < cutoff) {
+			computeSlices.shift();
+		}
+
+		// Calculate total active time within the last 2 seconds
+		let activeTime = 0;
+
+		for (const slice of computeSlices) {
+			const overlapStart = Math.max(slice.start, cutoff);
+			const overlapEnd = slice.end;
+
+			if (overlapEnd > overlapStart) {
+				activeTime += overlapEnd - overlapStart;
+			}
+		}
+
+		const computePercentage = (activeTime / computeCalculationWindow) * 100;
+
 		const result = {
 			programs: programsData,
-			completePrograms: completedQueue.splice(0)
+			completePrograms: completedQueue.splice(0),
+			computePercentage
 		};
 
 		return result;
@@ -1050,142 +1190,37 @@ export async function workerFunction(this: undefined) {
 		}
 	);
 
+	// input stuff
+	handle("program_input_onpaste", (msg: RuntimeProgramInputOnPaste) => {
+		const program = programByPid(msg.pid);
+
+		if (program.inputRequest?.onPaste) {
+			program.inputRequest.onPaste(msg.data);
+		}
+	});
+	handle("program_input_onkeydown", (msg: RuntimeProgramInputOnKeyDown) => {
+		const program = programByPid(msg.pid);
+
+		if (program.inputRequest?.onKeyDown) {
+			program.inputRequest.onKeyDown(msg.keyname);
+		}
+	});
+
 	log("Initialisation Complete.");
-}
-
-export interface Process {
-	pid: number;
-	directory: string;
-	startTime: Date;
-	core: number;
-}
-
-export interface Environment {
-	/**
-	 * Log an line to the console
-	 * @param data Log text
-	 */
-	print(...data: string[]): void;
-	/**
-	 * Log an warning to the console
-	 * @param data Warning text
-	 */
-	warn(...data: string[]): void;
-	/**
-	 * Log an error to the console
-	 * @param data Error text
-	 */
-	error(...data: string[]): void;
-
-	/**
-	 * Request text input from the user. Requires input access.
-	 * @param message Text prompt
-	 * @returns User entry
-	 */
-	input: (
-		message: string,
-		conceal?: boolean,
-		keepInput?: boolean
-	) => Promise<string> | never;
-
-	/**
-	 * Clear the display terminal. Requires input access.
-	 */
-	clearLogs(): void;
-
-	/**
-	 * Access to the system's filesystem
-	 */
-	fs: WorkerFS;
-
-	/**
-	 * Path utilities
-	 */
-	path: {
-		resolve(...args: string[]): string;
-		join(...args: string[]): string;
-		relative(from: string, to: string): string;
-
-		normalize(path: string): string;
-		isAbsolute(path: string): boolean;
-		dirname(path: string): string;
-		basename(path: string, ext: string): string;
-		extname(path: string): string;
-
-		format(pathObject: {
-			root: string;
-			dir: string;
-			base: string;
-			ext: string;
-			name: string;
-		}): string;
-		parse(path: string): {
-			root: string;
-			dir: string;
-			base: string;
-			ext: string;
-			name: string;
-		};
-	};
-
-	workingDirectory: string;
-
-	/**
-	 * Execute a program from a directory.
-	 */
-	execute<T = any>(
-		path: string,
-		args?: string[],
-		config?: { handOverDisplay?: boolean }
-	): Promise<{
-		onExit: Promise<{ return: T; logs: string[] }>;
-	}>;
-
-	processes(): Promise<Process[]>;
-
-	parent(): Promise<Process | undefined>;
-
-	/**
-	 * Networking related utilities
-	 */
-	network: {
-		get(url: string, format?: "text"): Promise<string>;
-		get<T = Object>(url: string, format: "json"): Promise<T>;
-		get<T = Object>(
-			url: string,
-			format?: "text" | "json"
-		): Promise<string | T>;
-	};
-
-	systemStats: {
-		uptime(): Promise<number>;
-
-		kernelVersion(): Promise<number>;
-	};
-}
-
-interface WorkerFS {
-	ready: boolean;
-	waitForReady(): Promise<void>;
-
-	readFile(path: string): Promise<string | void>;
-	readFile(path: string, format: "text"): Promise<string | void>;
-	readFile<T extends Object = Object>(
-		path: string,
-		format: "json"
-	): Promise<T | void>;
-	readFile<T extends Object = Object>(
-		path: string,
-		format?: "text" | "json"
-	): Promise<string | T | void>;
-	writeFile(path: string, contents: string): Promise<any>;
-	unlink(path: string): Promise<void>;
-
-	mkdir(path: string): Promise<boolean>;
-	readdir(path: string): Promise<string[]>;
-	rmdir(path: string): Promise<void>;
-
-	rm(path: string): Promise<void>;
-
-	isDirectory(path: string): Promise<boolean>;
+} // Source - https://stackoverflow.com/a/77602420
+// Posted by timkay
+// Retrieved 2026-03-05, License - CC BY-SA 4.0
+// I added the name parameter.
+export function newWorker(fn: Function, name?: string, ...params: any[]) {
+	return new Worker(
+		URL.createObjectURL(
+			new Blob(
+				[
+					`(${fn.toString()})(${params.map((item) => JSON.stringify(item))})`
+				],
+				{ type: "application/javascript" }
+			)
+		),
+		{ name, type: "module" }
+	);
 }

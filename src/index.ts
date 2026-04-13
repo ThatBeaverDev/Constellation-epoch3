@@ -4,7 +4,7 @@ import Runtime from "./runtime";
 import Ui, { UiManager } from "./ui/ui";
 
 export default class Constellation {
-	ui: UiManager = new Ui();
+	ui: UiManager;
 	fs: FilesystemInterface;
 	runtime: Runtime;
 	#onInstallReady: (fs: FilesystemInterface) => Promise<void> | void;
@@ -16,7 +16,8 @@ export default class Constellation {
 		applyStringPrototypes();
 		this.#onInstallReady = onInstallReady;
 
-		this.fs = new Fs(this.ui.log.bind(this.ui, "fs"), this.panic);
+		this.fs = new Fs(this.panic);
+		this.ui = new Ui(this.fs);
 		this.runtime = new Runtime(
 			this,
 

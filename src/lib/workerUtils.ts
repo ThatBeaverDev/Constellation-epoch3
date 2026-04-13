@@ -1,3 +1,4 @@
+import { WorkerStore } from "../runtime";
 import { FilesystemInterface } from "./fs";
 
 type WorkerRequest = {
@@ -30,7 +31,7 @@ type Pending = {
 
 type RequestHandler = (data: any) => Promise<any> | any;
 
-export function mainThreadMessageHandler(worker: Worker) {
+export function mainThreadMessageHandler(worker: Worker, store: WorkerStore) {
 	let nextMessageID = 1;
 
 	const pendingMessages = new Map<number, Pending>();
@@ -38,6 +39,7 @@ export function mainThreadMessageHandler(worker: Worker) {
 
 	worker.onmessage = async (event: MessageEvent<WorkerMessage>) => {
 		const msg = event.data;
+		store.lastKeepAlive = Date.now();
 
 		// ---------- RESPONSE ----------
 		if (msg.kind === "response") {
@@ -172,5 +174,9 @@ export function implementWorkerFS(
 
 	handle("fs_isdir", async ({ path }: { path: string }) => {
 		return await fs.isDir(path);
+	});
+
+	handle("fs_exists", async ({ path }: { path: string }) => {
+		return await fs.exists(path);
 	});
 }

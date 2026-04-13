@@ -58,7 +58,17 @@ export interface FilesystemInterface {
 	 */
 	rm(path: string): Promise<void>;
 
+	/**
+	 * Determines whether a given path is a directory
+	 * @param path Path to check
+	 */
 	isDir(path: string): boolean;
+
+	/**
+	 * Determines whether the given path contains a file OR directory
+	 * @param path Path to check
+	 */
+	exists(path: string): boolean;
 }
 
 interface DomFsFile {
@@ -88,7 +98,6 @@ interface DomFsFile {
 }
 
 class DomFs implements FilesystemInterface {
-	#log: (message: string) => void;
 	#panic: Constellation["panic"];
 
 	#index: Record<string, DomFsFile> = {};
@@ -108,8 +117,7 @@ class DomFs implements FilesystemInterface {
 		});
 	}
 
-	constructor(log: (message: string) => void, panic: Constellation["panic"]) {
-		this.#log = log;
+	constructor(panic: Constellation["panic"]) {
 		this.#panic = panic;
 	}
 
@@ -118,10 +126,10 @@ class DomFs implements FilesystemInterface {
 	================================ */
 
 	async init() {
-		this.#log("Initialising DomFs...");
+		console.log("Initialising DomFs...");
 
 		if (deleteFS) {
-			this.#log("Erasing old DomFs...");
+			console.log("Erasing old DomFs...");
 			const dbs = await indexedDB.databases();
 			const promises = dbs.map((item) => {
 				return new Promise<void>((resolve, reject) => {
@@ -134,7 +142,7 @@ class DomFs implements FilesystemInterface {
 						reject();
 					};
 					DBDeleteRequest.onsuccess = (event) => {
-						this.#log("Database deleted successfully");
+						console.log("Database deleted successfully");
 						resolve();
 					};
 				});
@@ -168,7 +176,7 @@ class DomFs implements FilesystemInterface {
 		request.onsuccess = async () => {
 			this.#db = request.result;
 			await this.#loadIndex();
-			this.#log("DomFs ready.");
+			console.log("DomFs ready.");
 		};
 	}
 
@@ -467,6 +475,13 @@ class DomFs implements FilesystemInterface {
 		if (!dir || dir.type !== "directory") return false;
 
 		return true;
+	}
+
+	exists(path: string) {
+		path = this.#normalise(path);
+
+		const fileEntry = this.#index[path];
+		return fileEntry !== undefined;
 	}
 }
 

@@ -1,49 +1,63 @@
 import Constellation from "./index";
 import { FilesystemInterface } from "./lib/fs";
-import { Environment, Process, workerFunction } from "./lib/worker";
+import { newWorker, workerFunction } from "./lib/worker";
+import { NetworkRequestType, onPasteData, Process } from "./types/worker";
 import { implementWorkerFS, mainThreadMessageHandler } from "./lib/workerUtils";
+import {
+	WorkerEnv_Exec,
+	WorkerEnv_Input,
+	WorkerEnv_Network_Get
+} from "./types/workerMessages";
+import {
+	RuntimeExecuteProgram,
+	RuntimeProgramInputEvent,
+	RuntimeProgramInputOnKeyDown,
+	RuntimeProgramInputOnPaste
+} from "./types/runtimeMessages";
+import { Log } from "./ui/ui";
+import { RuntimeProgramLogEvent } from "./types/runtimeMessages";
 
-export interface Session {
+export interface ProgramStore {
 	worker: WorkerStore;
 
-	parent?: Session;
-	children: Session[];
+	parent?: ProgramStore;
+	children: ProgramStore[];
 
-	id: number;
+	pid: number;
 	directory: string;
 	startTime: Date;
 
 	onExit: (data?: any) => void;
 
-	logs: { type: "log" | "warning" | "error"; text: string }[];
+	logs: { type: "log" | "warning" | "error"; data: Log }[];
+	outputProxy?: ProgramStore;
+
+	onLog(type: "log" | "warning" | "error", data: Log): void;
+	onInput(
+		message: string,
+		conceal?: boolean,
+		keepInput?: boolean,
+		functions?: {
+			onPaste: (data: onPasteData) => void;
+			onKeyDown: (keyname: string) => void;
+		}
+	): Promise<string>;
 }
 
-interface WorkerStore {
+export interface WorkerStore {
 	worker: Worker;
 	totalPrograms: number;
+
+	computePercentage: number;
+	lastKeepAlive: number;
 
 	id: number;
 	name: string;
 	lock: boolean;
 
-	sendMessage<T = any>(intent: string, data?: any): Promise<T>;
-	emit(event: string, data?: any): void;
+	sendMessage<T = any, K = any>(intent: string, data?: K): Promise<T>;
+	emit<T = any>(event: string, data?: T): void;
 	exit(): void;
-}
-
-// Source - https://stackoverflow.com/a/26603875
-// Posted by Stefan Steiger, modified by community. See post 'Timeline' for change history
-// Retrieved 2026-03-05, License - CC BY-SA 4.0
-
-export function toBase64(txt: string) {
-	// TextEncoder: Always UTF8
-	const uint8Array = new TextEncoder().encode(txt);
-	let binary = "";
-
-	for (let i = 0; i < uint8Array.length; ++i)
-		binary += String.fromCharCode(uint8Array[i]);
-
-	return btoa(binary);
 }
 
 export default class Runtime {
@@ -51,9 +65,9 @@ export default class Runtime {
 	#warn: (message: string) => void;
 	#error: (message: string) => void;
 
-	#workerLog: (origin: string, message: string) => void;
-	#workerWarn: (origin: string, message: string) => void;
-	#workerError: (origin: string, message: string) => void;
+	#workerLog: (origin: string, message: Log) => void;
+	#workerWarn: (origin: string, message: Log) => void;
+	#workerError: (origin: string, message: Log) => void;
 
 	#panic: (message: Error) => void;
 	#kernel: Constellation;
@@ -65,9 +79,9 @@ export default class Runtime {
 	constructor(
 		kernel: Constellation,
 
-		log: (origin: string, message: string) => void,
-		warn: (origin: string, message: string) => void,
-		error: (origin: string, message: string) => void,
+		log: (origin: string, message: Log) => void,
+		warn: (origin: string, message: Log) => void,
+		error: (origin: string, message: Log) => void,
 
 		panic: (message: Error) => void,
 		fs: FilesystemInterface
@@ -99,13 +113,12 @@ export default class Runtime {
 		this.#log("Program runtime initialised.");
 	}
 
-	#sessions: Session[];
-	#initSession!: Session;
-	#sessionByID(id: number) {
-		const index = this.#sessions.map((program) => program.id).indexOf(id);
+	#sessions: ProgramStore[];
+	#initSession!: ProgramStore;
+	#programByPid(id: number) {
+		const index = this.#sessions.map((program) => program.pid).indexOf(id);
 
 		if (index == -1) {
-			console.trace("here!");
 			throw new Error(`Session by ID '${id}' does not exist.`);
 		}
 
@@ -125,8 +138,40 @@ export default class Runtime {
 			const workerName = `runtimeWorker#${workerID}`;
 
 			const worker = newWorker(workerFunction, workerName);
-			const { sendMessage, handle, emit } =
-				mainThreadMessageHandler(worker);
+
+			const workerStore: WorkerStore = {
+				worker,
+				totalPrograms: 0,
+
+				computePercentage: 0,
+				lastKeepAlive: Date.now(),
+
+				id: workerID,
+				name: workerName,
+				lock: false,
+
+				// @ts-expect-error
+				sendMessage() {},
+				emit() {},
+
+				exit: () => {
+					this.#log(`Terminating worker #${workerStore.id}`);
+
+					workerStore.worker.terminate();
+
+					this.#workers = this.#workers.filter(
+						(item) => item !== workerStore
+					);
+				}
+			};
+
+			const { sendMessage, handle, emit } = mainThreadMessageHandler(
+				worker,
+				workerStore
+			);
+
+			workerStore.sendMessage = sendMessage;
+			workerStore.emit = emit;
 
 			implementWorkerFS(handle, this.#fs);
 
@@ -143,46 +188,25 @@ export default class Runtime {
 			handle(
 				"program_log",
 				({ data, pid }: { data: string; pid: number }) => {
-					const program = this.#sessionByID(pid);
+					const program = this.#programByPid(pid);
 
-					program.logs.push({ type: "log", text: data });
-
-					const hasDisplay = this.#kernel.ui.controller == program;
-					if (hasDisplay) {
-						this.#workerLog(workerName, data);
-					} else {
-						this.#log(`${workerName} ${data}`);
-					}
+					program.onLog("log", data);
 				}
 			);
 			handle(
 				"program_warn",
 				({ data, pid }: { data: string; pid: number }) => {
-					const program = this.#sessionByID(pid);
+					const program = this.#programByPid(pid);
 
-					program.logs.push({ type: "warning", text: data });
-
-					const hasDisplay = this.#kernel.ui.controller == program;
-					if (hasDisplay) {
-						this.#workerWarn(workerName, data);
-					} else {
-						this.#log(`${workerName} ${data}`);
-					}
+					program.onLog("warning", data);
 				}
 			);
 			handle(
 				"program_error",
 				({ data, pid }: { data: string; pid: number }) => {
-					const program = this.#sessionByID(pid);
+					const program = this.#programByPid(pid);
 
-					program.logs.push({ type: "error", text: data });
-
-					const hasDisplay = this.#kernel.ui.controller == program;
-					if (hasDisplay) {
-						this.#workerError(workerName, data);
-					} else {
-						this.#log(`${workerName} ${data}`);
-					}
+					program.onLog("error", data);
 				}
 			);
 
@@ -193,15 +217,10 @@ export default class Runtime {
 					args,
 					handoverDisplayPid: executingProgramPid,
 					workingDirectory,
-					pid
-				}: {
-					path: string;
-					args?: string[];
-					handoverDisplayPid?: number;
-					workingDirectory: string;
-					pid: number;
-				}) => {
-					const parent = this.#sessionByID(pid);
+					parentPid,
+					outputProxy
+				}: WorkerEnv_Exec) => {
+					const parent = this.#programByPid(parentPid);
 
 					const program = await this.executeProgram(
 						path,
@@ -209,17 +228,18 @@ export default class Runtime {
 						args,
 						{
 							displayHandover: { oldOwner: executingProgramPid },
-							workingDirectory
+							workingDirectory,
+							outputProxy: outputProxy ? parentPid : undefined
 						}
 					);
 
-					return { pid: program.id };
+					return { pid: program.pid };
 				}
 			);
 
-			function sessionToProgram(session: Session): Process {
+			function sessionToProgram(session: ProgramStore): Process {
 				return {
-					pid: session.id,
+					pid: session.pid,
 					directory: session.directory,
 
 					startTime: session.startTime,
@@ -240,7 +260,7 @@ export default class Runtime {
 			});
 
 			handle("env_parent_process", async ({ pid }: { pid: number }) => {
-				const program = this.#sessionByID(pid);
+				const program = this.#programByPid(pid);
 
 				const parent = program.parent;
 				if (!parent) return undefined;
@@ -250,14 +270,57 @@ export default class Runtime {
 
 			handle(
 				"env_network_get",
-				async ({
-					url,
-					format
-				}: {
-					url: string;
-					format: "text" | "json";
-				}) => {
-					return await (await fetch(url))[format]();
+				async ({ type, url, format, body }: WorkerEnv_Network_Get) => {
+					const processedType = `${type}`.toLowerCase();
+					let method = "GET";
+
+					switch (processedType) {
+						case "get":
+							method = "GET";
+							break;
+						case "post":
+							method = "POST";
+							break;
+						default:
+							throw new Error(
+								`Unknown request type: '` +
+									processedType +
+									`' (given '${type}')`
+							);
+					}
+
+					const bodyString =
+						method == "GET"
+							? undefined
+							: typeof body == "object"
+								? JSON.stringify(body)
+								: String(body);
+
+					const request = await fetch(url, {
+						method,
+						body: bodyString
+					});
+
+					switch (format) {
+						case "text":
+							return request.text();
+						case "json":
+							return request.json();
+
+						case "datauri":
+							const blob = await request.blob();
+
+							return new Promise((resolve) => {
+								const reader = new FileReader();
+								reader.onload = () => resolve(reader.result);
+								reader.readAsDataURL(blob);
+							});
+
+						default:
+							throw new Error(
+								`Unkown request format: '${format}'`
+							);
+					}
 				}
 			);
 
@@ -274,34 +337,39 @@ export default class Runtime {
 					pid,
 					message = "Messsage not provided.",
 					conceal = false,
-					keepInput = false
-				}: {
-					pid: number;
-					message: string;
-					conceal: boolean;
-					keepInput: boolean;
-				}) => {
-					const program = this.#sessionByID(pid);
-					if (this.#kernel.ui.controller !== program) {
-						throw new Error(
-							"Program requires display access to request input."
-						);
-					}
+					keepInput = true,
+					onPasteFunctionPresent = false,
+					onKeyDownFunctionPresent = false
+				}: WorkerEnv_Input) => {
+					const program = this.#programByPid(pid);
 
-					const { response, displayText } =
-						await this.#kernel.ui.input(
-							message,
-							conceal,
-							keepInput
-						);
-					program.logs.push({ type: "log", text: displayText });
+					return await program.onInput(message, conceal, keepInput, {
+						onPaste: (data: onPasteData) => {
+							if (!onPasteFunctionPresent) return;
 
-					return response;
+							workerStore.emit<RuntimeProgramInputOnPaste>(
+								"program_input_onpaste",
+								{
+									pid,
+									data
+								}
+							);
+						},
+
+						onKeyDown: (keyname) => {
+							if (!onKeyDownFunctionPresent) return;
+
+							workerStore.emit<RuntimeProgramInputOnKeyDown>(
+								"program_input_onkeydown",
+								{ pid, keyname }
+							);
+						}
+					});
 				}
 			);
 
 			handle("env_clear_logs", ({ pid }: { pid: number }) => {
-				const program = this.#sessionByID(pid);
+				const program = this.#programByPid(pid);
 
 				program.logs = [];
 
@@ -315,27 +383,32 @@ export default class Runtime {
 			});
 			handle("kernel_version", () => 1);
 
-			const workerStore: WorkerStore = {
-				worker,
-				totalPrograms: 0,
+			handle("worker_stats", () => {
+				const workers = this.#workers;
 
-				id: workerID,
-				name: workerName,
-				lock: false,
+				const result: {
+					id: number;
+					processes: number;
+					activeTime: number;
+				}[] = [];
 
-				sendMessage,
-				emit,
+				for (const worker of workers) {
+					result.push({
+						id: worker.id,
 
-				exit: () => {
-					this.#log(`Terminating worker #${workerStore.id}`);
+						processes: worker.totalPrograms,
 
-					workerStore.worker.terminate();
-
-					this.#workers = this.#workers.filter(
-						(item) => item !== workerStore
-					);
+						activeTime: worker.computePercentage / 100
+					});
 				}
-			};
+
+				return result;
+			});
+
+			handle("keepAlive", () => {
+				workerStore.lastKeepAlive = Date.now();
+			});
+
 			this.#workers.push(workerStore);
 
 			this.#log(`New worker created. (#${workerID})`);
@@ -363,14 +436,25 @@ export default class Runtime {
 		}
 	}
 
-	#controllerStack: Session[] = [];
-	#handoverDisplay(oldOwner: Session, newOwner: Session) {
-		const oldPID = oldOwner.id;
+	#controllerStack: ProgramStore[] = [];
+	#handoverDisplay(oldOwner: ProgramStore, newOwner: ProgramStore) {
+		const oldPID = oldOwner.pid;
 
 		if (this.#kernel.ui.controller !== oldOwner) {
-			throw new Error(
-				`Program by PID ${oldPID} attempted to handover display it does not own.`
-			);
+			// it's possible that this is a proxy handover
+			if (oldOwner.outputProxy) {
+				// yep
+				newOwner.onLog = oldOwner.onLog;
+				newOwner.onInput = oldOwner.onInput;
+				newOwner.outputProxy = oldOwner.outputProxy;
+
+				this.#switchLogs(newOwner);
+			} else {
+				// nope, welp.
+				throw new Error(
+					`Program by PID ${oldPID} attempted to handover display it does not own. (no proxy present)`
+				);
+			}
 		}
 
 		// push old owner to stack
@@ -381,7 +465,7 @@ export default class Runtime {
 		this.#switchLogs(newOwner);
 	}
 
-	#switchLogs(program: Session) {
+	#switchLogs(program: ProgramStore) {
 		this.#kernel.ui.clear();
 
 		const workerName = program.worker.name;
@@ -389,15 +473,15 @@ export default class Runtime {
 		for (const log of program.logs) {
 			switch (log.type) {
 				case "log":
-					this.#workerLog(workerName, log.text);
+					this.#workerLog(workerName, log.data);
 					break;
 
 				case "warning":
-					this.#workerWarn(workerName, log.text);
+					this.#workerWarn(workerName, log.data);
 					break;
 
 				case "error":
-					this.#workerError(workerName, log.text);
+					this.#workerError(workerName, log.data);
 					break;
 
 				default:
@@ -411,39 +495,63 @@ export default class Runtime {
 
 		this.#updateWorkers();
 
+		const now = Date.now();
+
 		for (const worker of this.#workers) {
+			if (worker.lastKeepAlive + 1000 < now) {
+				// uh
+				console.warn(
+					`${worker.name} is unresponsive. Panicking if no response within 5 further seconds.`
+				);
+
+				if (worker.lastKeepAlive + 6000 < now) {
+					this.#panic(
+						new Error(
+							`Worker ${worker.id} became unresponsive. Program states are not recoverable.`
+						)
+					);
+				}
+			}
+
 			if (worker.lock) continue;
 			worker.lock = true;
 
-			const { programs, completePrograms } = await worker.sendMessage<{
+			type execLoopResponse = {
 				programs: {
 					pid: number;
 					directory: string;
 				}[];
 				completePrograms: { pid: number }[];
-			}>("execLoop");
+				computePercentage: number;
+			};
 
-			worker.totalPrograms -= completePrograms.length;
+			worker
+				.sendMessage<execLoopResponse>("execLoop")
+				.then(({ programs, completePrograms, computePercentage }) => {
+					worker.totalPrograms -= completePrograms.length;
+					worker.computePercentage = computePercentage;
 
-			if (worker.totalPrograms !== programs.length) {
-				this.#panic(
-					new Error(
-						`Internal knowledge of total programs does not match that of worker#${worker.id}'s report (worker#${worker.id} stated ${programs.length}, runtime expected ${worker.totalPrograms})`
-					)
-				);
-			}
+					if (worker.totalPrograms !== programs.length) {
+						this.#panic(
+							new Error(
+								`Internal knowledge of total programs does not match that of worker#${worker.id}'s report (worker#${worker.id} stated ${programs.length}, runtime expected ${worker.totalPrograms})`
+							)
+						);
+					}
 
-			worker.lock = false;
+					worker.lock = false;
+				});
 		}
 	}
 
 	async executeProgram(
 		directory: string,
-		parent?: Session,
+		parent?: ProgramStore,
 		args?: string[],
 		config?: {
 			displayHandover?: { oldOwner?: number };
 			workingDirectory: string;
+			outputProxy?: number;
 		}
 	) {
 		if (this.#workers.length == 0) {
@@ -463,48 +571,146 @@ export default class Runtime {
 
 		const worker = freestWorker;
 		const pid = this.#nextPID++;
+		const workerName = worker.name;
 
-		const program: Session = {
+		const program: ProgramStore = {
 			worker: worker,
 
 			parent,
 			children: [],
 
 			directory,
-			id: pid,
+			pid,
 			startTime: new Date(),
 
 			onExit: (data?: any) => {
 				this.#workers.forEach((store) => {
 					store.emit("program_exit", {
-						pid: program.id,
+						pid: program.pid,
 						data,
-						logs: program.logs.map((item) => item.text)
+						logs: program.logs.map((item) => item.data)
 					});
 				});
 			},
 
-			logs: []
+			onLog: (type, data) => {
+				program.logs.push({ type, data: data });
+
+				if (program.outputProxy) {
+					// do the thing
+					const target = program.outputProxy;
+					const workerStore = target.worker;
+
+					workerStore.emit<RuntimeProgramLogEvent>("program_log", {
+						type,
+						data,
+						handler: target.pid,
+						origin: program.pid
+					});
+				}
+
+				const hasDisplay = this.#kernel.ui.controller == program;
+				if (hasDisplay) {
+					switch (type) {
+						case "log":
+							this.#workerLog(workerName, data);
+							break;
+
+						case "warning":
+							this.#workerWarn(workerName, data);
+							break;
+
+						case "error":
+							this.#workerError(workerName, data);
+							break;
+					}
+				} else {
+					switch (type) {
+						case "log":
+							this.#log(`${workerName} ${data}`);
+							break;
+
+						case "warning":
+							this.#warn(`${workerName} ${data}`);
+							break;
+
+						case "error":
+							this.#error(`${workerName} ${data}`);
+							break;
+					}
+				}
+			},
+			onInput: async (
+				message: string,
+				conceal?: boolean,
+				keepInput?: boolean,
+				functions?: {
+					onPaste: (data: onPasteData) => void;
+					onKeyDown: (keyName: string) => void;
+				}
+			) => {
+				if (program.outputProxy) {
+					// do the thing
+					const target = program.outputProxy;
+					const workerStore = target.worker;
+
+					const response = await workerStore.sendMessage<
+						string,
+						RuntimeProgramInputEvent
+					>("program_input", {
+						message,
+						handler: target.pid,
+						origin: program.pid
+					});
+
+					return response;
+				}
+
+				if (this.#kernel.ui.controller !== program) {
+					// sorrey.
+					return new Promise<string>((resolve) => {});
+				}
+
+				const { response, displayText } = await this.#kernel.ui.input(
+					message,
+					conceal,
+					keepInput,
+					functions?.onKeyDown,
+					functions?.onPaste
+				);
+				program.logs.push({ type: "log", data: displayText });
+
+				return response;
+			},
+
+			logs: [],
+			outputProxy: config?.outputProxy
+				? this.#programByPid(config.outputProxy)
+				: undefined
 		};
 
-		let oldDisplayOwner: Session | undefined;
+		let oldDisplayOwner: ProgramStore | undefined;
 
 		if (this.#kernel.ui.controller == undefined) {
 			this.#kernel.ui.controller = program;
 		} else if (config?.displayHandover?.oldOwner) {
-			oldDisplayOwner = this.#sessionByID(
+			oldDisplayOwner = this.#programByPid(
 				config?.displayHandover?.oldOwner
 			);
 
 			this.#handoverDisplay(oldDisplayOwner, program);
 		}
 
-		const ok = await worker.sendMessage("executeProgram", {
-			directory,
-			pid,
-			args,
-			workingDirectory: config?.workingDirectory ?? "/"
-		});
+		const ok = await worker.sendMessage<boolean, RuntimeExecuteProgram>(
+			"executeProgram",
+			{
+				directory,
+				pid,
+
+				args,
+				workingDirectory: config?.workingDirectory ?? "/"
+			}
+		);
 		if (!ok) {
 			// not great, let's exit properly.
 
@@ -528,7 +734,7 @@ export default class Runtime {
 	}
 
 	#registerTermination(pid: number, data?: any) {
-		const id = this.#sessions.map((item) => item.id).indexOf(pid);
+		const id = this.#sessions.map((item) => item.pid).indexOf(pid);
 		if (id == -1) return;
 
 		const program = this.#sessions[id];
@@ -586,22 +792,4 @@ export default class Runtime {
 	exit() {
 		this.#workers.forEach((store) => store.exit());
 	}
-}
-
-// Source - https://stackoverflow.com/a/77602420
-// Posted by timkay
-// Retrieved 2026-03-05, License - CC BY-SA 4.0
-// I added the name parameter.
-function newWorker(fn: Function, name?: string, ...params: any[]) {
-	return new Worker(
-		URL.createObjectURL(
-			new Blob(
-				[
-					`(${fn.toString()})(${params.map((item) => JSON.stringify(item))})`
-				],
-				{ type: "application/javascript" }
-			)
-		),
-		{ name, type: "module" }
-	);
 }
