@@ -1,22 +1,186 @@
 //import { env } from "../lib/utils";
 
-import { Session } from "../runtime";
+import { FilesystemInterface } from "../lib/fs";
+import { ProgramStore } from "../runtime";
+import { onPasteData } from "../types/worker";
+
+const lineHeight = 15;
+function linesToPx(lines: number) {
+	return lineHeight * lines;
+}
 
 export interface UiManager {
-	log(source: string, message: string): void;
-	warn(source: string, message: string): void;
-	error(source: string, message: string, console?: boolean): void;
+	log(source: string, message: Log): void;
+	warn(source: string, message: Log): void;
+	error(source: string, message: Log, console?: boolean): void;
 
 	clear(): void;
 	input(
 		message?: string,
 		hideTyping?: boolean,
-		keepInput?: boolean
+		keepInput?: boolean,
+		onKeyDown?: (keyName: string) => void,
+		onPaste?: (data: onPasteData) => void
 	): Promise<{ response: string; displayText: string }>;
 
-	controller?: Session;
+	controller?: ProgramStore;
 
 	exit(): Promise<void> | void;
+}
+
+type HexColour = string;
+type LogSegment =
+	| {
+			type?: "string";
+			text: string;
+			colour?: HexColour;
+	  }
+	| {
+			type: "image";
+			url: string;
+
+			/**
+			 * width in lines
+			 */
+			width: number;
+
+			/**
+			 * height in lines
+			 */
+			height?: number;
+	  }
+	| {
+			type: "image";
+			dir: string;
+
+			/**
+			 * width in lines
+			 */
+			width: number;
+
+			/**
+			 * height in lines
+			 */
+			height?: number;
+	  };
+
+export type ArrayLog = LogSegment[];
+export type Log = string | ArrayLog;
+
+type NormalizedLog = LogSegment[];
+
+function normalizeLog(log: Log): NormalizedLog {
+	if (typeof log === "string") {
+		return [{ text: log }];
+	}
+
+	return log;
+}
+
+function escapeHtml(text: string) {
+	return String(text)
+		.replaceAll("&", "&amp;")
+		.replaceAll("<", "&lt;")
+		.replaceAll(">", "&gt;")
+		.replaceAll('"', "&quot;")
+		.replaceAll("'", "&#39;")
+		.replaceAll("\n", "<br>");
+}
+
+function renderConsole(log: NormalizedLog) {
+	let text = "";
+	const styles: string[] = [];
+
+	for (const part of log) {
+		switch (part.type) {
+			case undefined:
+			case "string":
+				text += `%c${part.text}`;
+				styles.push(part.colour ? `color: ${part.colour};` : "");
+				break;
+
+			case "image":
+				text += `%c[Image from Location ${"url" in part ? part.url : part.dir}.]`;
+				styles.push("color: #ffff00");
+
+				break;
+
+			default:
+				// @ts-expect-error // trust
+				text += `%cError parsing log request, unknown segment type ${part.type}`;
+				styles.push("color: #ff0000;");
+		}
+	}
+
+	return { text, styles };
+}
+
+const urlRegex = /https?:\/\/[^\s"'\\]+[^\s"']+/g;
+async function renderHtml(
+	log: NormalizedLog,
+	readFile: FilesystemInterface["readFile"]
+) {
+	const partPromises = log.map(async (part) => {
+		switch (part.type) {
+			case undefined:
+			case "string": {
+				const escaped = escapeHtml(part.text);
+
+				const URLs = escaped.match(urlRegex);
+
+				const segments = [];
+				let text = escaped;
+
+				for (const url of URLs ?? []) {
+					const beforeURL = text.textBefore(url);
+					segments.push(
+						beforeURL,
+						`<a target="_blank" rel="noopener noreferrer" href="${url}">${url}</a>`
+					);
+
+					text = text.textAfter(url);
+				}
+				segments.push(text);
+
+				const result = segments.join("");
+
+				return `<span style="color: ${part.colour ?? "inherit"};">${result}</span>`;
+			}
+
+			case "image":
+				let src = "";
+				if ("url" in part) src = part.url;
+				else src = (await readFile(part.dir)) ?? "";
+
+				if (
+					typeof part.height !== "number" &&
+					part.height !== undefined &&
+					part.height !== "auto"
+				) {
+					return `<span style="color: #ff0000;">Image height must be number or "auto", was given ${escapeHtml(part.height)}</span>`;
+				}
+
+				return `<img src="${src}" style="width: ${linesToPx(Number(part.width))}px; height: ${part.height ? `${linesToPx(part.height)}px` : "auto"}" />`;
+
+			default:
+				// @ts-expect-error // trust
+				return `<span style="color: #ff0000;">Error parsing log request, unknown segment type ${escapeHtml(part.type)}</span>`;
+		}
+	});
+
+	const parts = await Promise.all(partPromises);
+
+	return parts.join("");
+}
+
+function withOrigin(
+	origin: string,
+	log: NormalizedLog,
+	includeOrigin: boolean
+): NormalizedLog {
+	if (!includeOrigin) return log;
+
+	return [{ text: `[${origin}] `, colour: "#888888" }, ...log];
 }
 
 class DomManager implements UiManager {
@@ -24,97 +188,105 @@ class DomManager implements UiManager {
 	#logbox: HTMLDivElement;
 
 	mode: "tui" | "gui" = "tui";
+	controller?: ProgramStore;
+	lines: {
+		element: HTMLElement;
+	}[] = [];
+	#fs: FilesystemInterface;
 
-	controller?: Session;
-
-	constructor() {
+	constructor(fs: FilesystemInterface) {
+		this.#fs = fs;
 		this.#container = document.createElement("div");
 		this.#container.classList.add("DomUI");
 
 		this.#container.innerHTML = `<style>
 html {
 	position: absolute;
-
-	top: 0px;
-	left: 0px;
-
+	top: 0;
+	left: 0;
 	width: 100vw;
 	min-height: 100vh;
 }
 
+body {
+	margin: 0;
+	padding: 0;
+}
+
 div.DomUI {
-    position: absolute;
-
-    top: 0px;
-    left: 0px;
-
-    width: 100vw;
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100vw;
 	min-height: 100vh;
-
-    background-color: black;
+	background-color: black;
 }
 
 div.LogBox {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-
-	overflow-y: scroll;
-
-    top: 0px;
-    left: 0px;
-
-    width: 100vw;
-
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	overflow-y: auto;
+	width: 100vw;
 	white-space: break-spaces;
 }
 
 div.LogBox > p {
-    width: 100%;
+	width: 100%;
+	line-height: ${lineHeight}px;
 
-    margin: 0px;
-    padding: 0px;
-
-    color: white;
-    font-family: monospace;
+	margin: 0;
+	padding: 0;
+	color: white;
+	font-family: monospace;
 }
 
 div.LogBox > p.warning {
-    color: yellow;
+	color: yellow;
 }
 
 div.LogBox > p.error {
-    color: red;
+	color: red;
+}
+
+div.LogBox > p > img {
+	overflow: hidden;
+	filter: saturate(0.68) contrast(1.2);
+	image-rendering: pixelated;
+}
+
+div.LogBox > p > span > a {
+	color: inherit;
+	text-decoration: none;
+}
+
+div.LogBox > p > span > a:hover {
+	text-decoration: underline;
 }
 
 div.LogBox > div.input {
 	width: 100%;
 	height: 15px;
-
 	display: flex;
 	flex-direction: row;
 	order: 999999;
-
-    margin: 0px;
-    padding: 0px;
-
-    color: white;
-    font-family: monospace;	
+	margin: 0;
+	padding: 0;
+	color: white;
+	font-family: monospace;
 }
 
 div.LogBox > div.input > p {
-	margin: 0px;
+	margin: 0;
 }
 
 div.LogBox > div.input > input.reqInput {
-	width: max-content;
+	flex: 1;
 	background: transparent;
-
 	border: none !important;
 	outline: none !important;
-	padding: none !important;
-	margin: none !important;
-
+	padding: 0 !important;
+	margin: 0 !important;
 	color: white;
 	font-family: monospace;
 }
@@ -128,77 +300,161 @@ div.LogBox > div.input > input.reqInput {
 		document.body.appendChild(this.#container);
 	}
 
-	#formatLog(origin: string, message: string) {
-		if (this.controller) return message;
-
-		return `[${origin}] ${message}`;
+	#includeOrigin() {
+		return !this.controller;
 	}
 
-	#newLog(element: HTMLParagraphElement) {
+	#newLog(element: HTMLElement) {
+		this.lines.push({ element });
+
 		const html = document.scrollingElement as HTMLElement;
 		const isScrolledToBottom =
-			html.scrollTop === html.scrollHeight - html.offsetHeight;
+			html.scrollTop >= html.scrollHeight - html.offsetHeight - 5;
 
 		this.#logbox.appendChild(element);
 
 		if (isScrolledToBottom) {
-			// if that Y value is ever too little, it's not my problem.
-			html.scroll(0, 100000000000);
+			html.scrollTo(0, html.scrollHeight);
 		}
 	}
 
-	#post(message: string) {
-		console.log(message);
+	/**
+	 * The queue of logs, waiting to be displayed.
+	 */
+	#logQueue: Promise<void>[] = [];
 
-		const text = document.createElement("p");
-		text.innerText = message;
+	#postPlain(message: string, className?: string) {
+		const lastPromise = this.#logQueue.at(-1);
 
-		this.#newLog(text);
+		const promise = new Promise<void>(async (resolve) => {
+			await lastPromise;
+
+			const text = document.createElement("p");
+			if (className) text.classList.add(className);
+
+			text.innerText = message;
+			this.#newLog(text);
+
+			resolve();
+
+			// remove it from the list
+			this.#logQueue = this.#logQueue.filter((item) => item !== promise);
+		});
+
+		this.#logQueue.push(promise);
 	}
-	log(origin: string, message: string) {
-		const data = this.#formatLog(origin, message);
-		console.log(data);
 
-		const text = document.createElement("p");
-		text.innerText = data;
+	#postRich(log: NormalizedLog) {
+		const lastPromise = this.#logQueue.at(-1);
 
-		this.#newLog(text);
+		const promise = new Promise<void>(async (resolve) => {
+			await lastPromise;
+
+			const p = document.createElement("p");
+			p.innerHTML = await renderHtml(
+				log,
+				this.#fs.readFile.bind(this.#fs)
+			);
+			this.#newLog(p);
+
+			resolve();
+
+			// remove it from the list
+			this.#logQueue = this.#logQueue.filter((item) => item !== promise);
+		});
+
+		this.#logQueue.push(promise);
 	}
+
+	log(origin: string, message: Log) {
+		const normalized = withOrigin(
+			origin,
+			normalizeLog(message),
+			this.#includeOrigin()
+		);
+
+		const consoleData = renderConsole(normalized);
+		console.log(consoleData.text, ...consoleData.styles);
+
+		this.#postRich(normalized);
+	}
+
 	warn(origin: string, message: string) {
-		const data = this.#formatLog(origin, message);
+		const data = this.#includeOrigin() ? `[${origin}] ${message}` : message;
 		console.warn(data);
-
-		const text = document.createElement("p");
-		text.classList.add("warning");
-		text.innerText = data;
-
-		this.#newLog(text);
+		this.#postPlain(data, "warning");
 	}
+
 	error(origin: string, message: string, consoleLog: boolean = true) {
-		const data = this.#formatLog(origin, message);
+		const data = this.#includeOrigin() ? `[${origin}] ${message}` : message;
 		if (consoleLog) console.error(data);
-
-		const text = document.createElement("p");
-		text.classList.add("error");
-		text.innerText = data;
-
-		this.#newLog(text);
+		this.#postPlain(data, "error");
 	}
 
 	input(
 		prompt: string,
 		hideTyping: boolean = false,
-		showLogAfter: boolean = true
+		showLogAfter: boolean = true,
+		onKeyDown?: (keyname: string) => void,
+		onPaste?: (result: {
+			type: "image" | "text" | "file";
+			data: string;
+		}) => void
 	) {
 		return new Promise<{ response: string; displayText: string }>(
 			(resolve) => {
 				const text = document.createElement("p");
-				text.classList.add("log");
 				text.innerText = prompt;
 
 				const input = document.createElement("input");
 				input.classList.add("reqInput");
 				input.type = hideTyping ? "password" : "text";
+
+				input.addEventListener("keydown", (event) => {
+					if (onKeyDown) onKeyDown(event.code);
+				});
+
+				input.addEventListener("paste", (event) => {
+					const clipboardData = event.clipboardData;
+					if (!clipboardData || !onPaste) return;
+
+					// nah
+					//event.preventDefault();
+
+					for (let i = 0; i < clipboardData.items.length; i++) {
+						const item = clipboardData.items[i];
+						const { type } = item;
+
+						if (type === "text/plain") {
+							item.getAsString((text) => {
+								onPaste({ type: "text", data: text });
+							});
+							return;
+						} else {
+							const isSvg = type == "application/svg+xml";
+							const isImage = isSvg || type.startsWith("image/");
+
+							const file = item.getAsFile();
+							if (!file) continue;
+
+							const reader = new FileReader();
+							reader.onload = (e) => {
+								const result =
+									typeof e.target?.result === "string"
+										? e.target.result
+										: "";
+
+								onPaste({
+									type: isImage ? "image" : "file",
+									data: result
+								});
+							};
+
+							reader.readAsDataURL(file);
+							return;
+						}
+					}
+				});
 
 				const div = document.createElement("div");
 				div.classList.add("input");
@@ -208,12 +464,12 @@ div.LogBox > div.input > input.reqInput {
 				let interval = 0;
 
 				input.addEventListener("keydown", (e) => {
-					if (e.key == "Enter") {
+					if (e.key === "Enter") {
 						const response = input.value;
-
 						div.remove();
+
 						const displayText = `${prompt}${response}`;
-						if (showLogAfter) this.#post(displayText);
+						if (showLogAfter) this.#postPlain(displayText);
 
 						clearInterval(interval);
 						resolve({ response, displayText });
@@ -227,6 +483,8 @@ div.LogBox > div.input > input.reqInput {
 	}
 
 	clear() {
+		this.lines.forEach((line) => line.element.remove());
+		this.lines = [];
 		this.#logbox.innerHTML = "";
 	}
 
@@ -235,6 +493,6 @@ div.LogBox > div.input > input.reqInput {
 
 //class CLIManager implements UiManager {}
 
-const Ui: new () => UiManager =
+const Ui: new (fs: FilesystemInterface) => UiManager =
 	DomManager; /*env == "web" ? DomManager : CLIManager; */
 export default Ui;
