@@ -767,26 +767,51 @@ export async function workerFunction(this: undefined) {
 		}
 
 		async readFile(path: string, format?: "text" | "json") {
+			if (typeof path !== "string")
+				throw new Error("Path must be string");
+			if (!["text", "json", undefined].includes(format))
+				throw new Error("Format must be 'text', 'json' or blank.");
+
 			return await this.#sendMessage("fs_readFile", { path, format });
 		}
 		async writeFile(path: string, contents: string) {
+			if (typeof path !== "string")
+				throw new Error("Path must be string");
+			if (typeof contents !== "string")
+				throw new Error("Contents must be string");
+
 			return await this.#sendMessage("fs_writeFile", { path, contents });
 		}
 		async unlink(path: string): Promise<void> {
+			if (typeof path !== "string")
+				throw new Error("Path must be string");
+
 			return await this.#sendMessage("fs_unlink", { path });
 		}
 
 		async mkdir(path: string): Promise<boolean> {
+			if (typeof path !== "string")
+				throw new Error("Path must be string");
+
 			return await this.#sendMessage("fs_mkdir", { path });
 		}
 		async readdir(path: string): Promise<string[]> {
+			if (typeof path !== "string")
+				throw new Error("Path must be string");
+
 			return await this.#sendMessage("fs_readdir", { path });
 		}
 		async rmdir(path: string): Promise<void> {
+			if (typeof path !== "string")
+				throw new Error("Path must be string");
+
 			return await this.#sendMessage("fs_rmdir", { path });
 		}
 
 		async rm(path: string): Promise<void> {
+			if (typeof path !== "string")
+				throw new Error("Path must be string");
+
 			return await this.#sendMessage("fs_rm", { path });
 		}
 

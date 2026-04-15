@@ -101,7 +101,7 @@ function escapeHtml(text: string) {
 		.replaceAll("\n", "<br>");
 }
 
-function renderConsole(log: NormalizedLog) {
+function renderConsole(log: NormalizedLog = []) {
 	let text = "";
 	const styles: string[] = [];
 
@@ -131,7 +131,7 @@ function renderConsole(log: NormalizedLog) {
 
 const urlRegex = /https?:\/\/[^\s"'\\]+[^\s"']+/g;
 async function renderHtml(
-	log: NormalizedLog,
+	log: NormalizedLog = [],
 	readFile: FilesystemInterface["readFile"]
 ) {
 	const partPromises = log.map(async (part) => {
