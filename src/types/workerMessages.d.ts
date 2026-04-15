@@ -1,5 +1,6 @@
 // Types for messages sent by workers.
 
+import { InputConfig_BoolOnPaste } from "../ui/ui";
 import { NetworkRequestType } from "./worker";
 
 export interface WorkerEnv_Exec {
@@ -17,10 +18,7 @@ export interface WorkerEnv_Exec {
 export interface WorkerEnv_Input {
 	pid: number;
 	message: string;
-	conceal: boolean;
-	keepInput: boolean;
-
-	onPasteFunctionPresent: boolean;
+	config: InputConfig_BoolOnPaste;
 }
 
 export interface WorkerEnv_Network_Get {

@@ -1,4 +1,4 @@
-import { KeyPressModifiers, Log } from "../ui/ui";
+import { InputConfig, KeyPressModifiers, Log } from "../ui/ui";
 
 export type NetworkRequestType = "get" | "post";
 
@@ -26,9 +26,7 @@ export interface Environment {
 	 */
 	input: (
 		message: string,
-		conceal?: boolean,
-		keepInput?: boolean,
-		onPaste?: (data: onPasteData) => any
+		config?: Partial<InputConfig>
 	) => Promise<string> | never;
 
 	/**

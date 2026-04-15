@@ -1,7 +1,7 @@
 import Constellation from "./index";
 import { FilesystemInterface } from "./lib/fs";
 import { newWorker, workerFunction } from "./lib/worker";
-import { onPasteData, Process } from "./types/worker";
+import { Process } from "./types/worker";
 import { implementWorkerFS, mainThreadMessageHandler } from "./lib/workerUtils";
 import {
 	WorkerEnv_Exec,
@@ -13,7 +13,7 @@ import {
 	RuntimeProgramInputEvent,
 	RuntimeProgramInputOnPaste
 } from "./types/runtimeMessages";
-import { Log } from "./ui/ui";
+import { InputConfig, Log } from "./ui/ui";
 import { RuntimeProgramLogEvent } from "./types/runtimeMessages";
 
 export interface ProgramStore {
@@ -32,14 +32,7 @@ export interface ProgramStore {
 	outputProxy?: ProgramStore;
 
 	onLog(type: "log" | "warning" | "error", data: Log): void;
-	onInput(
-		message: string,
-		conceal?: boolean,
-		keepInput?: boolean,
-		functions?: {
-			onPaste: (data: onPasteData) => void;
-		}
-	): Promise<string>;
+	onInput(message: string, config: InputConfig): Promise<string>;
 }
 
 export interface WorkerStore {
@@ -341,15 +334,18 @@ export default class Runtime {
 				async ({
 					pid,
 					message = "Messsage not provided.",
-					conceal = false,
-					keepInput = true,
-					onPasteFunctionPresent = false
+					config
 				}: WorkerEnv_Input) => {
 					const program = this.#programByPid(pid);
 
-					return await program.onInput(message, conceal, keepInput, {
-						onPaste: (data: onPasteData) => {
-							if (!onPasteFunctionPresent) return;
+					return await program.onInput(message, {
+						hideTyping: config.hideTyping,
+						leaveInputOnCompletion: config.leaveInputOnCompletion,
+						inline: config.inline,
+						initialText: config.initialText,
+
+						onPaste(data) {
+							if (!config.onPasteFunctionPresent) return;
 
 							workerStore.emit<RuntimeProgramInputOnPaste>(
 								"program_input_onpaste",
@@ -635,14 +631,7 @@ export default class Runtime {
 					}
 				}
 			},
-			onInput: async (
-				message: string,
-				conceal?: boolean,
-				keepInput?: boolean,
-				functions?: {
-					onPaste: (data: onPasteData) => void;
-				}
-			) => {
+			onInput: async (message: string, config) => {
 				if (program.outputProxy) {
 					// do the thing
 					const target = program.outputProxy;
@@ -667,9 +656,7 @@ export default class Runtime {
 
 				const { response, displayText } = await this.#kernel.ui.input(
 					message,
-					conceal,
-					keepInput,
-					functions?.onPaste
+					config
 				);
 				program.logs.push({ type: "log", data: displayText });
 

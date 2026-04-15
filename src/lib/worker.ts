@@ -1,8 +1,7 @@
-import { Log } from "../ui/ui.js";
+import { InputConfig, Log } from "../ui/ui.js";
 import {
 	EnvironmentFilesystem,
 	NetworkRequestType,
-	onPasteData,
 	Process,
 	WorkerProgramStore,
 	type Environment
@@ -884,9 +883,7 @@ export async function workerFunction(this: undefined) {
 
 			input: async function (
 				message: string,
-				conceal: boolean = false,
-				keepInput: boolean = true,
-				onPaste?: (data: onPasteData) => any
+				config?: Partial<InputConfig>
 			) {
 				if (handlingInput == true) {
 					throw new Error("Maximum of one input request at a time.");
@@ -894,7 +891,7 @@ export async function workerFunction(this: undefined) {
 				handlingInput = true;
 
 				program.inputRequest = {
-					onPaste
+					onPaste: config?.onPaste
 				};
 
 				const text = await sendMessage<string, WorkerEnv_Input>(
@@ -902,10 +899,17 @@ export async function workerFunction(this: undefined) {
 					{
 						pid,
 						message,
-						conceal,
-						keepInput,
 
-						onPasteFunctionPresent: Boolean(onPaste)
+						config: {
+							hideTyping: config?.hideTyping ?? false,
+							leaveInputOnCompletion:
+								config?.leaveInputOnCompletion ?? true,
+							inline: config?.inline ?? false,
+							initialText: config?.initialText ?? "",
+
+							onPasteFunctionPresent:
+								config?.onPaste !== undefined
+						}
 					}
 				);
 

@@ -22,6 +22,22 @@ export interface KeyPressModifiers {
 	shift: boolean;
 }
 
+export interface InputConfig {
+	hideTyping: boolean;
+	leaveInputOnCompletion: boolean;
+	onPaste: (data: onPasteData) => void;
+	inline: boolean;
+	initialText: string;
+}
+
+export interface InputConfig_BoolOnPaste {
+	hideTyping: boolean;
+	leaveInputOnCompletion: boolean;
+	onPasteFunctionPresent: boolean;
+	inline: boolean;
+	initialText: string;
+}
+
 export interface UiManager {
 	log(source: string, message: Log): void;
 	warn(source: string, message: Log): void;
@@ -29,10 +45,8 @@ export interface UiManager {
 
 	clear(): void;
 	input(
-		message?: string,
-		hideTyping?: boolean,
-		keepInput?: boolean,
-		onPaste?: (data: onPasteData) => void
+		message: string,
+		config: InputConfig
 	): Promise<{ response: string; displayText: string }>;
 
 	controller?: ProgramStore;
@@ -291,6 +305,10 @@ div.LogBox > div.input {
 	font-family: monospace;
 }
 
+div.LogBox > div.input {
+	order: 0 !important;
+}
+
 div.LogBox > div.input > p {
 	margin: 0;
 }
@@ -305,6 +323,8 @@ div.LogBox > div.input > input.reqInput {
 	color: white;
 	font-family: monospace;
 }
+
+
 </style>`;
 
 		this.#logbox = document.createElement("div");
@@ -435,15 +455,7 @@ div.LogBox > div.input > input.reqInput {
 		input.focus({ preventScroll: true });
 	}
 
-	input(
-		prompt: string,
-		hideTyping: boolean = false,
-		showLogAfter: boolean = true,
-		onPaste?: (result: {
-			type: "image" | "text" | "file";
-			data: string;
-		}) => void
-	) {
+	input(prompt: string, config: InputConfig) {
 		return new Promise<{ response: string; displayText: string }>(
 			(resolve) => {
 				const text = document.createElement("p");
@@ -451,12 +463,16 @@ div.LogBox > div.input > input.reqInput {
 
 				const input = document.createElement("input");
 				input.classList.add("reqInput");
-				input.type = hideTyping ? "password" : "text";
+				input.type = config.hideTyping ? "password" : "text";
 				this.#input = input;
+
+				input.value = config.initialText;
+
+				if (config.inline) input.classList.add("inline");
 
 				input.addEventListener("paste", (event) => {
 					const clipboardData = event.clipboardData;
-					if (!clipboardData || !onPaste) return;
+					if (!clipboardData) return;
 
 					for (let i = 0; i < clipboardData.items.length; i++) {
 						const item = clipboardData.items[i];
@@ -464,7 +480,10 @@ div.LogBox > div.input > input.reqInput {
 
 						if (type === "text/plain") {
 							item.getAsString((text) => {
-								onPaste({ type: "text", data: text });
+								config.onPaste({
+									type: "text",
+									data: text
+								});
 							});
 							return;
 						} else {
@@ -483,7 +502,7 @@ div.LogBox > div.input > input.reqInput {
 										? e.target.result
 										: "";
 
-								onPaste({
+								config.onPaste({
 									type: isImage ? "image" : "file",
 									data: result
 								});
@@ -506,7 +525,8 @@ div.LogBox > div.input > input.reqInput {
 						div.remove();
 
 						const displayText = `${prompt}${response}`;
-						if (showLogAfter) this.#postPlain(displayText);
+						if (config.leaveInputOnCompletion)
+							this.#postPlain(displayText);
 
 						this.#input = undefined;
 						resolve({ response, displayText });

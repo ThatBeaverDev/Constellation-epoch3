@@ -232,11 +232,9 @@ export default async function* microsoftPaint(
 		const actions = unformattedActions.toLowerCase().trim().split("");
 
 		if (actions.length == 0) {
-			const sure = await env.input(
-				"Exit? (no autosave) (y/N) ",
-				false,
-				false
-			);
+			const sure = await env.input("Exit? (no autosave) (y/N) ", {
+				leaveInputOnCompletion: false
+			});
 			if (sure.toLowerCase().trim() == "y") {
 				exit = true;
 			} else {
