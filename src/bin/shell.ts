@@ -10,15 +10,29 @@ export default async function* Shell(env: Environment) {
 		const commandArgs = tokens.slice(1);
 
 		switch (command) {
-			case "cd":
-				env.workingDirectory = env.path.resolve(
-					env.workingDirectory,
-					...commandArgs
-				);
+			case "":
 				break;
+			case "cd":
+				// resolve the directory
+				const path = env.path.resolve(
+					env.workingDirectory,
+					...(commandArgs.length == 0 ? ["/"] : commandArgs)
+				);
 
-			case "pwd":
-				env.print(env.workingDirectory);
+				// insure it exists
+				const isDirectory = await env.fs.isDirectory(path);
+
+				if (isDirectory) {
+					env.workingDirectory = path;
+				} else {
+					env.print([
+						{ text: `cd: `, colour: "#888888" },
+						{
+							text: `no such file or directory: ${commandArgs.join(" ")}`
+						}
+					]);
+				}
+
 				break;
 
 			case "clear":
