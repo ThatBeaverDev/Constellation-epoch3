@@ -1131,28 +1131,20 @@ export async function workerFunction(this: undefined) {
 	handle("execLoop", () => {
 		const start = performance.now();
 
-		for (const program of programs.slice()) {
-			if (program.locked) continue;
+		programs.forEach(async (program) => {
+			if (program.locked) return;
+			program.locked = true;
 
 			try {
 				if (!program.generator) {
 					terminateProgram(program, "");
-					continue;
+					return;
 				}
 
-				const result = program.generator.next(program.passValue);
+				const result = await program.generator.next(program.passValue);
 				program.passValue = undefined;
 
-				// If the generator yielded a Promise, we "pause" it
-				if (result instanceof Promise) {
-					program.locked = true;
-					result.then((val) => {
-						program.passValue = val;
-						program.locked = false;
-
-						if (val.done) terminateProgram(program, val.value);
-					});
-				} else if (result.done) {
+				if (result.done) {
 					terminateProgram(program, result.value);
 				} else {
 					// result.value is a regular value, pass it next time
@@ -1162,9 +1154,16 @@ export async function workerFunction(this: undefined) {
 				console.error(`Program ${program.pid} failed:`, err);
 
 				// kill it.
-				terminateProgram(program, "");
+				terminateProgram(program, [
+					{
+						text: String(err instanceof Error ? err.stack : err),
+						colour: "#ff0000"
+					}
+				]);
 			}
-		}
+
+			program.locked = false;
+		});
 
 		const programsData = programs.map((item) => ({
 			pid: item.pid,
