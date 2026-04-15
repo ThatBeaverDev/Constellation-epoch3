@@ -1,7 +1,7 @@
 import Constellation from "./index";
 import { FilesystemInterface } from "./lib/fs";
 import { newWorker, workerFunction } from "./lib/worker";
-import { NetworkRequestType, onPasteData, Process } from "./types/worker";
+import { onPasteData, Process } from "./types/worker";
 import { implementWorkerFS, mainThreadMessageHandler } from "./lib/workerUtils";
 import {
 	WorkerEnv_Exec,
@@ -11,7 +11,6 @@ import {
 import {
 	RuntimeExecuteProgram,
 	RuntimeProgramInputEvent,
-	RuntimeProgramInputOnKeyDown,
 	RuntimeProgramInputOnPaste
 } from "./types/runtimeMessages";
 import { Log } from "./ui/ui";
@@ -39,7 +38,6 @@ export interface ProgramStore {
 		keepInput?: boolean,
 		functions?: {
 			onPaste: (data: onPasteData) => void;
-			onKeyDown: (keyname: string) => void;
 		}
 	): Promise<string>;
 }
@@ -270,7 +268,13 @@ export default class Runtime {
 
 			handle(
 				"env_network_get",
-				async ({ type, url, format, body }: WorkerEnv_Network_Get) => {
+				async ({
+					type,
+					url,
+					format,
+					body,
+					headers
+				}: WorkerEnv_Network_Get) => {
 					const processedType = `${type}`.toLowerCase();
 					let method = "GET";
 
@@ -298,7 +302,8 @@ export default class Runtime {
 
 					const request = await fetch(url, {
 						method,
-						body: bodyString
+						body: bodyString,
+						headers: headers
 					});
 
 					switch (format) {
@@ -338,8 +343,7 @@ export default class Runtime {
 					message = "Messsage not provided.",
 					conceal = false,
 					keepInput = true,
-					onPasteFunctionPresent = false,
-					onKeyDownFunctionPresent = false
+					onPasteFunctionPresent = false
 				}: WorkerEnv_Input) => {
 					const program = this.#programByPid(pid);
 
@@ -353,15 +357,6 @@ export default class Runtime {
 									pid,
 									data
 								}
-							);
-						},
-
-						onKeyDown: (keyname) => {
-							if (!onKeyDownFunctionPresent) return;
-
-							workerStore.emit<RuntimeProgramInputOnKeyDown>(
-								"program_input_onkeydown",
-								{ pid, keyname }
 							);
 						}
 					});
@@ -378,10 +373,8 @@ export default class Runtime {
 				}
 			});
 
-			handle("kernel_uptime", () => {
-				return 0;
-			});
-			handle("kernel_version", () => 1);
+			handle("kernel_uptime", () => Date.now() - this.#kernel.start);
+			handle("kernel_version", () => this.#kernel.version);
 
 			handle("worker_stats", () => {
 				const workers = this.#workers;
@@ -607,6 +600,8 @@ export default class Runtime {
 						handler: target.pid,
 						origin: program.pid
 					});
+
+					return;
 				}
 
 				const hasDisplay = this.#kernel.ui.controller == program;
@@ -646,7 +641,6 @@ export default class Runtime {
 				keepInput?: boolean,
 				functions?: {
 					onPaste: (data: onPasteData) => void;
-					onKeyDown: (keyName: string) => void;
 				}
 			) => {
 				if (program.outputProxy) {
@@ -668,14 +662,13 @@ export default class Runtime {
 
 				if (this.#kernel.ui.controller !== program) {
 					// sorrey.
-					return new Promise<string>((resolve) => {});
+					return new Promise<string>(() => {});
 				}
 
 				const { response, displayText } = await this.#kernel.ui.input(
 					message,
 					conceal,
 					keepInput,
-					functions?.onKeyDown,
 					functions?.onPaste
 				);
 				program.logs.push({ type: "log", data: displayText });

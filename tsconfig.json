@@ -1,5 +1,6 @@
 {
 	"compilerOptions": {
+		"rootDir": "./src",
 		"outDir": "./build",
 
 		"strict": true,
@@ -9,6 +10,9 @@
 
 		"module": "esnext",
 		"types": [],
+
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
 
 		"incremental": true,
 		"tsBuildInfoFile": "./build/.tsbuildinfo"

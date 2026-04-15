@@ -21,7 +21,6 @@ export interface WorkerEnv_Input {
 	keepInput: boolean;
 
 	onPasteFunctionPresent: boolean;
-	onKeyDownFunctionPresent: boolean;
 }
 
 export interface WorkerEnv_Network_Get {
@@ -29,4 +28,5 @@ export interface WorkerEnv_Network_Get {
 	url: string;
 	format: "text" | "json" | "datauri";
 	body?: Object;
+	headers?: Record<string, string>;
 }

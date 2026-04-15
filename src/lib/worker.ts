@@ -15,7 +15,6 @@ import {
 import {
 	RuntimeExecuteProgram,
 	RuntimeProgramInputEvent,
-	RuntimeProgramInputOnKeyDown,
 	RuntimeProgramInputOnPaste
 } from "../types/runtimeMessages.js";
 import { RuntimeProgramLogEvent } from "../types/runtimeMessages.js";
@@ -809,12 +808,12 @@ export async function workerFunction(this: undefined) {
 	function log(message: Log) {
 		emit("worker_log", { data: message });
 	}
-	function warn(message: Log) {
-		emit("worker_warn", { data: message });
-	}
-	function error(message: Log) {
-		emit("worker_error", { data: message });
-	}
+	//function warn(message: Log) {
+	//	emit("worker_warn", { data: message });
+	//}
+	//function error(message: Log) {
+	//	emit("worker_error", { data: message });
+	//}
 
 	function programLog(pid: number, data: Log) {
 		emit("program_log", { pid, data });
@@ -864,7 +863,6 @@ export async function workerFunction(this: undefined) {
 				message: string,
 				conceal: boolean = false,
 				keepInput: boolean = true,
-				onKeyDown?: (keyname: string) => any,
 				onPaste?: (data: onPasteData) => any
 			) {
 				if (handlingInput == true) {
@@ -873,7 +871,6 @@ export async function workerFunction(this: undefined) {
 				handlingInput = true;
 
 				program.inputRequest = {
-					onKeyDown,
 					onPaste
 				};
 
@@ -885,7 +882,6 @@ export async function workerFunction(this: undefined) {
 						conceal,
 						keepInput,
 
-						onKeyDownFunctionPresent: Boolean(onKeyDown),
 						onPasteFunctionPresent: Boolean(onPaste)
 					}
 				);
@@ -974,7 +970,8 @@ export async function workerFunction(this: undefined) {
 					type: NetworkRequestType,
 					url: string,
 					format: "text" | "json" | "datauri" = "text",
-					body?: Object
+					body?: Object,
+					headers?: Record<string, string>
 				) => {
 					return await sendMessage<any, WorkerEnv_Network_Get>(
 						"env_network_get",
@@ -982,7 +979,8 @@ export async function workerFunction(this: undefined) {
 							type,
 							url,
 							format,
-							body
+							body,
+							headers
 						}
 					);
 				}
@@ -1045,15 +1043,18 @@ export async function workerFunction(this: undefined) {
 				pid,
 				directory,
 
+				// @ts-expect-error
+				env: "tempValue",
+
 				locked: false,
 
 				outputHandlers: {}
 			};
-			const env = newEnv(store, workingDirectory);
+			store.env = newEnv(store, workingDirectory);
 
 			try {
 				// @ts-expect-error
-				store.generator = program(env, args ?? []);
+				store.generator = program(store.env, args ?? []);
 			} catch (e) {
 				console.error(e);
 				return false;
@@ -1198,16 +1199,11 @@ export async function workerFunction(this: undefined) {
 			program.inputRequest.onPaste(msg.data);
 		}
 	});
-	handle("program_input_onkeydown", (msg: RuntimeProgramInputOnKeyDown) => {
-		const program = programByPid(msg.pid);
-
-		if (program.inputRequest?.onKeyDown) {
-			program.inputRequest.onKeyDown(msg.keyname);
-		}
-	});
 
 	log("Initialisation Complete.");
-} // Source - https://stackoverflow.com/a/77602420
+}
+
+// Source - https://stackoverflow.com/a/77602420
 // Posted by timkay
 // Retrieved 2026-03-05, License - CC BY-SA 4.0
 // I added the name parameter.

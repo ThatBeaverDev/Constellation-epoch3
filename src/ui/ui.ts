@@ -9,6 +9,21 @@ function linesToPx(lines: number) {
 	return lineHeight * lines;
 }
 
+export interface KeyPressModifiers {
+	/**
+	 * Whether Control on Windows/Linux is pressed, Command on macOS. Also returns whether 'Meta' (super/windows) was pressed, due to implementation.
+	 */
+	control: boolean;
+	/**
+	 * Whether Alt on Windows/Linux is pressed, Option on macOS
+	 */
+	alt: boolean;
+	/**
+	 * Shift is pressed
+	 */
+	shift: boolean;
+}
+
 export interface UiManager {
 	log(source: string, message: Log): void;
 	warn(source: string, message: Log): void;
@@ -19,7 +34,6 @@ export interface UiManager {
 		message?: string,
 		hideTyping?: boolean,
 		keepInput?: boolean,
-		onKeyDown?: (keyName: string) => void,
 		onPaste?: (data: onPasteData) => void
 	): Promise<{ response: string; displayText: string }>;
 
@@ -183,6 +197,7 @@ function withOrigin(
 	return [{ text: `[${origin}] `, colour: "#888888" }, ...log];
 }
 
+const maxLogLines = 500;
 class DomManager implements UiManager {
 	#container: HTMLDivElement;
 	#logbox: HTMLDivElement;
@@ -193,6 +208,8 @@ class DomManager implements UiManager {
 		element: HTMLElement;
 	}[] = [];
 	#fs: FilesystemInterface;
+	#focusInterval: number = 0;
+	#input?: HTMLInputElement;
 
 	constructor(fs: FilesystemInterface) {
 		this.#fs = fs;
@@ -294,7 +311,12 @@ div.LogBox > div.input > input.reqInput {
 
 		this.#logbox = document.createElement("div");
 		this.#logbox.classList.add("LogBox");
+
 		this.#container.appendChild(this.#logbox);
+
+		this.#focusInterval = setInterval(() => {
+			if (this.#input) this.#input.focus();
+		}, 500);
 
 		document.body.innerHTML = "";
 		document.body.appendChild(this.#container);
@@ -304,66 +326,76 @@ div.LogBox > div.input > input.reqInput {
 		return !this.controller;
 	}
 
-	#newLog(element: HTMLElement) {
+	#elementQueue: { element: HTMLElement; onAddition?: Function }[] = [];
+	#commitScheduled = false;
+
+	#newLog(element: HTMLElement, onAddition?: Function) {
+		this.#elementQueue.push({ element, onAddition });
 		this.lines.push({ element });
 
-		const html = document.scrollingElement as HTMLElement;
-		const isScrolledToBottom =
-			html.scrollTop >= html.scrollHeight - html.offsetHeight - 5;
+		if (!this.#commitScheduled) {
+			this.#commitScheduled = true;
 
-		this.#logbox.appendChild(element);
+			requestAnimationFrame(() => {
+				const fragment = document.createDocumentFragment();
+				const html = document.scrollingElement as HTMLElement;
+				const isScrolledToBottom =
+					html.scrollTop >= html.scrollHeight - html.offsetHeight - 5;
 
-		if (isScrolledToBottom) {
-			html.scrollTo(0, html.scrollHeight);
+				for (const item of this.#elementQueue) {
+					fragment.appendChild(item.element);
+
+					// insure not too many lines
+					if (this.lines.length > maxLogLines) {
+						const removed = this.lines.shift();
+						removed?.element.remove();
+					}
+				}
+
+				this.#logbox.appendChild(fragment);
+				this.#elementQueue.forEach((item) => {
+					if (item.onAddition) item.onAddition();
+				});
+
+				if (isScrolledToBottom) {
+					html.scrollTo(0, html.scrollHeight);
+				}
+
+				this.#elementQueue = [];
+				this.#commitScheduled = false;
+			});
 		}
 	}
 
 	/**
 	 * The queue of logs, waiting to be displayed.
 	 */
-	#logQueue: Promise<void>[] = [];
 
 	#postPlain(message: string, className?: string) {
-		const lastPromise = this.#logQueue.at(-1);
+		const text = document.createElement("p");
+		if (className) text.classList.add(className);
 
-		const promise = new Promise<void>(async (resolve) => {
-			await lastPromise;
-
-			const text = document.createElement("p");
-			if (className) text.classList.add(className);
-
-			text.innerText = message;
-			this.#newLog(text);
-
-			resolve();
-
-			// remove it from the list
-			this.#logQueue = this.#logQueue.filter((item) => item !== promise);
-		});
-
-		this.#logQueue.push(promise);
+		text.innerText = message;
+		this.#newLog(text);
 	}
 
 	#postRich(log: NormalizedLog) {
-		const lastPromise = this.#logQueue.at(-1);
+		const p = document.createElement("p");
+		p.innerHTML = "...";
+		this.#newLog(p);
 
-		const promise = new Promise<void>(async (resolve) => {
-			await lastPromise;
+		renderHtml(log, this.#fs.readFile.bind(this.#fs)).then((html) => {
+			const containerHTML = document.scrollingElement as HTMLElement;
+			const isScrolledToBottom =
+				containerHTML.scrollTop >=
+				containerHTML.scrollHeight - containerHTML.offsetHeight - 5;
 
-			const p = document.createElement("p");
-			p.innerHTML = await renderHtml(
-				log,
-				this.#fs.readFile.bind(this.#fs)
-			);
-			this.#newLog(p);
+			p.innerHTML = html;
 
-			resolve();
-
-			// remove it from the list
-			this.#logQueue = this.#logQueue.filter((item) => item !== promise);
+			if (isScrolledToBottom) {
+				containerHTML.scrollTo(0, containerHTML.scrollHeight);
+			}
 		});
-
-		this.#logQueue.push(promise);
 	}
 
 	log(origin: string, message: Log) {
@@ -395,7 +427,6 @@ div.LogBox > div.input > input.reqInput {
 		prompt: string,
 		hideTyping: boolean = false,
 		showLogAfter: boolean = true,
-		onKeyDown?: (keyname: string) => void,
 		onPaste?: (result: {
 			type: "image" | "text" | "file";
 			data: string;
@@ -409,10 +440,7 @@ div.LogBox > div.input > input.reqInput {
 				const input = document.createElement("input");
 				input.classList.add("reqInput");
 				input.type = hideTyping ? "password" : "text";
-
-				input.addEventListener("keydown", (event) => {
-					if (onKeyDown) onKeyDown(event.code);
-				});
+				this.#input = input;
 
 				input.addEventListener("paste", (event) => {
 					const clipboardData = event.clipboardData;
@@ -460,8 +488,6 @@ div.LogBox > div.input > input.reqInput {
 				div.appendChild(text);
 				div.appendChild(input);
 
-				let interval = 0;
-
 				input.addEventListener("keydown", (e) => {
 					if (e.key === "Enter") {
 						const response = input.value;
@@ -470,13 +496,12 @@ div.LogBox > div.input > input.reqInput {
 						const displayText = `${prompt}${response}`;
 						if (showLogAfter) this.#postPlain(displayText);
 
-						clearInterval(interval);
+						this.#input = undefined;
 						resolve({ response, displayText });
 					}
 				});
 
-				this.#newLog(div);
-				interval = setInterval(() => input.focus(), 10);
+				this.#newLog(div, () => input.focus());
 			}
 		);
 	}
@@ -484,10 +509,16 @@ div.LogBox > div.input > input.reqInput {
 	clear() {
 		this.lines.forEach((line) => line.element.remove());
 		this.lines = [];
+
+		this.#elementQueue.forEach((item) => item.element.remove());
+		this.#elementQueue = [];
+
 		this.#logbox.innerHTML = "";
 	}
 
-	exit() {}
+	exit() {
+		clearInterval(this.#focusInterval);
+	}
 }
 
 //class CLIManager implements UiManager {}

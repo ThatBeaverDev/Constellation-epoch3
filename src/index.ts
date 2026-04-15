@@ -9,6 +9,8 @@ export default class Constellation {
 	runtime: Runtime;
 	#onInstallReady: (fs: FilesystemInterface) => Promise<void> | void;
 	#execInterval?: number;
+	readonly start: number = Date.now();
+	readonly version = "0.1gen3";
 
 	constructor(
 		onInstallReady: (fs: FilesystemInterface) => Promise<void> | void

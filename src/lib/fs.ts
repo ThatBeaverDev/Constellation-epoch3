@@ -1,5 +1,5 @@
 import Constellation from "../index";
-import { deleteFS, env } from "./utils";
+import { deleteFS } from "./config";
 
 /**
  * An interface to access a Filesystem.
@@ -131,17 +131,17 @@ class DomFs implements FilesystemInterface {
 		if (deleteFS) {
 			console.log("Erasing old DomFs...");
 			const dbs = await indexedDB.databases();
-			const promises = dbs.map((item) => {
+			const promises = dbs.map(() => {
 				return new Promise<void>((resolve, reject) => {
 					const DBDeleteRequest = indexedDB.deleteDatabase("fs");
-					DBDeleteRequest.onerror = (event) => {
+					DBDeleteRequest.onerror = () => {
 						this.#panic(
 							"fs",
 							new Error("Error deleting database.")
 						);
 						reject();
 					};
-					DBDeleteRequest.onsuccess = (event) => {
+					DBDeleteRequest.onsuccess = () => {
 						console.log("Database deleted successfully");
 						resolve();
 					};
@@ -241,10 +241,6 @@ class DomFs implements FilesystemInterface {
 	#basename(path: string): string {
 		path = this.#normalise(path);
 		return path.substring(path.lastIndexOf("/") + 1);
-	}
-
-	#getEntry(path: string): DomFsFile | undefined {
-		return this.#index[this.#normalise(path)];
 	}
 
 	/* ================================

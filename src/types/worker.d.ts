@@ -1,4 +1,4 @@
-import { Log } from "../ui/ui";
+import { KeyPressModifiers, Log } from "../ui/ui";
 
 export type NetworkRequestType = "get" | "post";
 
@@ -28,7 +28,6 @@ export interface Environment {
 		message: string,
 		conceal?: boolean,
 		keepInput?: boolean,
-		onKeyDown?: (keyname: string) => any,
 		onPaste?: (data: onPasteData) => any
 	) => Promise<string> | never;
 
@@ -108,25 +107,29 @@ export interface Environment {
 			type: NetworkRequestType,
 			url: string,
 			format?: "text",
-			body?: Object
+			body?: Object,
+			headers?: Record<string, string>
 		): Promise<string>;
 		request<T = Object>(
 			type: NetworkRequestType,
 			url: string,
 			format: "json",
-			body?: Object
+			body?: Object,
+			headers?: Record<string, string>
 		): Promise<T>;
 		request(
 			type: NetworkRequestType,
 			url: string,
 			format: "datauri",
-			body?: Object
+			body?: Object,
+			headers?: Record<string, string>
 		): Promise<string>;
 		request<T = Object>(
 			type: NetworkRequestType,
 			url: string,
 			format?: "text" | "json" | "datauri",
-			body?: Object
+			body?: Object,
+			headers?: Record<string, string>
 		): Promise<string | T>;
 	};
 
@@ -182,6 +185,8 @@ export interface WorkerProgramStore {
 	pid: number;
 	directory: string;
 
+	env: Environment;
+
 	locked: boolean;
 	passValue?: any;
 
@@ -194,8 +199,7 @@ export interface WorkerProgramStore {
 	>;
 
 	inputRequest?: {
-		onPaste?: Function;
-		onKeyDown?: Function;
+		onPaste?: (data: onPasteData) => any;
 	};
 }
 
