@@ -209,7 +209,6 @@ function withOrigin(
 	return [{ text: `[${origin}] `, colour: "#888888" }, ...log];
 }
 
-const maxLogLines = 500;
 class DomManager implements UiManager {
 	#container: HTMLDivElement;
 	#logbox: HTMLDivElement;
@@ -305,7 +304,7 @@ div.LogBox > div.input {
 	font-family: monospace;
 }
 
-div.LogBox > div.input {
+div.LogBox > div.input.inline {
 	order: 0 !important;
 }
 
@@ -362,12 +361,6 @@ div.LogBox > div.input > input.reqInput {
 
 				for (const item of this.#elementQueue) {
 					fragment.appendChild(item.element);
-
-					// insure not too many lines
-					if (this.lines.length > maxLogLines) {
-						const removed = this.lines.shift();
-						removed?.element.remove();
-					}
 				}
 
 				this.#logbox.appendChild(fragment);
