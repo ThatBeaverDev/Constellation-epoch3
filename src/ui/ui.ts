@@ -1,5 +1,3 @@
-//import { env } from "../lib/utils";
-
 import { FilesystemInterface } from "../lib/fs";
 import { ProgramStore } from "../runtime";
 import { onPasteData } from "../types/worker";
@@ -315,7 +313,7 @@ div.LogBox > div.input > input.reqInput {
 		this.#container.appendChild(this.#logbox);
 
 		this.#focusInterval = setInterval(() => {
-			if (this.#input) this.#input.focus();
+			if (this.#input) this.#focusInput(this.#input);
 		}, 500);
 
 		document.body.innerHTML = "";
@@ -423,6 +421,20 @@ div.LogBox > div.input > input.reqInput {
 		this.#postPlain(data, "error");
 	}
 
+	#focusInput(input: HTMLInputElement) {
+		const active = document.activeElement;
+
+		const isTyping =
+			active === input && input.selectionStart !== input.selectionEnd;
+
+		const isMouseSelecting =
+			window.getSelection()?.toString().length ?? 0 > 0;
+
+		if (isTyping || isMouseSelecting) return;
+
+		input.focus({ preventScroll: true });
+	}
+
 	input(
 		prompt: string,
 		hideTyping: boolean = false,
@@ -501,7 +513,7 @@ div.LogBox > div.input > input.reqInput {
 					}
 				});
 
-				this.#newLog(div, () => input.focus());
+				this.#newLog(div, () => this.#focusInput(input));
 			}
 		);
 	}
