@@ -509,14 +509,14 @@ export default class Runtime {
 			if (worker.lock) continue;
 			worker.lock = true;
 
-			type execLoopResponse = {
+			interface execLoopResponse {
 				programs: {
 					pid: number;
 					directory: string;
 				}[];
 				completePrograms: { pid: number }[];
 				computePercentage: number;
-			};
+			}
 
 			worker
 				.sendMessage<execLoopResponse>("execLoop")
@@ -576,7 +576,7 @@ export default class Runtime {
 			pid,
 			startTime: new Date(),
 
-			onExit: (data?: any) => {
+			onExit: (data?: Log) => {
 				this.#workers.forEach((store) => {
 					store.emit("program_exit", {
 						pid: program.pid,

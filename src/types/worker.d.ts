@@ -76,7 +76,7 @@ export interface Environment {
 	/**
 	 * Execute a program from a directory.
 	 */
-	execute<T = any>(
+	execute(
 		path: string,
 		args?: string[],
 		config?: {
@@ -92,7 +92,7 @@ export interface Environment {
 			};
 		}
 	): Promise<{
-		onExit: Promise<{ return: T; logs: string[] }>;
+		onExit: Promise<{ return: Log; logs: Log[] }>;
 	}>;
 
 	processes(): Promise<Process[]>;

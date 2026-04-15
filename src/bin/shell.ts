@@ -1,5 +1,6 @@
 import { Environment } from "../types/worker";
 import { Log } from "../ui/ui";
+import { logsToString } from "../usrlib/logs";
 
 export default async function* Shell(env: Environment) {
 	while (true) {
@@ -44,10 +45,9 @@ export default async function* Shell(env: Environment) {
 
 			case "which":
 				for (const commandName of commandArgs) {
-					const envExec = await env.execute<string | undefined>(
-						"/bin/env.js",
-						[commandName]
-					);
+					const envExec = await env.execute("/bin/env.js", [
+						commandName
+					]);
 					const { return: programDirectory } = await envExec.onExit;
 
 					if (programDirectory) {
@@ -60,10 +60,7 @@ export default async function* Shell(env: Environment) {
 				break;
 
 			default:
-				const envExec = await env.execute<string | undefined>(
-					"/bin/env.js",
-					[command]
-				);
+				const envExec = await env.execute("/bin/env.js", [command]);
 				const { return: programDirectory } = await envExec.onExit;
 				if (!programDirectory) {
 					const log: Log = [
@@ -75,17 +72,18 @@ export default async function* Shell(env: Environment) {
 					break;
 				}
 
-				const programExec = await env.execute<string | undefined>(
-					programDirectory,
+				const programExec = await env.execute(
+					logsToString(programDirectory),
 					commandArgs,
 					{ handOverDisplay: true }
 				);
 				const { return: programResult, logs: programLogs } =
 					await programExec.onExit;
 
-				const returnLogs = String(programResult ?? "");
-				const lines = [...programLogs, ...returnLogs.split("\n")];
-				for (const line of lines) env.print(line);
+				const returnLogs = programResult;
+
+				for (const log of programLogs) env.print(log);
+				env.print(returnLogs);
 		}
 
 		yield;

@@ -899,7 +899,7 @@ export async function workerFunction(this: undefined) {
 
 			workingDirectory: String(workingDirectory ?? "/"),
 
-			async execute<T = unknown>(
+			async execute(
 				path: string,
 				args?: string[],
 				config?: {
@@ -913,7 +913,7 @@ export async function workerFunction(this: undefined) {
 						onInput(prompt: string): string | Promise<string>;
 					};
 				}
-			): Promise<{ onExit: Promise<{ return: T; logs: string[] }> }> {
+			): Promise<{ onExit: Promise<{ return: Log; logs: Log[] }> }> {
 				const data: WorkerEnv_Exec = {
 					path,
 					args,
@@ -941,7 +941,7 @@ export async function workerFunction(this: undefined) {
 					(typeof activePrograms)[keyof typeof activePrograms]
 				> = {};
 
-				obj.promise = new Promise<{ return: T; logs: string[] }>(
+				obj.promise = new Promise<{ return: Log; logs: Log[] }>(
 					(resolve) => {
 						obj.resolve = resolve;
 					}
@@ -1010,8 +1010,8 @@ export async function workerFunction(this: undefined) {
 		Record<
 			number,
 			{
-				promise: Promise<any>;
-				resolve: (value: { return: any; logs: string[] }) => void;
+				promise: Promise<{ return: Log; logs: Log[] }>;
+				resolve: (value: { return: Log; logs: Log[] }) => void;
 			}
 		>
 	> = {};
@@ -1092,7 +1092,7 @@ export async function workerFunction(this: undefined) {
 		return await inputGetter(event.message);
 	});
 
-	function terminateProgram(program: WorkerProgramStore, data: any) {
+	function terminateProgram(program: WorkerProgramStore, data: Log) {
 		completedQueue.push({ pid: program.pid });
 		programs.splice(programs.indexOf(program), 1);
 		sendMessage("termination", { pid: program.pid, data });
@@ -1111,7 +1111,7 @@ export async function workerFunction(this: undefined) {
 
 			try {
 				if (!program.generator) {
-					terminateProgram(program, undefined);
+					terminateProgram(program, "");
 					continue;
 				}
 
@@ -1137,7 +1137,7 @@ export async function workerFunction(this: undefined) {
 				console.error(`Program ${program.pid} failed:`, err);
 
 				// kill it.
-				terminateProgram(program, undefined);
+				terminateProgram(program, "");
 			}
 		}
 
