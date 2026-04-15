@@ -3,6 +3,21 @@ import { Log } from "../ui/ui";
 import { logsToString } from "../usrlib/logs";
 
 export default async function* Shell(env: Environment) {
+	const configDirectory = "/config/shell";
+	const welcomeMessage = env.path.resolve(configDirectory, "./welcome.txt");
+
+	await env.fs.mkdir(configDirectory);
+	const welcomeExists = await env.fs.exists(welcomeMessage);
+	if (!welcomeExists) {
+		await env.fs.writeFile(
+			welcomeMessage,
+			`Welcome to Constellation! To view a list of programs, you can use \`ls /bin\`.`
+		);
+	}
+
+	const welcome = await env.fs.readFile(welcomeMessage);
+	if (welcome) env.print(welcome);
+
 	while (true) {
 		const input = await env.input(`${env.workingDirectory} $ `);
 
