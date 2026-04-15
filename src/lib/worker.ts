@@ -766,7 +766,16 @@ export async function workerFunction(this: undefined) {
 			this.#sendMessage = sendMessage;
 		}
 
-		async readFile(path: string, format?: "text" | "json") {
+		readFile(path: string): Promise<string | void>;
+		readFile(path: string, format: "text"): Promise<string | void>;
+		readFile<T extends Object = Object>(
+			path: string,
+			format: "json"
+		): Promise<T | void>;
+		async readFile<T extends Object = Object>(
+			path: string,
+			format?: "text" | "json"
+		): Promise<string | T | void> {
 			if (typeof path !== "string")
 				throw new Error("Path must be string");
 			if (!["text", "json", undefined].includes(format))
@@ -851,17 +860,6 @@ export async function workerFunction(this: undefined) {
 	}
 
 	/* =============== Worker Code  =============== */
-
-	function toBase64(txt: string) {
-		// TextEncoder: Always UTF8
-		const uint8Array = new TextEncoder().encode(txt);
-		let binary = "";
-
-		for (let i = 0; i < uint8Array.length; ++i)
-			binary += String.fromCharCode(uint8Array[i]);
-
-		return btoa(binary);
-	}
 
 	const programs: WorkerProgramStore[] = [];
 	const fs = new WorkerFS(sendMessage);
@@ -1056,10 +1054,10 @@ export async function workerFunction(this: undefined) {
 			const contents = await fs.readFile(directory);
 			if (!contents) throw new Error("File does not exist!");
 
-			const base64 = toBase64(contents);
-			const dataURI = "data:text/javascript;base64," + base64;
+			const blob = new Blob([contents], { type: "text/javascript" });
+			const url = URL.createObjectURL(blob);
 
-			const exports = await import(dataURI);
+			const exports = await import(url);
 			const program = exports.default as GeneratorFunction;
 
 			const store: WorkerProgramStore = {
@@ -1076,6 +1074,8 @@ export async function workerFunction(this: undefined) {
 				outputHandlers: {}
 			};
 			store.env = newEnv(store, workingDirectory);
+
+			URL.revokeObjectURL(url);
 
 			try {
 				// @ts-expect-error
