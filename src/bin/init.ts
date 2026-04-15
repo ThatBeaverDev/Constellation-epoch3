@@ -55,11 +55,7 @@ export default async function* initSystem(env: Environment) {
 					service.restartPolicy = "never";
 				}
 
-				(async function () {
-					await exec.onExit;
-
-					service.running = false;
-				})();
+				exec.onExit.then(() => (service.running = false));
 			} catch (e) {
 				service.failed = e instanceof Error ? e : false;
 				env.warn(

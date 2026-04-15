@@ -36,11 +36,16 @@ export default async function* install(env: Environment) {
 		yield env.fs.mkdir("/user");
 		yield env.fs.mkdir("/users");
 
-		const installerJSON = await env.network.request<InstallationDataFile>(
-			"get",
-			"/build/data.json",
-			"json"
-		);
+		let installerJSON: InstallationDataFile;
+		try {
+			installerJSON = await env.network.request<InstallationDataFile>(
+				"get",
+				"/build/data.json",
+				"json"
+			);
+		} catch (e) {
+			throw new Error("Failed to retrieve installation data file: " + e);
+		}
 
 		installerData.files = [];
 		installerData.directories = ["/bin", "/data", "/config", "/user"];
