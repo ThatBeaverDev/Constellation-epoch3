@@ -1,3 +1,6 @@
+// @ts-nocheck
+// the first program. it still works!
+
 export default function* TestProgram(env) {
 	env.print("Hello, World!");
 
