@@ -939,6 +939,7 @@ export async function workerFunction(this: undefined) {
 
 						onInput(prompt: string): string | Promise<string>;
 					};
+					input?: Log[];
 				}
 			): Promise<{ onExit: Promise<{ return: Log; logs: Log[] }> }> {
 				const data: WorkerEnv_Exec = {
@@ -949,6 +950,7 @@ export async function workerFunction(this: undefined) {
 						? pid
 						: undefined,
 					workingDirectory: this.workingDirectory,
+					input: config?.input,
 
 					outputProxy: config?.outputProxy !== undefined
 				};
@@ -1050,7 +1052,8 @@ export async function workerFunction(this: undefined) {
 			pid,
 
 			args,
-			workingDirectory
+			workingDirectory,
+			input
 		}: RuntimeExecuteProgram) => {
 			if (!directory) throw new Error("Directory is required!");
 			if (!pid) throw new Error("PID is required!");
@@ -1083,7 +1086,7 @@ export async function workerFunction(this: undefined) {
 
 			try {
 				// @ts-expect-error
-				store.generator = program(store.env, args ?? []);
+				store.generator = program(store.env, args ?? [], input);
 			} catch (e) {
 				console.error(e);
 				return false;

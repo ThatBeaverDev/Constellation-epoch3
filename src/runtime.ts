@@ -209,7 +209,8 @@ export default class Runtime {
 					handoverDisplayPid: executingProgramPid,
 					workingDirectory,
 					parentPid,
-					outputProxy
+					outputProxy,
+					input
 				}: WorkerEnv_Exec) => {
 					const parent = this.#programByPid(parentPid);
 
@@ -220,7 +221,8 @@ export default class Runtime {
 						{
 							displayHandover: { oldOwner: executingProgramPid },
 							workingDirectory,
-							outputProxy: outputProxy ? parentPid : undefined
+							outputProxy: outputProxy ? parentPid : undefined,
+							input
 						}
 					);
 
@@ -541,6 +543,7 @@ export default class Runtime {
 			displayHandover?: { oldOwner?: number };
 			workingDirectory: string;
 			outputProxy?: number;
+			input?: Log[];
 		}
 	) {
 		if (this.#workers.length == 0) {
@@ -688,7 +691,8 @@ export default class Runtime {
 				pid,
 
 				args,
-				workingDirectory: config?.workingDirectory ?? "/"
+				workingDirectory: config?.workingDirectory ?? "/",
+				input: config?.input
 			}
 		);
 		if (!ok) {

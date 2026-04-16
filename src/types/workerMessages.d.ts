@@ -1,11 +1,12 @@
 // Types for messages sent by workers.
 
-import { InputConfig_BoolOnPaste } from "../ui/ui";
+import { InputConfig_BoolOnPaste, Log } from "../ui/ui";
 import { NetworkRequestType } from "./worker";
 
 export interface WorkerEnv_Exec {
 	path: string;
 	args?: string[];
+	input?: Log[];
 
 	parentPid: number;
 	handoverDisplayPid?: number;

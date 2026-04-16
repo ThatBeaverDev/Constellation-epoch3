@@ -88,9 +88,10 @@ export interface Environment {
 					showLogAfter: boolean
 				): string | Promise<string>;
 			};
+			input?: Log[];
 		}
 	): Promise<{
-		onExit: Promise<{ return: Log; logs: Log[] }>;
+		onExit: Promise<{ return?: Log; logs: Log[] }>;
 	}>;
 
 	processes(): Promise<Process[]>;
@@ -205,3 +206,9 @@ interface onPasteData {
 	type: "text" | "image" | "file";
 	data: string;
 }
+
+export type ConstellationProgram = (
+	env: Environment,
+	args: string[],
+	input: string
+) => Generator | AsyncGenerator;

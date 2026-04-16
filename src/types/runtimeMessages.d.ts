@@ -15,6 +15,7 @@ export interface RuntimeExecuteProgram {
 
 	args?: string[];
 	workingDirectory: string;
+	input?: Log[];
 }
 
 export interface RuntimeProgramInputEvent {
