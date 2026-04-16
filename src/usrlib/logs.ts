@@ -2,6 +2,10 @@ import { Log } from "../ui/ui";
 
 export function logsToString(log: Log): string {
 	if (typeof log == "string") return String(log);
+	if (typeof log !== "object")
+		throw new Error(
+			`Cannot convert non-log to string. (tried converting ${typeof log})`
+		);
 
 	let workingString = "";
 	for (const part of log) {
