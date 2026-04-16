@@ -461,8 +461,6 @@ div.LogBox > div.input > input.reqInput {
 
 				input.value = config.initialText;
 
-				if (config.inline) input.classList.add("inline");
-
 				input.addEventListener("paste", (event) => {
 					const clipboardData = event.clipboardData;
 					if (!clipboardData) return;
@@ -509,6 +507,7 @@ div.LogBox > div.input > input.reqInput {
 
 				const div = document.createElement("div");
 				div.classList.add("input");
+				if (config.inline) div.classList.add("inline");
 				div.appendChild(text);
 				div.appendChild(input);
 
