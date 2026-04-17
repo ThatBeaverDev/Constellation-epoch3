@@ -5,7 +5,7 @@
   "dependencies": {
     "glob": "^13.0.6",
     "path-browserify": "^1.0.1",
-    "prettier": "^3.8.1",
+    "prettier": "^3.8.3",
     "rollup": "^4.59.0",
     "typescript": "^5.9.3"
   },
