@@ -1,6 +1,6 @@
 import { Log } from "../ui/ui";
 
-export function logsToString(log: Log): string {
+export function logToString(log: Log): string {
 	if (typeof log == "string") return String(log);
 	if (typeof log !== "object")
 		throw new Error(
@@ -26,4 +26,12 @@ export function logsToString(log: Log): string {
 	}
 
 	return workingString;
+}
+
+export function logsToString(logs: Log[]): string {
+	console.debug(logs);
+	return logs
+		.filter((item) => (typeof item == "string" ? item.trim() : item))
+		.map((log) => logToString(log))
+		.join("\n");
 }
