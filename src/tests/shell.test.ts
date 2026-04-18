@@ -112,14 +112,25 @@ describe("Shell parser stress tests", () => {
 	// Combined pipe + redirect
 	// -------------------------
 	it("Handle pipe then redirection", () => {
-		expect(() =>
-			parseShellCommand("cat file | grep foo > out.txt")
-		).toThrow();
+		expect(parseShellCommand("cat file | grep foo > out.txt")).toEqual([
+			{
+				name: "cat",
+				args: ["file"],
+				output: {
+					type: "command",
+					command: {
+						name: "grep",
+						args: ["foo"],
+						output: { type: "file", name: "out.txt" }
+					}
+				}
+			}
+		]);
 	});
 
-	it("Handle redirection before pipe (if supported or rejected consistently)", () => {
-		expect(
-			() => () => parseShellCommand("cat file > out.txt | grep foo")
+	it("Handle redirection before pipe", () => {
+		expect(() =>
+			parseShellCommand("cat file > out.txt | grep foo")
 		).toThrow();
 	});
 
