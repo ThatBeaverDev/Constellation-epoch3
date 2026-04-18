@@ -2,14 +2,16 @@ import { Environment } from "../types/worker";
 import { Log } from "../ui/ui";
 import { logsToString, logToString } from "../usrlib/logs";
 
-interface Command {
+export interface ShellCommand {
 	name: string;
 	args: string[];
 
 	output?:
 		| { type: "file"; name: string }
-		| { type: "command"; command: Command };
+		| { type: "command"; command: ShellCommand };
 }
+
+const exitTokens = ["|", ">"];
 
 function tokenise(text: string) {
 	let quote: '"' | "'" | undefined = undefined;
@@ -23,6 +25,8 @@ function tokenise(text: string) {
 
 		switch (char) {
 			case " ":
+			case "\t":
+			case "\n":
 				if (!quote) {
 					tokens.push(currentToken);
 					currentToken = "";
@@ -43,7 +47,13 @@ function tokenise(text: string) {
 				break;
 
 			default:
-				append();
+				if (!quote && exitTokens.includes(char)) {
+					tokens.push(currentToken);
+
+					tokens.push(char);
+
+					currentToken = "";
+				} else append();
 		}
 	}
 
@@ -53,18 +63,26 @@ function tokenise(text: string) {
 	return tokens.filter((item) => item.trim() !== "");
 }
 
-export function parseShellCommand(text: string): Command[] {
+export function parseShellCommand(text: string): ShellCommand[] {
 	const tokens = tokenise(text);
-	const commands: Command[] = [];
+	const commands: ShellCommand[] = [];
 
-	function grabCommand(tokens: string[]): {
-		command: Command;
-		digestedTokens: number;
-	} {
+	function grabCommand(
+		tokens: string[],
+		isTopLevel = false
+	):
+		| {
+				command: ShellCommand;
+				digestedTokens: number;
+		  }
+		| undefined {
 		let i = 0;
-		const command: Command = { name: tokens[i], args: [] };
+		const command: ShellCommand = { name: tokens[i], args: [] };
 
-		const exitTokens = ["|", ">"];
+		if (!command.name) return undefined;
+		if (exitTokens.includes(command.name))
+			throw new Error(`${command.name} is a reserved name.`);
+
 		while (true) {
 			i++;
 
@@ -72,36 +90,59 @@ export function parseShellCommand(text: string): Command[] {
 			else command.args.push(tokens[i]);
 		}
 
-		if (!tokens[i])
-			return { command, digestedTokens: i }; // we're done, end of command
-		else
+		if (!tokens[i]) {
+			// we're done, end of command
+
+			if (isTopLevel && i !== tokens.length)
+				throw new Error(`Unexpected: ${tokens[i]}`);
+
+			return { command, digestedTokens: i };
+		} else
 			switch (tokens[i]) {
 				case "|":
 					i++;
 
 					// digest the next one, we're piping into it
-					const { command: pipeTarget, digestedTokens } = grabCommand(
-						tokens.slice(i)
-					);
+					const grabbed = grabCommand(tokens.slice(i));
+					if (!grabbed) {
+						throw new Error("Command to pipe into must be given.");
+					}
+
+					const { command: pipeTarget, digestedTokens } = grabbed;
 					i += digestedTokens;
 
 					command.output = { type: "command", command: pipeTarget };
+
+					if (isTopLevel && i !== tokens.length)
+						throw new Error(`Unexpected: ${tokens[i]}`);
+
 					return { command, digestedTokens: i };
 
 				case ">":
 					i++;
 
 					const targetFile = tokens[i];
+					if (targetFile == undefined)
+						throw new Error("Target file must be specified.");
+
 					command.output = { type: "file", name: targetFile };
 					i++;
 
-					break;
-			}
+					if (isTopLevel && i !== tokens.length)
+						throw new Error(`Unexpected: ${tokens[i]}`);
 
-		return { command, digestedTokens: i };
+					return { command, digestedTokens: i };
+
+				default:
+					throw new Error(`Unexpected exit token: ${tokens[i]}`);
+			}
 	}
 
-	const { command, digestedTokens } = grabCommand(tokens);
+	const grabbed = grabCommand(tokens, true);
+	if (!grabbed) return [];
+
+	const { command, digestedTokens } = grabbed;
+
 	if (digestedTokens < tokens.length)
 		throw new Error(`Unexpected: ${tokens[digestedTokens + 1]}`);
 	commands.push(command);
@@ -125,7 +166,7 @@ export default async function* Shell(env: Environment) {
 	const welcome = await env.fs.readFile(welcomeMessage);
 	if (welcome) env.print(welcome);
 
-	async function executeCommand(command: Command, input?: Log[]) {
+	async function executeCommand(command: ShellCommand, input?: Log[]) {
 		const result: Log[] = [];
 
 		switch (command.name) {
@@ -217,8 +258,6 @@ export default async function* Shell(env: Environment) {
 						command.output.name
 					);
 					const text = logsToString(result ?? []);
-
-					console.debug(path, text);
 
 					await env.fs.writeFile(path, text);
 

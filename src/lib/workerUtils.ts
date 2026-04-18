@@ -94,7 +94,14 @@ export function mainThreadMessageHandler(worker: Worker, store: WorkerStore) {
 			const listener = requestHandlers.get(msg.event);
 			if (!listener) return;
 
-			listener(msg.data);
+			try {
+				listener(msg.data);
+			} catch (e) {
+				console.error(
+					`Handler in main thread of intent ${msg.event} failed:`,
+					e
+				);
+			}
 		}
 	};
 

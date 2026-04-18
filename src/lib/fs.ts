@@ -126,8 +126,6 @@ class DomFs implements FilesystemInterface {
 	================================ */
 
 	async init() {
-		console.log("Initialising DomFs...");
-
 		if (deleteFS) {
 			console.log("Erasing old DomFs...");
 			const dbs = await indexedDB.databases();
@@ -233,7 +231,27 @@ class DomFs implements FilesystemInterface {
 
 		if (!path.startsWith("/")) path = "/" + path;
 		if (path.length > 1 && path.endsWith("/")) path = path.slice(0, -1);
-		return path;
+
+		const chars = path.split("");
+		let result = "";
+		let lastCharWasSlash = false;
+
+		for (const char of chars) {
+			if (char == "/") {
+				if (lastCharWasSlash) {
+					// leave it
+				} else {
+					// append it
+					result += char;
+					lastCharWasSlash = true;
+				}
+			} else {
+				lastCharWasSlash = false;
+				result += char;
+			}
+		}
+
+		return result;
 	}
 
 	#parent(path: string): string {
@@ -349,7 +367,11 @@ class DomFs implements FilesystemInterface {
 						break;
 
 					case "json":
-						resolve(JSON.parse(String(contents)));
+						try {
+							resolve(JSON.parse(String(contents)));
+						} catch (e) {
+							reject(`Failed to parse JSON: ${e}`);
+						}
 						break;
 
 					default:
@@ -471,6 +493,8 @@ class DomFs implements FilesystemInterface {
 	isDir(path: string): boolean {
 		path = this.#normalise(path);
 
+		if (path === "/") return true;
+
 		const dir = this.#index[path];
 		if (!dir || dir.type !== "directory") return false;
 
@@ -479,6 +503,8 @@ class DomFs implements FilesystemInterface {
 
 	exists(path: string) {
 		path = this.#normalise(path);
+
+		if (path === "/") return true;
 
 		const fileEntry = this.#index[path];
 		return fileEntry !== undefined;

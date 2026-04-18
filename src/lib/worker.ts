@@ -672,7 +672,14 @@ export async function workerFunction(this: undefined) {
 				const listener = requestHandlers.get(msg.event);
 				if (!listener) return;
 
-				listener(msg.data);
+				try {
+					listener(msg.data);
+				} catch (e) {
+					console.error(
+						`Handler in worker of intent ${msg.event} failed:`,
+						e
+					);
+				}
 			}
 		};
 
