@@ -2,4 +2,5 @@ npx tsc
 
 npx rollup -c
 
-deno --allow-read --allow-write --allow-env ./scripts/build.ts
+npx tsc ./scripts/build.ts
+node ./scripts/build.js
