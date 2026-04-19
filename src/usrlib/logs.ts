@@ -29,7 +29,6 @@ export function logToString(log: Log): string {
 }
 
 export function logsToString(logs: Log[]): string {
-	console.debug(logs);
 	return logs
 		.filter((item) => (typeof item == "string" ? item.trim() : item))
 		.map((log) => logToString(log))
