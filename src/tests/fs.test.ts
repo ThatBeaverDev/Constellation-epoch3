@@ -1,17 +1,18 @@
 import "fake-indexeddb/auto";
 import { describe, it, expect, beforeEach } from "vitest";
-import DomFs, { FilesystemInterface } from "../lib/fs";
+import DomFs, {
+	basename,
+	FilesystemInterface,
+	normalise,
+	parent
+} from "../lib/fs.js";
 
-describe("Filesystem stress tests", () => {
-	let fs: FilesystemInterface;
-
-	beforeEach(async () => {
-		fs = new DomFs((_, err) => {
-			throw err;
-		});
-		await fs.init?.();
-		await fs.waitForReady();
+describe("Filesystem stress tests", async () => {
+	const fs: FilesystemInterface = new DomFs((_, err) => {
+		throw err;
 	});
+	await fs.init?.();
+	await fs.waitForReady();
 
 	// -------------------------
 	// BASIC INTEGRITY
@@ -175,5 +176,94 @@ describe("Filesystem stress tests", () => {
 		const result = await fs.readFile("/a/file.txt");
 
 		expect(result).toBe("data");
+	});
+});
+
+describe("Path helpers – torture tests", () => {
+	// -------------------------
+	// NORMALISE
+	// -------------------------
+	describe("normalise()", () => {
+		it("adds leading slash", () => {
+			expect(normalise("a")).toBe("/a");
+		});
+
+		it("removes trailing slash", () => {
+			expect(normalise("/a/")).toBe("/a");
+		});
+
+		it("keeps root intact", () => {
+			expect(normalise("/")).toBe("/");
+		});
+
+		it("handles empty string (should become /)", () => {
+			expect(normalise("")).toBe("/");
+		});
+
+		it("handles multiple trailing slashes", () => {
+			expect(normalise("/a///")).toBe("/a");
+		});
+
+		it("does not collapse duplicate slashes (current behaviour)", () => {
+			expect(normalise("//a//b")).toBe("/a/b");
+		});
+
+		it("throws on undefined", () => {
+			expect(() => normalise(undefined as any)).toThrow();
+		});
+	});
+
+	// -------------------------
+	// PARENT
+	// -------------------------
+	describe("parent()", () => {
+		it("gets parent of simple path", () => {
+			expect(parent("/a/b")).toBe("/a");
+		});
+
+		it("parent of root is root", () => {
+			expect(parent("/")).toBe("/");
+		});
+
+		it("parent of single segment is root", () => {
+			expect(parent("/a")).toBe("/");
+		});
+
+		it("handles trailing slash", () => {
+			expect(parent("/a/b/")).toBe("/a");
+		});
+
+		it("handles no leading slash input", () => {
+			expect(parent("a/b")).toBe("/a");
+		});
+
+		it("handles weird double slashes", () => {
+			expect(parent("//a//b")).toBe("/a");
+		});
+	});
+
+	// -------------------------
+	// BASENAME
+	// -------------------------
+	describe("basename()", () => {
+		it("gets filename", () => {
+			expect(basename("/a/b.txt")).toBe("b.txt");
+		});
+
+		it("handles trailing slash", () => {
+			expect(basename("/a/b/")).toBe("b");
+		});
+
+		it("basename of root is empty string", () => {
+			expect(basename("/")).toBe("");
+		});
+
+		it("handles no leading slash", () => {
+			expect(basename("a/b")).toBe("b");
+		});
+
+		it("handles double slashes", () => {
+			expect(basename("//a//b")).toBe("b");
+		});
 	});
 });

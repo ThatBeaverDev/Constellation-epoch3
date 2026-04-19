@@ -97,6 +97,47 @@ interface DomFsFile {
 	type: "file" | "directory";
 }
 
+export function normalise(path: string): string {
+	if (path == undefined) {
+		throw new Error("Path must not be undefined.");
+	}
+
+	const chars = path.split("");
+	let result = "";
+	let lastCharWasSlash = false;
+
+	for (const char of chars) {
+		if (char == "/") {
+			if (lastCharWasSlash) {
+				// don't append
+			} else {
+				// append it
+				result += char;
+				lastCharWasSlash = true;
+			}
+		} else {
+			lastCharWasSlash = false;
+			result += char;
+		}
+	}
+
+	if (!result.startsWith("/")) result = "/" + result;
+	if (result.length > 1 && result.endsWith("/")) result = result.slice(0, -1);
+
+	return result;
+}
+
+export function parent(path: string): string {
+	path = normalise(path);
+	if (path === "/") return "/";
+	return path.substring(0, path.lastIndexOf("/")) || "/";
+}
+
+export function basename(path: string): string {
+	path = normalise(path);
+	return path.substring(path.lastIndexOf("/") + 1);
+}
+
 class DomFs implements FilesystemInterface {
 	#panic: Constellation["panic"];
 
@@ -109,11 +150,12 @@ class DomFs implements FilesystemInterface {
 
 	waitForReady() {
 		return new Promise<void>((resolve) => {
-			const check = () => {
-				if (this.ready) resolve();
-				else setTimeout(check, 2);
-			};
-			check();
+			let interval = setInterval(() => {
+				if (this.ready) {
+					clearInterval(interval);
+					resolve();
+				}
+			}, 50);
 		});
 	}
 
@@ -174,7 +216,6 @@ class DomFs implements FilesystemInterface {
 		request.onsuccess = async () => {
 			this.#db = request.result;
 			await this.#loadIndex();
-			console.log("DomFs ready.");
 		};
 	}
 
@@ -221,61 +262,16 @@ class DomFs implements FilesystemInterface {
 	}
 
 	/* ================================
-	   PATH HELPERS
-	================================ */
-
-	#normalise(path: string): string {
-		if (path == undefined) {
-			throw new Error("Path must not be undefined.");
-		}
-
-		if (!path.startsWith("/")) path = "/" + path;
-		if (path.length > 1 && path.endsWith("/")) path = path.slice(0, -1);
-
-		const chars = path.split("");
-		let result = "";
-		let lastCharWasSlash = false;
-
-		for (const char of chars) {
-			if (char == "/") {
-				if (lastCharWasSlash) {
-					// leave it
-				} else {
-					// append it
-					result += char;
-					lastCharWasSlash = true;
-				}
-			} else {
-				lastCharWasSlash = false;
-				result += char;
-			}
-		}
-
-		return result;
-	}
-
-	#parent(path: string): string {
-		path = this.#normalise(path);
-		if (path === "/") return "/";
-		return path.substring(0, path.lastIndexOf("/")) || "/";
-	}
-
-	#basename(path: string): string {
-		path = this.#normalise(path);
-		return path.substring(path.lastIndexOf("/") + 1);
-	}
-
-	/* ================================
 	   DIRECTORY OPERATIONS
 	================================ */
 
 	async mkdir(path: string) {
-		path = this.#normalise(path);
+		path = normalise(path);
 
 		if (this.#index[path]) return false;
 
-		const parent = this.#parent(path);
-		const parentEntry = this.#index[parent];
+		const parentDir = parent(path);
+		const parentEntry = this.#index[parentDir];
 
 		if (!parentEntry || parentEntry.type !== "directory")
 			throw new Error(`Parent directory does not exist (mkdir ${path})`);
@@ -298,7 +294,7 @@ class DomFs implements FilesystemInterface {
 	}
 
 	async readdir(path: string): Promise<string[]> {
-		path = this.#normalise(path);
+		path = normalise(path);
 
 		const dir = this.#index[path];
 		if (!dir || dir.type !== "directory")
@@ -308,14 +304,14 @@ class DomFs implements FilesystemInterface {
 
 		for (const key in this.#index) {
 			if (key === path) continue;
-			if (this.#parent(key) === path) results.push(this.#basename(key));
+			if (parent(key) === path) results.push(basename(key));
 		}
 
 		return results;
 	}
 
 	async rmdir(path: string) {
-		path = this.#normalise(path);
+		path = normalise(path);
 
 		if (path === "/") throw new Error("Cannot remove root");
 
@@ -324,8 +320,7 @@ class DomFs implements FilesystemInterface {
 			throw new Error("Not a directory");
 
 		for (const key in this.#index) {
-			if (this.#parent(key) === path)
-				throw new Error("Directory not empty");
+			if (parent(key) === path) throw new Error("Directory not empty");
 		}
 
 		const transaction = this.#db!.transaction("index", "readwrite");
@@ -342,7 +337,7 @@ class DomFs implements FilesystemInterface {
 		path: string,
 		format: "text" | "json" = "text"
 	): Promise<string | T | undefined> {
-		path = this.#normalise(path);
+		path = normalise(path);
 
 		const file = this.#index[path];
 		if (!file || file.type !== "file") return undefined;
@@ -385,10 +380,10 @@ class DomFs implements FilesystemInterface {
 	}
 
 	async writeFile(path: string, contents: string) {
-		path = this.#normalise(path);
+		path = normalise(path);
 
-		const parent = this.#parent(path);
-		const parentEntry = this.#index[parent];
+		const parentDir = parent(path);
+		const parentEntry = this.#index[parentDir];
 
 		if (!parentEntry || parentEntry.type !== "directory")
 			throw new Error(
@@ -454,7 +449,7 @@ class DomFs implements FilesystemInterface {
 	}
 
 	async unlink(path: string) {
-		path = this.#normalise(path);
+		path = normalise(path);
 
 		const entry = this.#index[path];
 		if (!entry || entry.type !== "file") return;
@@ -471,7 +466,7 @@ class DomFs implements FilesystemInterface {
 	}
 
 	async rm(path: string) {
-		path = this.#normalise(path);
+		path = normalise(path);
 
 		const entry = this.#index[path];
 		if (!entry) return;
@@ -482,7 +477,7 @@ class DomFs implements FilesystemInterface {
 		}
 
 		const children = Object.keys(this.#index).filter(
-			(p) => this.#parent(p) === path
+			(p) => parent(p) === path
 		);
 
 		for (const child of children) await this.rm(child);
@@ -491,7 +486,7 @@ class DomFs implements FilesystemInterface {
 	}
 
 	isDir(path: string): boolean {
-		path = this.#normalise(path);
+		path = normalise(path);
 
 		if (path === "/") return true;
 
@@ -502,7 +497,7 @@ class DomFs implements FilesystemInterface {
 	}
 
 	exists(path: string) {
-		path = this.#normalise(path);
+		path = normalise(path);
 
 		if (path === "/") return true;
 
