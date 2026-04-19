@@ -9,6 +9,7 @@
 		"lib": ["esnext", "DOM", "DOM.Iterable", "DOM.AsyncIterable"],
 
 		"module": "esnext",
+		"moduleResolution": "bundler",
 		"types": [],
 
 		"noUnusedLocals": true,

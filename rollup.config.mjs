@@ -1,5 +1,7 @@
 import { globSync } from "glob";
 import path from "path";
+import commonjs from "@rollup/plugin-commonjs";
+import { nodeResolve } from "@rollup/plugin-node-resolve";
 
 const programConfigs = globSync("./build/bin/*.js").map((file) => {
 	const name = path.basename(file, ".js");
@@ -9,7 +11,14 @@ const programConfigs = globSync("./build/bin/*.js").map((file) => {
 		output: {
 			file: `./dist/bin/${name}.js`,
 			format: "es"
-		}
+		},
+		plugins: [
+			nodeResolve({
+				browser: true,
+				preferBuiltins: false
+			}),
+			commonjs()
+		]
 	};
 });
 
@@ -21,7 +30,14 @@ export default [
 			file: "./dist/kernel.js",
 			format: "es",
 			inlineDynamicImports: true
-		}
+		},
+		plugins: [
+			nodeResolve({
+				browser: true,
+				preferBuiltins: false
+			}),
+			commonjs()
+		]
 	},
 
 	...programConfigs
