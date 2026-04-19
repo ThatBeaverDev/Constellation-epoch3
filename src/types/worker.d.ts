@@ -210,5 +210,5 @@ interface onPasteData {
 export type ConstellationProgram = (
 	env: Environment,
 	args: string[],
-	input: string
-) => Generator | AsyncGenerator;
+	input?: Log[]
+) => Generator<any, Log, unknown> | AsyncGenerator<any, Log, unknown> | Log;

@@ -1,5 +1,6 @@
 import { InputConfig, Log } from "../ui/ui.js";
 import {
+	ConstellationProgram,
 	EnvironmentFilesystem,
 	NetworkRequestType,
 	Process,
@@ -1072,7 +1073,7 @@ export async function workerFunction(this: undefined) {
 			const url = URL.createObjectURL(blob);
 
 			const exports = await import(url);
-			const program = exports.default as GeneratorFunction;
+			const program = exports.default as ConstellationProgram;
 
 			const store: WorkerProgramStore = {
 				generator: undefined,
@@ -1092,8 +1093,22 @@ export async function workerFunction(this: undefined) {
 			URL.revokeObjectURL(url);
 
 			try {
-				// @ts-expect-error
-				store.generator = program(store.env, args ?? [], input);
+				const generator = program(store.env, args ?? [], input);
+
+				if (
+					generator &&
+					Object.keys(Object.getPrototypeOf(generator)).length == 0
+				) {
+					// @ts-expect-error // probably a generator
+					store.generator = generator;
+				} else {
+					// not a generator, this is a return value, let's just pretend we're working with a generator.
+					store.generator = (function* emptyGenerator() {
+						console.debug(generator);
+
+						return generator;
+					})();
+				}
 			} catch (e) {
 				console.error(e);
 				return false;

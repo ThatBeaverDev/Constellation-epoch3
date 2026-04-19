@@ -684,6 +684,11 @@ export default class Runtime {
 			this.#handoverDisplay(oldDisplayOwner, program);
 		}
 
+		if (this.#initSession == undefined) this.#initSession = program;
+
+		if (parent) parent.children.push(program);
+		this.#sessions.push(program);
+
 		const ok = await worker.sendMessage<boolean, RuntimeExecuteProgram>(
 			"executeProgram",
 			{
@@ -708,11 +713,6 @@ export default class Runtime {
 		}
 
 		worker.totalPrograms += 1;
-
-		if (this.#initSession == undefined) this.#initSession = program;
-
-		if (parent) parent.children.push(program);
-		this.#sessions.push(program);
 
 		return program;
 	}
