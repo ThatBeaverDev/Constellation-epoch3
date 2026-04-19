@@ -2,6 +2,7 @@ import { globSync } from "glob";
 import path from "path";
 import commonjs from "@rollup/plugin-commonjs";
 import { nodeResolve } from "@rollup/plugin-node-resolve";
+import css from "rollup-plugin-import-css";
 
 const programConfigs = globSync("./build/bin/*.js").map((file) => {
 	const name = path.basename(file, ".js");
@@ -36,7 +37,8 @@ export default [
 				browser: true,
 				preferBuiltins: false
 			}),
-			commonjs()
+			commonjs(),
+			css()
 		]
 	},
 

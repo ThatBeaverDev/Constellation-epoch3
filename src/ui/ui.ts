@@ -1,6 +1,7 @@
 import { FilesystemInterface } from "../lib/fs";
 import { ProgramStore } from "../runtime";
 import { onPasteData } from "../types/worker";
+import styles from "./styles.css";
 
 const lineHeight = 15;
 function linesToPx(lines: number) {
@@ -227,104 +228,8 @@ class DomManager implements UiManager {
 		this.#container = document.createElement("div");
 		this.#container.classList.add("DomUI");
 
-		this.#container.innerHTML = `<style>
-html {
-	position: absolute;
-	top: 0;
-	left: 0;
-	width: 100vw;
-	min-height: 100vh;
-}
-
-body {
-	margin: 0;
-	padding: 0;
-}
-
-div.DomUI {
-	position: absolute;
-	top: 0;
-	left: 0;
-	width: 100vw;
-	min-height: 100vh;
-	background-color: black;
-}
-
-div.LogBox {
-	position: relative;
-	display: flex;
-	flex-direction: column;
-	overflow-y: auto;
-	width: 100vw;
-	white-space: break-spaces;
-}
-
-div.LogBox > p {
-	width: 100%;
-	line-height: ${lineHeight}px;
-
-	margin: 0;
-	padding: 0;
-	color: white;
-	font-family: monospace;
-}
-
-div.LogBox > p.warning {
-	color: yellow;
-}
-
-div.LogBox > p.error {
-	color: red;
-}
-
-div.LogBox > p > img {
-	overflow: hidden;
-	filter: saturate(0.68) contrast(1.2);
-	image-rendering: pixelated;
-}
-
-div.LogBox > p > span > a {
-	color: inherit;
-	text-decoration: none;
-}
-
-div.LogBox > p > span > a:hover {
-	text-decoration: underline;
-}
-
-div.LogBox > div.input {
-	width: 100%;
-	height: 15px;
-	display: flex;
-	flex-direction: row;
-	order: 999999;
-	margin: 0;
-	padding: 0;
-	color: white;
-	font-family: monospace;
-}
-
-div.LogBox > div.input.inline {
-	order: 0 !important;
-}
-
-div.LogBox > div.input > p {
-	margin: 0;
-}
-
-div.LogBox > div.input > input.reqInput {
-	flex: 1;
-	background: transparent;
-	border: none !important;
-	outline: none !important;
-	padding: 0 !important;
-	margin: 0 !important;
-	color: white;
-	font-family: monospace;
-}
-
-
-</style>`;
+		console.debug(styles);
+		this.#container.innerHTML = `<style>${styles as string}</style>`;
 
 		this.#logbox = document.createElement("div");
 		this.#logbox.classList.add("LogBox");

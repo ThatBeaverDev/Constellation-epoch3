@@ -16,7 +16,9 @@
 		"noUnusedParameters": true,
 
 		"incremental": true,
-		"tsBuildInfoFile": "./build/.tsbuildinfo"
+		"tsBuildInfoFile": "./build/.tsbuildinfo",
+
+		"plugins": [{ "name": "typescript-plugin-css-modules" }]
 	},
 	"include": ["./src", "./src/global.d.ts"],
 	"exclude": ["./src/**/*.test.ts"]
