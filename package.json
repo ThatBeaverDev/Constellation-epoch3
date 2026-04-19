@@ -8,7 +8,7 @@
     "path-browserify": "^1.0.1",
     "prettier": "^3.8.3",
     "rollup": "^4.59.0",
-    "typescript": "^5.9.3"
+    "typescript": "^6.0.3"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^29.0.2",
