@@ -1,13 +1,10 @@
-#! /usr/bin/env deno
-/// <reference types="node" />
-
 import { readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path/posix";
 
 async function walkDirectory(
-	path: string,
-	nameStart: string,
-	file: { files: Record<string, string>; directories: string[] } = {
+	path,
+	nameStart,
+	file = {
 		files: {},
 		directories: []
 	}
