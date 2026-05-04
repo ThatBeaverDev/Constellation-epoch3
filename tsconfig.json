@@ -10,15 +10,12 @@
 
 		"module": "esnext",
 		"moduleResolution": "bundler",
-		"types": [],
 
 		"noUnusedLocals": true,
 		"noUnusedParameters": true,
 
 		"incremental": true,
-		"tsBuildInfoFile": "./build/.tsbuildinfo",
-
-		"plugins": [{ "name": "typescript-plugin-css-modules" }]
+		"tsBuildInfoFile": "./build/.tsbuildinfo"
 	},
 	"include": ["./src", "./src/global.d.ts"],
 	"exclude": ["./src/**/*.test.ts"]
