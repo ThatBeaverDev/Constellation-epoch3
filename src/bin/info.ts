@@ -20,7 +20,7 @@ export default async function* getInfo(env: Environment) {
 
 	const processes = (await env.processes()).length;
 
-	const gpu = "GPU Unsupported";
+	const gpu = "No GPU Support";
 
 	const browser = "Unknown";
 
