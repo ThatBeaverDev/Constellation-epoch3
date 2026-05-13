@@ -12,8 +12,6 @@ export interface WorkerEnv_Exec {
 	handoverDisplayPid?: number;
 
 	workingDirectory: string;
-
-	outputProxy: boolean;
 }
 
 export interface WorkerEnv_Input {

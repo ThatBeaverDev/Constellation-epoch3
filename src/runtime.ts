@@ -10,11 +10,9 @@ import {
 } from "./types/workerMessages";
 import {
 	RuntimeExecuteProgram,
-	RuntimeProgramInputEvent,
 	RuntimeProgramInputOnPaste
 } from "./types/runtimeMessages";
-import { InputConfig, Log } from "./ui/ui";
-import { RuntimeProgramLogEvent } from "./types/runtimeMessages";
+import { InputConfig, Log, UiManager } from "./ui/ui";
 
 export interface ProgramStore {
 	worker: WorkerStore;
@@ -29,9 +27,8 @@ export interface ProgramStore {
 	onExit: (data?: any) => void;
 
 	logs: { type: "log" | "warning" | "error"; data: Log }[];
-	outputProxy?: ProgramStore;
 
-	onLog(type: "log" | "warning" | "error", data: Log): void;
+	onLog(type: "log" | "warning" | "error" | number, data: Log): void;
 	onInput(message: string, config: InputConfig): Promise<string>;
 }
 
@@ -56,9 +53,10 @@ export default class Runtime {
 	#warn: (message: string) => void;
 	#error: (message: string) => void;
 
-	#workerLog: (origin: string, message: Log) => void;
-	#workerWarn: (origin: string, message: Log) => void;
-	#workerError: (origin: string, message: Log) => void;
+	#workerLog: UiManager["log"];
+	#workerWarn: UiManager["warn"];
+	#workerError: UiManager["error"];
+	#editLog: UiManager["editLog"];
 
 	#panic: (message: Error) => void;
 	#kernel: Constellation;
@@ -70,22 +68,23 @@ export default class Runtime {
 	constructor(
 		kernel: Constellation,
 
-		log: (origin: string, message: Log) => void,
-		warn: (origin: string, message: Log) => void,
-		error: (origin: string, message: Log) => void,
+		log: UiManager["log"],
+		warn: UiManager["warn"],
+		error: UiManager["error"],
+		editLog: UiManager["editLog"],
 
 		panic: (message: Error) => void,
 		fs: FilesystemInterface
 	) {
 		this.#kernel = kernel;
 
-		this.#log = (data: string) => {
+		this.#log = (data: Log) => {
 			if (!this.#kernel.ui.controller) log("runtime", data);
 		};
-		this.#warn = (data: string) => {
+		this.#warn = (data: Log) => {
 			if (!this.#kernel.ui.controller) warn("runtime", data);
 		};
-		this.#error = (data: string) => {
+		this.#error = (data: Log) => {
 			if (!this.#kernel.ui.controller) error("runtime", data);
 		};
 
@@ -94,6 +93,7 @@ export default class Runtime {
 		this.#workerLog = log;
 		this.#workerWarn = warn;
 		this.#workerError = error;
+		this.#editLog = editLog;
 
 		this.#panic = panic;
 		this.#fs = fs;
@@ -178,7 +178,7 @@ export default class Runtime {
 
 			handle(
 				"program_log",
-				({ data, pid }: { data: string; pid: number }) => {
+				({ data, pid }: { data: Log; pid: number }) => {
 					const program = this.#programByPid(pid);
 
 					program.onLog("log", data);
@@ -186,7 +186,7 @@ export default class Runtime {
 			);
 			handle(
 				"program_warn",
-				({ data, pid }: { data: string; pid: number }) => {
+				({ data, pid }: { data: Log; pid: number }) => {
 					const program = this.#programByPid(pid);
 
 					program.onLog("warning", data);
@@ -194,10 +194,18 @@ export default class Runtime {
 			);
 			handle(
 				"program_error",
-				({ data, pid }: { data: string; pid: number }) => {
+				({ data, pid }: { data: Log; pid: number }) => {
 					const program = this.#programByPid(pid);
 
 					program.onLog("error", data);
+				}
+			);
+			handle(
+				"program_edit_log",
+				({ data, id, pid }: { data: Log; id: number; pid: number }) => {
+					const program = this.#programByPid(pid);
+
+					program.onLog(id, data);
 				}
 			);
 
@@ -209,7 +217,6 @@ export default class Runtime {
 					handoverDisplayPid: executingProgramPid,
 					workingDirectory,
 					parentPid,
-					outputProxy,
 					input
 				}: WorkerEnv_Exec) => {
 					const parent = this.#programByPid(parentPid);
@@ -221,7 +228,6 @@ export default class Runtime {
 						{
 							displayHandover: { oldOwner: executingProgramPid },
 							workingDirectory,
-							outputProxy: outputProxy ? parentPid : undefined,
 							input
 						}
 					);
@@ -432,20 +438,10 @@ export default class Runtime {
 		const oldPID = oldOwner.pid;
 
 		if (this.#kernel.ui.controller !== oldOwner) {
-			// it's possible that this is a proxy handover
-			if (oldOwner.outputProxy) {
-				// yep
-				newOwner.onLog = oldOwner.onLog;
-				newOwner.onInput = oldOwner.onInput;
-				newOwner.outputProxy = oldOwner.outputProxy;
-
-				this.#switchLogs(newOwner);
-			} else {
-				// nope, welp.
-				throw new Error(
-					`Program by PID ${oldPID} attempted to handover display it does not own. (no proxy present)`
-				);
-			}
+			// nope, welp.
+			throw new Error(
+				`Program by PID ${oldPID} attempted to handover display it does not own.`
+			);
 		}
 
 		// push old owner to stack
@@ -542,7 +538,6 @@ export default class Runtime {
 		config?: {
 			displayHandover?: { oldOwner?: number };
 			workingDirectory: string;
-			outputProxy?: number;
 			input?: Log[];
 		}
 	) {
@@ -586,22 +581,18 @@ export default class Runtime {
 			},
 
 			onLog: (type, data) => {
-				program.logs.push({ type, data: data });
+				if (typeof type == "number") {
+					const targetLog = program.logs[type - 1];
+					console.debug(type, data, program.logs, targetLog);
+					if (!targetLog) return; // just ignore it.
 
-				if (program.outputProxy) {
-					// do the thing
-					const target = program.outputProxy;
-					const workerStore = target.worker;
-
-					workerStore.emit<RuntimeProgramLogEvent>("program_log", {
-						type,
-						data,
-						handler: target.pid,
-						origin: program.pid
-					});
+					targetLog.data = data;
+					this.#editLog(workerName, type, data);
 
 					return;
 				}
+
+				program.logs.push({ type, data: data });
 
 				const hasDisplay = this.#kernel.ui.controller == program;
 				if (hasDisplay) {
@@ -635,23 +626,6 @@ export default class Runtime {
 				}
 			},
 			onInput: async (message: string, config) => {
-				if (program.outputProxy) {
-					// do the thing
-					const target = program.outputProxy;
-					const workerStore = target.worker;
-
-					const response = await workerStore.sendMessage<
-						string,
-						RuntimeProgramInputEvent
-					>("program_input", {
-						message,
-						handler: target.pid,
-						origin: program.pid
-					});
-
-					return response;
-				}
-
 				if (this.#kernel.ui.controller !== program) {
 					// sorrey.
 					return new Promise<string>(() => {});
@@ -666,10 +640,7 @@ export default class Runtime {
 				return response;
 			},
 
-			logs: [],
-			outputProxy: config?.outputProxy
-				? this.#programByPid(config.outputProxy)
-				: undefined
+			logs: []
 		};
 
 		let oldDisplayOwner: ProgramStore | undefined;

@@ -3,12 +3,6 @@ import { onPasteData } from "./worker";
 
 // Types for messages sent by runtime.
 
-export interface RuntimeProgramLogEvent {
-	type: "log" | "warning" | "error";
-	data: Log;
-	handler: number;
-	origin: number;
-}
 export interface RuntimeExecuteProgram {
 	directory: string;
 	pid: number;
@@ -16,13 +10,6 @@ export interface RuntimeExecuteProgram {
 	args?: string[];
 	workingDirectory: string;
 	input?: Log[];
-}
-
-export interface RuntimeProgramInputEvent {
-	origin: number;
-	handler: number;
-
-	message: string;
 }
 
 export interface RuntimeProgramInputOnPaste {

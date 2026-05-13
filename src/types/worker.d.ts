@@ -7,17 +7,24 @@ export interface Environment {
 	 * Log an line to the console
 	 * @param data Log text
 	 */
-	print(data: Log): void;
+	print(data: Log): number;
 	/**
 	 * Log an warning to the console
 	 * @param data Warning text
 	 */
-	warn(data: Log): void;
+	warn(data: Log): number;
 	/**
 	 * Log an error to the console
 	 * @param data Error text
 	 */
-	error(data: Log): void;
+	error(data: Log): number;
+
+	/**
+	 * Edits the contents of a log line
+	 * @param id Id of the log to edit
+	 * @param newLog New log text
+	 */
+	editLog(id: number, newLog: Log): number;
 
 	/**
 	 * Request text input from the user. Requires input access.
@@ -79,15 +86,6 @@ export interface Environment {
 		args?: string[],
 		config?: {
 			handOverDisplay?: boolean;
-			outputProxy?: {
-				onLog(type: "log" | "warning" | "error", contents: Log): any;
-
-				onInput(
-					prompt: string,
-					hideTyping: boolean,
-					showLogAfter: boolean
-				): string | Promise<string>;
-			};
 			input?: Log[];
 		}
 	): Promise<{

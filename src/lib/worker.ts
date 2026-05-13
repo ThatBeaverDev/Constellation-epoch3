@@ -14,10 +14,8 @@ import {
 } from "../types/workerMessages.js";
 import {
 	RuntimeExecuteProgram,
-	RuntimeProgramInputEvent,
 	RuntimeProgramInputOnPaste
 } from "../types/runtimeMessages.js";
-import { RuntimeProgramLogEvent } from "../types/runtimeMessages.js";
 
 /// <reference path="@typescript/lib-webworker@npm:@types/webworker" />
 
@@ -756,11 +754,13 @@ export async function workerFunction(this: undefined) {
 	/* Secure some bases */
 
 	// @ts-expect-error
-	delete self.eval;
+	self.eval = undefined;
 	// @ts-expect-error
-	delete self.fetch;
+	self.fetch = undefined;
 	// @ts-expect-error
-	delete self.XMLHttpRequest;
+	self.XMLHttpRequest = undefined;
+	// @ts-expect-error
+	self.Worker = undefined;
 
 	class WorkerFS implements EnvironmentFilesystem {
 		ready = true;
@@ -856,16 +856,6 @@ export async function workerFunction(this: undefined) {
 	//	emit("worker_error", { data: message });
 	//}
 
-	function programLog(pid: number, data: Log) {
-		emit("program_log", { pid, data });
-	}
-	function programWarn(pid: number, data: Log) {
-		emit("program_warn", { pid, data });
-	}
-	function programError(pid: number, data: Log) {
-		emit("program_error", { pid, data });
-	}
-
 	/* =============== Worker Code  =============== */
 
 	const programs: WorkerProgramStore[] = [];
@@ -878,15 +868,32 @@ export async function workerFunction(this: undefined) {
 		const { pid } = program;
 		let handlingInput = false;
 
+		let logs: Log[] = [];
+
 		const env: Environment = {
 			print(data: Log) {
-				programLog(pid, data);
+				emit("program_log", { pid, data });
+
+				return logs.push(data);
 			},
+
 			warn(data: Log) {
-				programWarn(pid, data);
+				emit("program_warn", { pid, data });
+
+				return logs.push(data);
 			},
+
 			error(data: Log) {
-				programError(pid, data);
+				emit("program_error", { pid, data });
+
+				return logs.push(data);
+			},
+
+			editLog(id: number, data: Log) {
+				emit("program_edit_log", { pid, data, id });
+
+				logs[id] = data;
+				return id;
 			},
 
 			input: async function (
@@ -927,6 +934,8 @@ export async function workerFunction(this: undefined) {
 
 			clearLogs() {
 				emit("env_clear_logs", { pid });
+
+				logs.splice(0, Infinity);
 			},
 
 			fs,
@@ -939,14 +948,6 @@ export async function workerFunction(this: undefined) {
 				args?: string[],
 				config?: {
 					handOverDisplay?: boolean;
-					outputProxy: {
-						onLog(
-							type: "log" | "warning" | "error",
-							contents: Log
-						): any;
-
-						onInput(prompt: string): string | Promise<string>;
-					};
 					input?: Log[];
 				}
 			): Promise<{ onExit: Promise<{ return: Log; logs: Log[] }> }> {
@@ -958,21 +959,13 @@ export async function workerFunction(this: undefined) {
 						? pid
 						: undefined,
 					workingDirectory: this.workingDirectory,
-					input: config?.input,
-
-					outputProxy: config?.outputProxy !== undefined
+					input: config?.input
 				};
 
 				const { pid: executedPID } = await sendMessage<{ pid: number }>(
 					"env_exec",
 					data
 				);
-
-				if (config?.outputProxy) {
-					if (!program.outputHandlers) program.outputHandlers = {};
-
-					program.outputHandlers[executedPID] = config.outputProxy;
-				}
 
 				const obj: Partial<
 					(typeof activePrograms)[keyof typeof activePrograms]
@@ -1131,20 +1124,6 @@ export async function workerFunction(this: undefined) {
 
 		return programs[index];
 	}
-
-	handle<RuntimeProgramLogEvent>("program_log", (event) => {
-		const targetProgram = programByPid(event.handler);
-
-		const logger = targetProgram.outputHandlers[event.origin].onLog;
-		if (logger) logger(event.type, event.data);
-	});
-
-	handle<RuntimeProgramInputEvent>("program_input", async (event) => {
-		const targetProgram = programByPid(event.handler);
-
-		const inputGetter = targetProgram.outputHandlers[event.origin].onInput;
-		return await inputGetter(event.message);
-	});
 
 	function terminateProgram(program: WorkerProgramStore, data: Log) {
 		completedQueue.push({ pid: program.pid });

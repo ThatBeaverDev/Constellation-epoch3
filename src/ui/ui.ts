@@ -1,4 +1,5 @@
 import { FilesystemInterface } from "../lib/fs";
+import { clamp } from "../lib/util";
 import { ProgramStore } from "../runtime";
 import { onPasteData } from "../types/worker";
 import styles from "./styles.css";
@@ -40,9 +41,10 @@ export interface InputConfig_BoolOnPaste {
 }
 
 export interface UiManager {
-	log(source: string, message: Log): void;
-	warn(source: string, message: Log): void;
-	error(source: string, message: Log, console?: boolean): void;
+	log(source: string, message: Log): number;
+	warn(source: string, message: Log): number;
+	error(source: string, message: Log, console?: boolean): number;
+	editLog(source: string, id: number, message: Log): void;
 
 	clear(): void;
 	input(
@@ -96,6 +98,21 @@ export type Log = string | ArrayLog;
 
 type NormalizedLog = LogSegment[];
 
+interface BaseSound {
+	volume?: number;
+	start?: number;
+}
+
+export interface FileSound extends BaseSound {
+	file: string;
+}
+
+export interface URLSound extends BaseSound {
+	url: string;
+}
+
+export type Sound = FileSound | URLSound;
+
 function normalizeLog(log: Log): NormalizedLog {
 	if (typeof log === "string") {
 		return [{ text: log }];
@@ -127,7 +144,7 @@ function renderConsole(log: NormalizedLog = []) {
 				break;
 
 			case "image":
-				text += `%c[Image from Location ${"url" in part ? part.url : part.dir}.]`;
+				text += `%c[Image from Location ${"url" in part ? part.url : part.dir}]`;
 				styles.push("color: #ffff00");
 
 				break;
@@ -228,7 +245,6 @@ class DomManager implements UiManager {
 		this.#container = document.createElement("div");
 		this.#container.classList.add("DomUI");
 
-		console.debug(styles);
 		this.#container.innerHTML = `<style>${styles as string}</style>`;
 
 		this.#logbox = document.createElement("div");
@@ -251,9 +267,9 @@ class DomManager implements UiManager {
 	#elementQueue: { element: HTMLElement; onAddition?: Function }[] = [];
 	#commitScheduled = false;
 
-	#newLog(element: HTMLElement, onAddition?: Function) {
+	#newLog(element: HTMLElement, onAddition?: Function): number {
 		this.#elementQueue.push({ element, onAddition });
-		this.lines.push({ element });
+		const line = this.lines.push({ element });
 
 		if (!this.#commitScheduled) {
 			this.#commitScheduled = true;
@@ -281,24 +297,26 @@ class DomManager implements UiManager {
 				this.#commitScheduled = false;
 			});
 		}
+
+		return line;
 	}
 
 	/**
 	 * The queue of logs, waiting to be displayed.
 	 */
 
-	#postPlain(message: string, className?: string) {
+	#postPlain(message: string, className?: string): number {
 		const text = document.createElement("p");
 		if (className) text.classList.add(className);
 
 		text.innerText = message;
-		this.#newLog(text);
+		return this.#newLog(text);
 	}
 
-	#postRich(log: NormalizedLog) {
+	#postRich(log: NormalizedLog): number {
 		const p = document.createElement("p");
-		p.innerHTML = "...";
-		this.#newLog(p);
+		p.innerText = "...";
+		const result = this.#newLog(p);
 
 		renderHtml(log, this.#fs.readFile.bind(this.#fs)).then((html) => {
 			const containerHTML = document.scrollingElement as HTMLElement;
@@ -312,6 +330,8 @@ class DomManager implements UiManager {
 				containerHTML.scrollTo(0, containerHTML.scrollHeight);
 			}
 		});
+
+		return result;
 	}
 
 	log(origin: string, message: Log) {
@@ -324,19 +344,46 @@ class DomManager implements UiManager {
 		const consoleData = renderConsole(normalized);
 		console.log(consoleData.text, ...consoleData.styles);
 
-		this.#postRich(normalized);
+		return this.#postRich(normalized);
 	}
 
 	warn(origin: string, message: string) {
 		const data = this.#includeOrigin() ? `[${origin}] ${message}` : message;
 		console.warn(data);
-		this.#postPlain(data, "warning");
+		return this.#postPlain(data, "warning");
 	}
 
 	error(origin: string, message: string, consoleLog: boolean = true) {
 		const data = this.#includeOrigin() ? `[${origin}] ${message}` : message;
 		if (consoleLog) console.error(data);
-		this.#postPlain(data, "error");
+		return this.#postPlain(data, "error");
+	}
+
+	async editLog(origin: string, id: number, message: Log) {
+		const normalized = withOrigin(
+			origin,
+			normalizeLog(message),
+			this.#includeOrigin()
+		);
+
+		const data = await renderHtml(
+			normalized,
+			this.#fs.readFile.bind(this.#fs)
+		);
+
+		const element = this.lines[id]?.element;
+		if (element) {
+			const containerHTML = document.scrollingElement as HTMLElement;
+			const isScrolledToBottom =
+				containerHTML.scrollTop >=
+				containerHTML.scrollHeight - containerHTML.offsetHeight - 5;
+
+			element.innerHTML = data;
+
+			if (isScrolledToBottom) {
+				containerHTML.scrollTo(0, containerHTML.scrollHeight);
+			}
+		}
 	}
 
 	#focusInput(input: HTMLInputElement) {
@@ -444,6 +491,66 @@ class DomManager implements UiManager {
 
 		this.#logbox.innerHTML = "";
 	}
+
+	async playSound(config: Sound) {
+		const volume = clamp(config.volume ?? 0.5, 0, 1);
+
+		const sound = new Audio();
+
+		if ("url" in config) {
+			// URL src
+			sound.src = config.url;
+		} else {
+			// Dir src
+			const fileContents = await this.#fs.readFile(config.file);
+			if (!fileContents)
+				throw new Error(`Audio file at ${config.file} does not exist.`);
+
+			// hopefully a DATA:URI. i guess it might be a URL, interesting.
+			sound.src = fileContents;
+		}
+
+		// 0 to 1 range.
+		sound.volume = volume;
+
+		sound.play();
+
+		let onStopResolve: Function;
+		function stopSound() {
+			sound.pause();
+			sound.remove();
+
+			if (onStopResolve) onStopResolve();
+		}
+
+		return new Promise<{
+			duration: number;
+			onStop: Promise<number>;
+			pause: () => void;
+			play: () => void;
+			remove: () => void;
+		}>((resolve) => {
+			sound.addEventListener("loadeddata", () => {
+				sound.addEventListener("ended", stopSound);
+
+				resolve({
+					duration: sound.duration,
+
+					onStop: new Promise<number>((resolve) => {
+						onStopResolve = resolve;
+					}),
+
+					pause() {},
+					play() {},
+					remove() {
+						stopSound();
+					}
+				});
+			});
+		});
+	}
+
+	cancelSounds() {}
 
 	exit() {
 		clearInterval(this.#focusInterval);
