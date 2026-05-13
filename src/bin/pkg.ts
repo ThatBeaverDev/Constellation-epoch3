@@ -304,7 +304,7 @@ export default async function* packageInstall(
 
 			env.print([
 				{
-					text: "Commands:\npkg [add|install]\npkg [remove|uninstall]\npkg list\npkg [repo|repos] [add|list|remove|listpkgs]"
+					text: "Commands:\npkg [add|install]\npkg [remove|uninstall]\npkg list [Local|remote]\npkg [repo|repos] [add|list|remove|listpkgs]"
 				}
 			]);
 	}
