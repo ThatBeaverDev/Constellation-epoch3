@@ -72,6 +72,6 @@ export default async function* install(env: Environment) {
 	yield env.fs.mkdir("/data/installd");
 	yield env.fs.writeFile(
 		"/data/installd/run.json",
-		JSON.stringify(installerData)
+		JSON.stringify(installerData, null, 4)
 	);
 }
