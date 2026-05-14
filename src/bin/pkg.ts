@@ -30,7 +30,7 @@ export interface Package extends RemotePackage {
 
 export default async function* packageInstall(
 	env: Environment,
-	[command, subcommand, subcommand2]: Partial<string[]>
+	[command, subcommand, ...finalParams]: Partial<string[]>
 ): AsyncGenerator<never, void, unknown> {
 	const dataDirectory = "/data/pkgs";
 	const packageFile = env.path.join(dataDirectory, "packages.json");
@@ -80,7 +80,11 @@ export default async function* packageInstall(
 				]);
 				break;
 			}
-			if (!subcommand) {
+			const toInstall = [subcommand, ...finalParams].filter(
+				(item) => item !== undefined
+			);
+
+			if (toInstall.length == 0) {
 				env.print([
 					{
 						text: "You must specify a package name to install.",
@@ -89,95 +93,116 @@ export default async function* packageInstall(
 				]);
 				break;
 			}
-			if (packages.packages[subcommand]) {
-				env.print([
-					{ text: "Package is already installed.", colour: "#00ff00" }
-				]);
-				break;
-			}
 
-			let found = false;
-			for (const repo of packages.repositories) {
-				const url = repo.url;
+			const repoJsons: Partial<Record<string, RemotePackagesJson>> = {};
 
-				const repoPackageJson = await fetch<RemotePackagesJson>(
-					url + "/packages.json",
-					true
-				);
-
-				const packageInfo = repoPackageJson?.packages?.[subcommand];
-				if (!packageInfo) continue;
-
-				env.print(`Match for ${subcommand} found in repository ${url}`);
-
-				const source = await fetch(
-					url + `/packages/${subcommand}/package.js`
-				);
-
-				if (!source) continue;
-				env.print(`Match has source, installing`);
-
-				const binpath = `/bin/${subcommand}.js`;
-				const pkg: Package = {
-					...packageInfo,
-					files: [binpath]
-				};
-
-				packages.packages[subcommand] = pkg;
-				repo.packages[subcommand] = pkg;
-
-				if (packageInfo.dependencies) {
-					env.print(
-						`Installing ${packageInfo.dependencies?.length} dependencies...`
-					);
-					for (const name of packageInfo.dependencies) {
-						yield* packageInstall(env, ["install", name]);
-					}
+			for (const packageName of toInstall) {
+				if (packages.packages[packageName]) {
+					env.print([
+						{
+							text: "Package is already installed.",
+							colour: "#00ff00"
+						}
+					]);
+					break;
 				}
 
-				await env.fs.writeFile(binpath, source);
-				env.print([
-					{
-						text: `Package ${subcommand} successfully installed.`,
-						colour: "#00ff00"
-					}
-				]);
+				let found = false;
+				for (const repo of packages.repositories) {
+					const url = repo.url;
 
-				found = true;
-				break;
+					const repoPackageJson =
+						repoJsons[url] ??
+						(await fetch<RemotePackagesJson>(
+							url + "/packages.json",
+							true
+						));
+					repoJsons[url] = repoPackageJson;
+
+					const packageInfo =
+						repoPackageJson?.packages?.[packageName];
+					if (!packageInfo) continue;
+
+					env.print(
+						`Match for ${packageName} found in repository ${url}`
+					);
+
+					const source = await fetch(
+						url + `/packages/${packageName}/package.js`
+					);
+
+					if (!source) continue;
+					env.print(`Match has source, installing`);
+
+					const binpath = `/bin/${packageName}.js`;
+					const pkg: Package = {
+						...packageInfo,
+						files: [binpath]
+					};
+
+					packages.packages[packageName] = pkg;
+					repo.packages[packageName] = pkg;
+
+					if (packageInfo.dependencies) {
+						env.print(
+							`Installing ${packageInfo.dependencies?.length} dependencies...`
+						);
+						for (const name of packageInfo.dependencies) {
+							yield* packageInstall(env, ["install", name]);
+						}
+					}
+
+					await env.fs.writeFile(binpath, source);
+					env.print([
+						{
+							text: `Package ${packageName} successfully installed.`,
+							colour: "#00ff00"
+						}
+					]);
+
+					found = true;
+					break;
+				}
+
+				if (!found)
+					env.print([
+						{
+							text: `Package ${subcommand} was not found in any repositories.`,
+							colour: "#ff0000"
+						}
+					]);
 			}
-
-			if (!found)
-				env.print([
-					{
-						text: `Package ${subcommand} was not found in any repositories.`,
-						colour: "#ff0000"
-					}
-				]);
 
 			break;
 
 		case "uninstall":
 		case "remove":
-			if (!subcommand) {
+			const toUninstall = [subcommand, ...finalParams].filter(
+				(item) => item !== undefined
+			);
+
+			if (toUninstall.length == 0) {
 				env.print("You must specify a package name to uninstall.");
 				break;
 			}
-			const isInstalled = packages.packages[subcommand] !== undefined;
-			if (!isInstalled) {
-				env.print("Package not installed.");
-				break;
-			}
 
-			await env.fs.rm(`/bin/${subcommand}.js`);
-
-			for (const repo of packages.repositories) {
-				if (repo.packages[subcommand]) {
-					delete repo.packages[subcommand];
+			for (const target of toUninstall) {
+				const isInstalled = packages.packages[target] !== undefined;
+				if (!isInstalled) {
+					env.print("Package not installed.");
+					break;
 				}
-			}
 
-			delete packages.packages[subcommand];
+				await env.fs.rm(`/bin/${target}.js`);
+
+				for (const repo of packages.repositories) {
+					if (repo.packages[target]) {
+						delete repo.packages[target];
+					}
+				}
+
+				delete packages.packages[target];
+			}
 
 			break;
 
@@ -213,7 +238,7 @@ export default async function* packageInstall(
 		case "repos":
 			switch (subcommand) {
 				case "add":
-					if (!subcommand2) {
+					if (!finalParams?.[0]) {
 						env.print([
 							{
 								text: "You must specify a repository URL to add",
@@ -223,18 +248,22 @@ export default async function* packageInstall(
 						break;
 					}
 
-					const repository: Repository = {
-						url: subcommand2,
-						packages: {}
-					};
-					packages.repositories.push(repository);
+					for (const url of finalParams) {
+						if (!url) continue;
 
-					env.print([
-						{
-							text: `Repository successfully added.`,
-							colour: "#00ff00"
-						}
-					]);
+						const repository: Repository = {
+							url,
+							packages: {}
+						};
+						packages.repositories.push(repository);
+
+						env.print([
+							{
+								text: `Repository successfully added.`,
+								colour: "#00ff00"
+							}
+						]);
+					}
 
 					break;
 
@@ -254,7 +283,7 @@ export default async function* packageInstall(
 					break;
 
 				case "remove":
-					if (!subcommand2) {
+					if (!finalParams?.[0]) {
 						env.print([
 							{
 								text: "You must specify a repository URL to remove",
@@ -264,30 +293,35 @@ export default async function* packageInstall(
 						break;
 					}
 
-					let orphanedPackages: [string, Package | undefined][] = [];
-					packages.repositories = packages.repositories.filter(
-						(repo) => {
-							const remove = repo.url !== subcommand2;
+					for (const name of finalParams) {
+						if (!name) continue;
 
-							if (remove)
-								orphanedPackages.push(
-									...Object.entries(repo.packages)
-								);
-						}
-					);
+						let orphanedPackages: [string, Package | undefined][] =
+							[];
+						packages.repositories = packages.repositories.filter(
+							(repo) => {
+								const remove = repo.url !== name;
 
-					env.print([
-						{
-							text: `Repositories of URL ${subcommand2} removed. ${orphanedPackages.length > 0 ? `${orphanedPackages.length} packages are now orphaned.` : ""}`
-						}
-					]);
+								if (remove)
+									orphanedPackages.push(
+										...Object.entries(repo.packages)
+									);
+							}
+						);
+
+						env.print([
+							{
+								text: `Repositories of URL ${name} removed. ${orphanedPackages.length > 0 ? `${orphanedPackages.length} packages are now orphaned.` : ""}`
+							}
+						]);
+					}
 
 					break;
 
 				default:
-					if (subcommand2)
+					if (finalParams?.[0])
 						env.print([
-							{ text: `Unknown subcommand: ${subcommand2}` }
+							{ text: `Unknown subcommand: ${finalParams[0]}` }
 						]);
 
 					env.print([
