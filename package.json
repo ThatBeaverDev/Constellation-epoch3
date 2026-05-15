@@ -13,7 +13,7 @@
 	"devDependencies": {
 		"@rollup/plugin-commonjs": "^29.0.2",
 		"@rollup/plugin-node-resolve": "^16.0.3",
-		"@types/node": "^25.6.2",
+		"@types/node": "^25.8.0",
 		"@types/webworker": "^0.0.76",
 		"@typescript/lib-webworker": "npm:@types/webworker@^0.0.72",
 		"fake-indexeddb": "^6.2.5",
