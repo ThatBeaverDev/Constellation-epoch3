@@ -12,10 +12,14 @@ export function createMockEnv(): Environment {
 		input: vi.fn(),
 
 		fs: {
-			writeFile: vi.fn()
+			mkdir: vi.fn(),
+			readFile: vi.fn(),
+			writeFile: vi.fn(),
+			rm: vi.fn()
 		} as any,
 
 		path: {
+			join: (...args: string[]) => args.join("/"),
 			resolve: (...args: string[]) => args.join("/")
 		} as any,
 

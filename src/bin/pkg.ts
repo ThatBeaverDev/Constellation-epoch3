@@ -71,15 +71,6 @@ export default async function* packageInstall(
 	switch (command) {
 		case "install":
 		case "add":
-			if (packages.repositories.length == 0) {
-				env.print([
-					{
-						text: "You must add a repository to install from",
-						colour: "#ff0000"
-					}
-				]);
-				break;
-			}
 			const toInstall = [subcommand, ...finalParams].filter(
 				(item) => item !== undefined
 			);
@@ -100,8 +91,18 @@ export default async function* packageInstall(
 				if (packages.packages[packageName]) {
 					env.print([
 						{
-							text: "Package is already installed.",
+							text: `Package '${packageName}' is already installed.`,
 							colour: "#00ff00"
+						}
+					]);
+					continue;
+				}
+
+				if (packages.repositories.length == 0) {
+					env.print([
+						{
+							text: "You must add a repository to install from",
+							colour: "#ff0000"
 						}
 					]);
 					break;
@@ -167,7 +168,7 @@ export default async function* packageInstall(
 				if (!found)
 					env.print([
 						{
-							text: `Package ${subcommand} was not found in any repositories.`,
+							text: `Package ${packageName} was not found in any repositories.`,
 							colour: "#ff0000"
 						}
 					]);
@@ -190,7 +191,7 @@ export default async function* packageInstall(
 				const isInstalled = packages.packages[target] !== undefined;
 				if (!isInstalled) {
 					env.print("Package not installed.");
-					break;
+					continue;
 				}
 
 				await env.fs.rm(`/bin/${target}.js`);
@@ -300,12 +301,15 @@ export default async function* packageInstall(
 							[];
 						packages.repositories = packages.repositories.filter(
 							(repo) => {
-								const remove = repo.url !== name;
+								const remove = repo.url == name;
 
-								if (remove)
+								if (remove) {
 									orphanedPackages.push(
 										...Object.entries(repo.packages)
 									);
+								}
+
+								return !remove;
 							}
 						);
 
