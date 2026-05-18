@@ -1,33 +1,6 @@
 import { Environment } from "../types/worker";
+import { blobToDataURL, dataURItoBlob } from "../usrlib/dataUri";
 import { sleep } from "../usrlib/time";
-
-// Source - https://stackoverflow.com/a/12300351
-// Posted by devnull69, modified by community. See post 'Timeline' for change history
-// Retrieved 2026-04-11, License - CC BY-SA 3.0
-
-function dataURItoBlob(dataURI: string) {
-	// convert base64 to raw binary data held in a string
-	// doesn't handle URLEncoded DataURIs - see SO answer #6850276 for code that does this
-	const byteString = atob(dataURI.split(",")[1]);
-
-	// separate out the mime component
-	const mimeString = dataURI.split(",")[0].split(":")[1].split(";")[0];
-
-	// write the bytes of the string to an ArrayBuffer
-	const ab = new ArrayBuffer(byteString.length);
-
-	// create a view into the buffer
-	const ia = new Uint8Array(ab);
-
-	// set the bytes of the buffer to the correct values
-	for (let i = 0; i < byteString.length; i++) {
-		ia[i] = byteString.charCodeAt(i);
-	}
-
-	// write the ArrayBuffer to a blob, and you're done
-	const blob = new Blob([ab], { type: mimeString });
-	return blob;
-}
 
 function line(
 	ctx: OffscreenCanvasRenderingContext2D,
@@ -284,7 +257,7 @@ export default async function* microsoftPaint(
 					const blob = await drawingCanvas.convertToBlob({
 						type: "image/png"
 					});
-					const dataUrl = `data:${blob.type};base64,${btoa(String.fromCharCode(...new Uint8Array(await blob.arrayBuffer())))}`; // Complex base64 logic
+					const dataUrl = await blobToDataURL(blob);
 
 					const savePath = await env.input(
 						"Enter the directory to save to: "
