@@ -6,13 +6,16 @@ import { implementWorkerFS, mainThreadMessageHandler } from "./lib/workerUtils";
 import {
 	WorkerEnv_Exec,
 	WorkerEnv_Input,
-	WorkerEnv_Network_Get
+	WorkerEnv_Network_Get,
+	WorkerEnv_PlaySound,
+	WorkerEnv_SoundAction,
+	WorkerEnv_SoundRemove
 } from "./types/workerMessages";
 import {
 	RuntimeExecuteProgram,
 	RuntimeProgramInputOnPaste
 } from "./types/runtimeMessages";
-import { InputConfig, Log, UiManager } from "./ui/ui";
+import { InputConfig, Log, PlaySoundResponse, UiManager } from "./ui/ui";
 
 export interface ProgramStore {
 	worker: WorkerStore;
@@ -28,7 +31,7 @@ export interface ProgramStore {
 
 	logs: { type: "log" | "warning" | "error"; data: Log }[];
 
-	onLog(type: "log" | "warning" | "error" | number, data: Log): void;
+	onLog(type: "log" | "warning" | "error", data: Log): void;
 	onInput(message: string, config: InputConfig): Promise<string>;
 }
 
@@ -56,7 +59,6 @@ export default class Runtime {
 	#workerLog: UiManager["log"];
 	#workerWarn: UiManager["warn"];
 	#workerError: UiManager["error"];
-	#editLog: UiManager["editLog"];
 
 	#panic: (message: Error) => void;
 	#kernel: Constellation;
@@ -65,13 +67,18 @@ export default class Runtime {
 	targetWorkers: number = 3;
 	#workers: WorkerStore[];
 
+	#sounds = new Map<
+		number,
+		{ program: ProgramStore; info: PlaySoundResponse }
+	>();
+	#nextSoundID = 1;
+
 	constructor(
 		kernel: Constellation,
 
 		log: UiManager["log"],
 		warn: UiManager["warn"],
 		error: UiManager["error"],
-		editLog: UiManager["editLog"],
 
 		panic: (message: Error) => void,
 		fs: FilesystemInterface
@@ -93,7 +100,6 @@ export default class Runtime {
 		this.#workerLog = log;
 		this.#workerWarn = warn;
 		this.#workerError = error;
-		this.#editLog = editLog;
 
 		this.#panic = panic;
 		this.#fs = fs;
@@ -102,6 +108,8 @@ export default class Runtime {
 		this.#workers = [];
 
 		this.#log("Program runtime initialised.");
+
+		document.addEventListener("visibilitychange", this.#onVisibilityChange);
 	}
 
 	#sessions: ProgramStore[];
@@ -118,6 +126,11 @@ export default class Runtime {
 
 	#nextPID: number = 1;
 	#nextWorkerID: number = 1;
+
+	#onVisibilityChange() {
+		// prevent workers dying randomly
+		this.#workers.forEach((worker) => (worker.lastKeepAlive = Date.now()));
+	}
 
 	#updateWorkers() {
 		if (this.#exited) return;
@@ -198,14 +211,6 @@ export default class Runtime {
 					const program = this.#programByPid(pid);
 
 					program.onLog("error", data);
-				}
-			);
-			handle(
-				"program_edit_log",
-				({ data, id, pid }: { data: Log; id: number; pid: number }) => {
-					const program = this.#programByPid(pid);
-
-					program.onLog(id, data);
 				}
 			);
 
@@ -334,6 +339,16 @@ export default class Runtime {
 				"termination",
 				({ pid, data }: { pid: number; data?: any }) => {
 					this.#registerTermination(pid, data);
+
+					// delete all sounds
+					for (const item of this.#sounds) {
+						const soundID = item[0];
+						const sound = item[1];
+						if (!sound) continue;
+
+						sound.info.remove();
+						this.#sounds.delete(soundID);
+					}
 				}
 			);
 
@@ -405,6 +420,69 @@ export default class Runtime {
 			handle("keepAlive", () => {
 				workerStore.lastKeepAlive = Date.now();
 			});
+
+			/* ----- Sounds ----- */
+
+			handle(
+				"env_sound_play",
+				async ({ config, pid }: WorkerEnv_PlaySound) => {
+					const program = this.#programByPid(pid);
+					const sound = await this.#kernel.ui.playSound(config);
+
+					const id = this.#nextSoundID++;
+
+					this.#sounds.set(id, { info: sound, program });
+
+					sound.onStop.then((time) => {
+						workerStore.emit(`sound_stopped_${id}`, {
+							time
+						});
+
+						this.#sounds.delete(id);
+					});
+
+					return {
+						id,
+						duration: sound.duration
+					};
+				}
+			);
+
+			handle(
+				"env_sound_pause",
+				async ({ soundID }: WorkerEnv_SoundAction) => {
+					const sound = this.#sounds.get(soundID);
+
+					if (!sound)
+						throw new Error(`Sound ${soundID} does not exist.`);
+
+					sound.info.pause();
+				}
+			);
+
+			handle(
+				"env_sound_resume",
+				async ({ soundID }: WorkerEnv_SoundAction) => {
+					const sound = this.#sounds.get(soundID);
+
+					if (!sound)
+						throw new Error(`Sound ${soundID} does not exist.`);
+
+					sound.info.play();
+				}
+			);
+
+			handle(
+				"env_sound_remove",
+				async ({ soundID }: WorkerEnv_SoundRemove) => {
+					const sound = this.#sounds.get(soundID);
+
+					if (!sound) return;
+
+					sound.info.remove();
+					this.#sounds.delete(soundID);
+				}
+			);
 
 			this.#workers.push(workerStore);
 
@@ -491,7 +569,10 @@ export default class Runtime {
 					`${worker.name} is unresponsive. Panicking if no response within 5 further seconds.`
 				);
 
-				if (worker.lastKeepAlive + 6000 < now) {
+				if (
+					worker.lastKeepAlive + 6000 < now &&
+					document.visibilityState == "visible"
+				) {
 					this.#panic(
 						new Error(
 							`Worker ${worker.id} became unresponsive. Program states are not recoverable.`
@@ -581,17 +662,6 @@ export default class Runtime {
 			},
 
 			onLog: (type, data) => {
-				if (typeof type == "number") {
-					const targetLog = program.logs[type - 1];
-					console.debug(type, data, program.logs, targetLog);
-					if (!targetLog) return; // just ignore it.
-
-					targetLog.data = data;
-					this.#editLog(workerName, type, data);
-
-					return;
-				}
-
 				program.logs.push({ type, data: data });
 
 				const hasDisplay = this.#kernel.ui.controller == program;
@@ -745,6 +815,11 @@ export default class Runtime {
 
 	#exited = false;
 	exit() {
+		document.removeEventListener(
+			"visibilitychange",
+			this.#onVisibilityChange
+		);
+
 		this.#workers.forEach((store) => store.exit());
 	}
 }

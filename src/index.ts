@@ -26,7 +26,6 @@ export default class Constellation {
 			this.ui.log.bind(this.ui),
 			this.ui.warn.bind(this.ui),
 			this.ui.error.bind(this.ui),
-			this.ui.editLog.bind(this.ui),
 
 			this.panic.bind(this, "runtime"),
 

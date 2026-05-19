@@ -1,4 +1,4 @@
-import { InputConfig, KeyPressModifiers, Log } from "../ui/ui";
+import { InputConfig, KeyPressModifiers, Log, Sound } from "../ui/ui";
 
 export type NetworkRequestType = "get" | "post";
 
@@ -7,24 +7,17 @@ export interface Environment {
 	 * Log an line to the console
 	 * @param data Log text
 	 */
-	print(data: Log): number;
+	print(data: Log): void;
 	/**
 	 * Log an warning to the console
 	 * @param data Warning text
 	 */
-	warn(data: Log): number;
+	warn(data: Log): void;
 	/**
 	 * Log an error to the console
 	 * @param data Error text
 	 */
-	error(data: Log): number;
-
-	/**
-	 * Edits the contents of a log line
-	 * @param id Id of the log to edit
-	 * @param newLog New log text
-	 */
-	editLog(id: number, newLog: Log): number;
+	error(data: Log): void;
 
 	/**
 	 * Request text input from the user. Requires input access.
@@ -138,6 +131,18 @@ export interface Environment {
 		>;
 
 		kernelVersion(): Promise<number>;
+	};
+
+	sound: {
+		play(config: Sound): Promise<{
+			id: number;
+			duration: number;
+			onStop: Promise<number>;
+
+			pause(): Promise<void>;
+			resume(): Promise<void>;
+			remove(): Promise<void>;
+		}>;
 	};
 }
 

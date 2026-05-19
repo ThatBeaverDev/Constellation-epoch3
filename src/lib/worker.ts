@@ -1,4 +1,4 @@
-import { InputConfig, Log } from "../ui/ui.js";
+import { InputConfig, Log, Sound } from "../ui/ui.js";
 import {
 	ConstellationProgram,
 	EnvironmentFilesystem,
@@ -889,13 +889,6 @@ export async function workerFunction(this: undefined) {
 				return logs.push(data);
 			},
 
-			editLog(id: number, data: Log) {
-				emit("program_edit_log", { pid, data, id });
-
-				logs[id] = data;
-				return id;
-			},
-
 			input: async function (
 				message: string,
 				config?: Partial<InputConfig>
@@ -1030,6 +1023,48 @@ export async function workerFunction(this: undefined) {
 						{ id: number; processes: number; activeTime: number }[]
 					>("worker_stats");
 				}
+			},
+
+			sound: {
+				play: async (config: Sound) => {
+					const { id, duration } = await sendMessage<{
+						id: number;
+						duration: number;
+					}>("env_sound_play", {
+						pid,
+						config
+					});
+
+					const onStop = new Promise<number>((resolve) => {
+						handle(`sound_stopped_${id}`, ({ time }) => {
+							resolve(time);
+						});
+					});
+
+					return {
+						id,
+						duration,
+						onStop,
+
+						async pause() {
+							await sendMessage("env_sound_pause", {
+								soundID: id
+							});
+						},
+
+						async resume() {
+							await sendMessage("env_sound_resume", {
+								soundID: id
+							});
+						},
+
+						async remove() {
+							await sendMessage("env_sound_remove", {
+								soundID: id
+							});
+						}
+					};
+				}
 			}
 		};
 
@@ -1097,8 +1132,6 @@ export async function workerFunction(this: undefined) {
 				} else {
 					// not a generator, this is a return value, let's just pretend we're working with a generator.
 					store.generator = (function* emptyGenerator() {
-						console.debug(generator);
-
 						return generator;
 					})();
 				}

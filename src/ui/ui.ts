@@ -44,7 +44,6 @@ export interface UiManager {
 	log(source: string, message: Log): number;
 	warn(source: string, message: Log): number;
 	error(source: string, message: Log, console?: boolean): number;
-	editLog(source: string, id: number, message: Log): void;
 
 	clear(): void;
 	input(
@@ -53,6 +52,8 @@ export interface UiManager {
 	): Promise<{ response: string; displayText: string }>;
 
 	controller?: ProgramStore;
+
+	playSound(config: Sound): Promise<PlaySoundResponse>;
 
 	exit(): Promise<void> | void;
 }
@@ -76,7 +77,7 @@ type LogSegment =
 			/**
 			 * height in lines
 			 */
-			height?: number;
+			height?: number | "auto";
 	  }
 	| {
 			type: "image";
@@ -90,7 +91,7 @@ type LogSegment =
 			/**
 			 * height in lines
 			 */
-			height?: number;
+			height?: number | "auto";
 	  };
 
 export type ArrayLog = LogSegment[];
@@ -101,7 +102,27 @@ type NormalizedLog = LogSegment[];
 interface BaseSound {
 	volume?: number;
 	start?: number;
+
+	metadata?: {
+		title?: string;
+		artist?: string;
+		album?: string;
+		/**
+		 * URL or Directory
+		 */
+		artwork?: string;
+	};
 }
+navigator.mediaSession.metadata = new MediaMetadata({
+	title: "Name", //the title of the media
+	artist: "Artist", //the artist of the media
+	album: "Album Name", //the album name of the media
+	artwork: [
+		{
+			src: "https://dummyimage.com/512/000000/ffffff&text=Album%20Art"
+		}
+	] //the album art associated with the media
+});
 
 export interface FileSound extends BaseSound {
 	file: string;
@@ -113,9 +134,18 @@ export interface URLSound extends BaseSound {
 
 export type Sound = FileSound | URLSound;
 
-function normalizeLog(log: Log): NormalizedLog {
+export interface PlaySoundResponse {
+	duration: number;
+	onStop: Promise<number>;
+
+	pause(): void;
+	play(): void;
+	remove(): void;
+}
+
+function normalizeLog(log: Log, defaultColour?: string): NormalizedLog {
 	if (typeof log === "string") {
-		return [{ text: log }];
+		return [{ text: log, colour: defaultColour }];
 	}
 
 	return log;
@@ -168,33 +198,39 @@ async function renderHtml(
 		switch (part.type) {
 			case undefined:
 			case "string": {
-				const escaped = escapeHtml(part.text);
+				const raw = part.text;
 
-				const URLs = escaped.match(urlRegex);
+				const segments: string[] = [];
 
-				const segments = [];
-				let text = escaped;
+				let lastIndex = 0;
 
-				for (const url of URLs ?? []) {
-					const beforeURL = text.textBefore(url);
+				for (const match of raw.matchAll(urlRegex)) {
+					const url = match[0];
+					const index = match.index ?? 0;
+
+					const before = raw.slice(lastIndex, index);
+
+					segments.push(escapeHtml(before));
+
+					const escapedURL = escapeHtml(url);
+
 					segments.push(
-						beforeURL,
-						`<a target="_blank" rel="noopener noreferrer" href="${url}">${url}</a>`
+						`<a target="_blank" rel="noopener noreferrer" href="${escapedURL}">${escapedURL}</a>`
 					);
 
-					text = text.textAfter(url);
+					lastIndex = index + url.length;
 				}
-				segments.push(text);
 
-				const result = segments.join("");
+				segments.push(escapeHtml(raw.slice(lastIndex)));
 
-				return `<span style="color: ${part.colour ?? "inherit"};">${result}</span>`;
+				return `<span style="color: ${escapeHtml(part.colour ?? "inherit")};">${segments.join("")}</span>`;
 			}
 
 			case "image":
-				let src = "";
-				if ("url" in part) src = part.url;
-				else src = (await readFile(part.dir)) ?? "";
+				let src =
+					"url" in part
+						? part.url
+						: ((await readFile(part.dir)) ?? "");
 
 				if (
 					typeof part.height !== "number" &&
@@ -204,7 +240,14 @@ async function renderHtml(
 					return `<span style="color: #ff0000;">Image height must be number or "auto", was given ${escapeHtml(part.height)}</span>`;
 				}
 
-				return `<img src="${src}" style="width: ${linesToPx(Number(part.width))}px; height: ${part.height ? `${linesToPx(part.height)}px` : "auto"}" />`;
+				const width = linesToPx(Number(part.width));
+
+				const height =
+					part.height === undefined || part.height === "auto"
+						? "auto"
+						: `${linesToPx(part.height)}px`;
+
+				return `<img src="${escapeHtml(src)}" style="width: ${width}px; height: ${escapeHtml(height)}" />`;
 
 			default:
 				// @ts-expect-error // trust
@@ -225,6 +268,21 @@ function withOrigin(
 	if (!includeOrigin) return log;
 
 	return [{ text: `[${origin}] `, colour: "#888888" }, ...log];
+}
+
+function scrollContainer(container: HTMLElement | null): () => void {
+	if (!container) return () => {};
+
+	const containerHTML = container;
+	const isScrolledToBottom =
+		containerHTML.scrollTop >=
+		containerHTML.scrollHeight - containerHTML.offsetHeight - 5;
+
+	return () => {
+		if (isScrolledToBottom) {
+			containerHTML.scrollTo(0, containerHTML.scrollHeight);
+		}
+	};
 }
 
 class DomManager implements UiManager {
@@ -256,6 +314,12 @@ class DomManager implements UiManager {
 			if (this.#input) this.#focusInput(this.#input);
 		}, 500);
 
+		this.#container.addEventListener("pointerdown", () => {
+			if (this.#input) {
+				this.#focusInput(this.#input);
+			}
+		});
+
 		document.body.innerHTML = "";
 		document.body.appendChild(this.#container);
 	}
@@ -266,19 +330,23 @@ class DomManager implements UiManager {
 
 	#elementQueue: { element: HTMLElement; onAddition?: Function }[] = [];
 	#commitScheduled = false;
+	#commitFrame?: number;
 
-	#newLog(element: HTMLElement, onAddition?: Function): number {
+	#newLog(
+		element: HTMLElement,
+		onAddition?: Function,
+		addLine: boolean = true
+	): number {
 		this.#elementQueue.push({ element, onAddition });
-		const line = this.lines.push({ element });
+		const line = this.lines.length;
+		if (addLine) this.lines.push({ element });
 
 		if (!this.#commitScheduled) {
 			this.#commitScheduled = true;
 
-			requestAnimationFrame(() => {
+			this.#commitFrame = requestAnimationFrame(() => {
 				const fragment = document.createDocumentFragment();
-				const html = document.scrollingElement as HTMLElement;
-				const isScrolledToBottom =
-					html.scrollTop >= html.scrollHeight - html.offsetHeight - 5;
+				const scrollComplete = scrollContainer(this.#logbox);
 
 				for (const item of this.#elementQueue) {
 					fragment.appendChild(item.element);
@@ -289,16 +357,15 @@ class DomManager implements UiManager {
 					if (item.onAddition) item.onAddition();
 				});
 
-				if (isScrolledToBottom) {
-					html.scrollTo(0, html.scrollHeight);
-				}
+				scrollComplete();
 
 				this.#elementQueue = [];
 				this.#commitScheduled = false;
 			});
 		}
 
-		return line;
+		if (addLine) return line;
+		else return 0;
 	}
 
 	/**
@@ -316,22 +383,27 @@ class DomManager implements UiManager {
 	#postRich(log: NormalizedLog): number {
 		const p = document.createElement("p");
 		p.innerText = "...";
+
 		const result = this.#newLog(p);
 
+		const token = this.#nextRenderToken();
+		(p as any).__renderToken = token;
+
 		renderHtml(log, this.#fs.readFile.bind(this.#fs)).then((html) => {
-			const containerHTML = document.scrollingElement as HTMLElement;
-			const isScrolledToBottom =
-				containerHTML.scrollTop >=
-				containerHTML.scrollHeight - containerHTML.offsetHeight - 5;
+			if ((p as any).__renderToken !== token) return;
+
+			const scrollComplete = scrollContainer(this.#logbox);
 
 			p.innerHTML = html;
 
-			if (isScrolledToBottom) {
-				containerHTML.scrollTo(0, containerHTML.scrollHeight);
-			}
+			scrollComplete();
 		});
 
 		return result;
+	}
+
+	#nextRenderToken() {
+		return Symbol();
 	}
 
 	log(origin: string, message: Log) {
@@ -347,16 +419,28 @@ class DomManager implements UiManager {
 		return this.#postRich(normalized);
 	}
 
-	warn(origin: string, message: string) {
-		const data = this.#includeOrigin() ? `[${origin}] ${message}` : message;
-		console.warn(data);
-		return this.#postPlain(data, "warning");
+	warn(origin: string, message: Log) {
+		const normalized = withOrigin(
+			origin,
+			normalizeLog(message, "#ffd900"),
+			this.#includeOrigin()
+		);
+
+		console.warn(renderConsole(normalized).text);
+
+		return this.#postRich(normalized);
 	}
 
-	error(origin: string, message: string, consoleLog: boolean = true) {
-		const data = this.#includeOrigin() ? `[${origin}] ${message}` : message;
-		if (consoleLog) console.error(data);
-		return this.#postPlain(data, "error");
+	error(origin: string, message: Log, consoleLog: boolean = true) {
+		const normalized = withOrigin(
+			origin,
+			normalizeLog(message, "#ff0000"),
+			this.#includeOrigin()
+		);
+
+		if (consoleLog) console.error(renderConsole(normalized).text);
+
+		return this.#postRich(normalized);
 	}
 
 	async editLog(origin: string, id: number, message: Log) {
@@ -366,24 +450,30 @@ class DomManager implements UiManager {
 			this.#includeOrigin()
 		);
 
+		const element = this.lines[id]?.element;
+
+		if (!element) {
+			console.warn(
+				`Program ${origin} tried to edit log#${id} which does not exist. ignoring.`
+			);
+			return;
+		}
+
+		const token = this.#nextRenderToken();
+		(element as any).__renderToken = token;
+
 		const data = await renderHtml(
 			normalized,
 			this.#fs.readFile.bind(this.#fs)
 		);
 
-		const element = this.lines[id]?.element;
-		if (element) {
-			const containerHTML = document.scrollingElement as HTMLElement;
-			const isScrolledToBottom =
-				containerHTML.scrollTop >=
-				containerHTML.scrollHeight - containerHTML.offsetHeight - 5;
+		if ((element as any).__renderToken !== token) return;
 
-			element.innerHTML = data;
+		const scrollComplete = scrollContainer(this.#logbox);
 
-			if (isScrolledToBottom) {
-				containerHTML.scrollTo(0, containerHTML.scrollHeight);
-			}
-		}
+		element.innerHTML = data;
+
+		scrollComplete();
 	}
 
 	#focusInput(input: HTMLInputElement) {
@@ -410,6 +500,12 @@ class DomManager implements UiManager {
 				input.classList.add("reqInput");
 				input.type = config.hideTyping ? "password" : "text";
 				this.#input = input;
+
+				input.autocomplete = "off";
+				input.autocorrect = false;
+				input.autocapitalize = "off";
+				input.spellcheck = false;
+				input.enterKeyHint = "Send";
 
 				input.value = config.initialText;
 
@@ -467,6 +563,7 @@ class DomManager implements UiManager {
 					if (e.key === "Enter") {
 						const response = input.value;
 						div.remove();
+						// remove from lines
 
 						const displayText = `${prompt}${response}`;
 						if (config.leaveInputOnCompletion)
@@ -477,7 +574,15 @@ class DomManager implements UiManager {
 					}
 				});
 
-				this.#newLog(div, () => this.#focusInput(input));
+				input.addEventListener("focus", () => {
+					setTimeout(() => {
+						input.scrollIntoView({
+							block: "nearest"
+						});
+					}, 100);
+				});
+
+				this.#newLog(div, () => this.#focusInput(input), false);
 			}
 		);
 	}
@@ -488,49 +593,64 @@ class DomManager implements UiManager {
 
 		this.#elementQueue.forEach((item) => item.element.remove());
 		this.#elementQueue = [];
+		this.#commitScheduled = false;
+		if (this.#commitFrame !== undefined) {
+			cancelAnimationFrame(this.#commitFrame);
+			this.#commitFrame = undefined;
+		}
 
 		this.#logbox.innerHTML = "";
 	}
 
-	async playSound(config: Sound) {
+	async playSound(config: Sound): Promise<PlaySoundResponse> {
 		const volume = clamp(config.volume ?? 0.5, 0, 1);
 
 		const sound = new Audio();
 
+		const srcText = "url" in config ? config.url : config.file;
+
 		if ("url" in config) {
-			// URL src
 			sound.src = config.url;
 		} else {
-			// Dir src
 			const fileContents = await this.#fs.readFile(config.file);
-			if (!fileContents)
-				throw new Error(`Audio file at ${config.file} does not exist.`);
 
-			// hopefully a DATA:URI. i guess it might be a URL, interesting.
+			if (!fileContents) {
+				throw new Error(`Audio file at ${config.file} does not exist.`);
+			}
+
 			sound.src = fileContents;
 		}
 
-		// 0 to 1 range.
 		sound.volume = volume;
 
-		sound.play();
-
-		let onStopResolve: Function;
-		function stopSound() {
-			sound.pause();
-			sound.remove();
-
-			if (onStopResolve) onStopResolve();
+		if (config.start !== undefined) {
+			sound.currentTime = config.start;
 		}
 
-		return new Promise<{
-			duration: number;
-			onStop: Promise<number>;
-			pause: () => void;
-			play: () => void;
-			remove: () => void;
-		}>((resolve) => {
-			sound.addEventListener("loadeddata", () => {
+		return new Promise<PlaySoundResponse>((resolve) => {
+			let onStopResolve: ((time: number) => void) | undefined;
+
+			function stopSound() {
+				sound.pause();
+				sound.remove();
+
+				onStopResolve?.(sound.currentTime);
+			}
+
+			navigator.mediaSession.metadata = new MediaMetadata({
+				title: config.metadata?.title ?? srcText,
+				artist: config.metadata?.artist,
+				album: config.metadata?.album
+				//artwork: [
+				//	{
+				//		src: config.metadata?.artwork
+				//	}
+				//] //the album art associated with the media
+			});
+
+			const loaded = () => {
+				sound.removeEventListener("loadeddata", loaded);
+
 				sound.addEventListener("ended", stopSound);
 
 				resolve({
@@ -540,13 +660,29 @@ class DomManager implements UiManager {
 						onStopResolve = resolve;
 					}),
 
-					pause() {},
-					play() {},
+					pause() {
+						sound.pause();
+					},
+
+					play() {
+						sound.play().catch(() => {});
+					},
+
 					remove() {
 						stopSound();
 					}
 				});
-			});
+
+				sound.play().catch((err) => {
+					console.warn("Failed to play sound:", err);
+				});
+			};
+
+			sound.addEventListener("loadeddata", loaded);
+
+			if (sound.readyState >= 2) {
+				loaded();
+			}
 		});
 	}
 
@@ -557,8 +693,5 @@ class DomManager implements UiManager {
 	}
 }
 
-//class CLIManager implements UiManager {}
-
-const Ui: new (fs: FilesystemInterface) => UiManager =
-	DomManager; /*env == "web" ? DomManager : CLIManager; */
+const Ui: new (fs: FilesystemInterface) => UiManager = DomManager;
 export default Ui;

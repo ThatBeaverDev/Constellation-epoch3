@@ -7,7 +7,6 @@ export function createMockEnv(): Environment {
 		warn: vi.fn(),
 		error: vi.fn(),
 		clearLogs: vi.fn(),
-		editLog: vi.fn(),
 
 		input: vi.fn(),
 
@@ -33,6 +32,10 @@ export function createMockEnv(): Environment {
 		processes: vi.fn(),
 		parent: vi.fn(),
 
-		systemStats: {} as any
+		systemStats: {} as any,
+
+		sound: {
+			play: vi.fn()
+		}
 	};
 }
