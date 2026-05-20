@@ -637,7 +637,7 @@ class DomManager implements UiManager {
 				onStopResolve?.(sound.currentTime);
 			}
 
-			navigator.mediaSession.metadata = new MediaMetadata({
+			if (navigator.mediaSession) navigator.mediaSession.metadata = new MediaMetadata({
 				title: config.metadata?.title ?? srcText,
 				artist: config.metadata?.artist,
 				album: config.metadata?.album
