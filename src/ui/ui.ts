@@ -113,16 +113,6 @@ interface BaseSound {
 		artwork?: string;
 	};
 }
-navigator.mediaSession.metadata = new MediaMetadata({
-	title: "Name", //the title of the media
-	artist: "Artist", //the artist of the media
-	album: "Album Name", //the album name of the media
-	artwork: [
-		{
-			src: "https://dummyimage.com/512/000000/ffffff&text=Album%20Art"
-		}
-	] //the album art associated with the media
-});
 
 export interface FileSound extends BaseSound {
 	file: string;
@@ -288,6 +278,8 @@ function withOrigin(origin: string, log: NormalizedLog): NormalizedLog {
 
 function scrollContainer(container: HTMLElement | null): () => void {
 	if (!container) return () => {};
+	// @ts-expect-error
+	if (typeof process !== "undefined") return () => {};
 
 	const containerHTML = container;
 	const isScrolledToBottom =
@@ -611,16 +603,17 @@ class DomManager implements UiManager {
 				onStopResolve?.(sound.currentTime);
 			}
 
-			if (navigator.mediaSession) navigator.mediaSession.metadata = new MediaMetadata({
-				title: config.metadata?.title ?? srcText,
-				artist: config.metadata?.artist,
-				album: config.metadata?.album
-				//artwork: [
-				//	{
-				//		src: config.metadata?.artwork
-				//	}
-				//] //the album art associated with the media
-			});
+			if (navigator.mediaSession && MediaMetadata)
+				navigator.mediaSession.metadata = new MediaMetadata({
+					title: config.metadata?.title ?? srcText,
+					artist: config.metadata?.artist,
+					album: config.metadata?.album
+					//artwork: [
+					//	{
+					//		src: config.metadata?.artwork
+					//	}
+					//] //the album art associated with the media
+				});
 
 			const loaded = () => {
 				sound.removeEventListener("loadeddata", loaded);

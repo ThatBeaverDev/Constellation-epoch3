@@ -77,7 +77,7 @@ describe("Filesystem stress tests", async () => {
 
 		await fs.rm("/dir");
 
-		expect(fs.exists("/dir")).toBe(false);
+		expect(fs.exists("/dir")).resolves.toBe(false);
 	});
 
 	// -------------------------
@@ -112,7 +112,7 @@ describe("Filesystem stress tests", async () => {
 
 		await fs.unlink("/a/file.txt");
 
-		expect(fs.exists("/a/file.txt")).toBe(false);
+		expect(fs.exists("/a/file.txt")).resolves.toBe(false);
 	});
 
 	it("unlink does nothing on missing file", async () => {
