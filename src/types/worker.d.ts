@@ -1,7 +1,22 @@
 import { FileStats } from "../lib/fs";
-import { InputConfig, KeyPressModifiers, Log, Sound } from "../ui/ui";
+import { InputConfig, Log, Sound } from "../ui/ui";
 
 export type NetworkRequestType = "get" | "post";
+
+interface EventDataTypes {
+	keydown: {
+		name: string;
+
+		alt: boolean;
+		shift: boolean;
+	};
+}
+
+type EventMap = EventDataTypes;
+
+type EventName = keyof EventMap;
+
+type EventCallback<K extends EventName> = (data: EventMap[K]) => any;
 
 export interface Environment {
 	/**
@@ -69,6 +84,16 @@ export interface Environment {
 			name: string;
 		};
 	};
+
+	triggerEvent<K extends EventName>(name: K, data: EventMap[K]): void;
+	addEventListener<K extends EventName>(
+		name: K,
+		callback: EventCallback<K>
+	): void;
+	removeEventListener<K extends EventName>(
+		name: K,
+		callback: EventCallback<K>
+	): void;
 
 	/**
 	 * Reassign me to change working directory.

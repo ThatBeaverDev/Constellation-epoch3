@@ -21,6 +21,7 @@ import {
 	WorkerEnv_Network_Get
 } from "../types/workerMessages.js";
 import {
+	Runtime_Events_Trigger,
 	Runtime_Sockets_Client_endConnection,
 	Runtime_Sockets_Client_newConnection,
 	Runtime_Sockets_Client_sendPacket,
@@ -905,6 +906,8 @@ export async function workerFunction(this: undefined) {
 			}
 		});
 
+		const eventsMap: Record<string, Function[]> = {};
+
 		const env: Environment = {
 			print(data: Log) {
 				emit("program_log", { pid, data });
@@ -968,6 +971,28 @@ export async function workerFunction(this: undefined) {
 
 			fs,
 			path,
+
+			triggerEvent(name, data) {
+				const callbacks = eventsMap[name];
+
+				if (!callbacks) return;
+				for (const callback of callbacks) {
+					callback(data);
+				}
+			},
+			addEventListener(name, callback) {
+				if (!eventsMap[name]) eventsMap[name] = [callback];
+				else eventsMap[name].push(callback);
+			},
+			removeEventListener(name, callback) {
+				if (!eventsMap[name]) return;
+
+				eventsMap[name] = eventsMap[name].filter(
+					(cb) => cb !== callback
+				);
+
+				if (eventsMap[name].length == 0) delete eventsMap[name];
+			},
 
 			workingDirectory: String(workingDirectory ?? "/"),
 
@@ -1553,6 +1578,13 @@ export async function workerFunction(this: undefined) {
 			connection.onMessage?.(packet.payload);
 		}
 	);
+
+	// events
+	handle("event_trigger", (packet: Runtime_Events_Trigger<any>) => {
+		const program = programByPid(packet.pid);
+
+		program.env.triggerEvent(packet.name, packet.data);
+	});
 
 	log("Initialisation Complete.");
 }

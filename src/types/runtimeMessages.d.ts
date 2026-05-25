@@ -1,5 +1,5 @@
 import { KeyPressModifiers, Log } from "../ui/ui";
-import { onPasteData } from "./worker";
+import { EventMap, EventName, onPasteData } from "./worker";
 import {
 	Worker_Sockets_Client_endConnection,
 	Worker_Sockets_Client_newConnection,
@@ -48,3 +48,9 @@ export interface Runtime_Sockets_Server_endServer extends Worker_Sockets_Server_
 
 // Server sending packet
 export interface Runtime_Sockets_Server_sendPacket extends Worker_Sockets_Server_sendPacket {}
+
+export interface Runtime_Events_Trigger<K extends EventName> {
+	pid: number;
+	name: K;
+	data: EventMap[K];
+}

@@ -1,4 +1,5 @@
 import { FilesystemInterface } from "../lib/fs";
+import { triggerProgramEvent } from "../lib/triggerProgramEvent";
 import { clamp } from "../lib/util";
 import { ProgramStore } from "../runtime";
 import { onPasteData } from "../types/worker";
@@ -326,6 +327,16 @@ class DomManager implements UiManager {
 			if (this.#input) {
 				this.#focusInput(this.#input);
 			}
+		});
+		this.#container.addEventListener("keydown", (event) => {
+			if (!this.controller) return;
+
+			triggerProgramEvent(this.controller, "keydown", {
+				name: event.key,
+
+				alt: event.altKey,
+				shift: event.shiftKey
+			});
 		});
 
 		document.body.innerHTML = "";
