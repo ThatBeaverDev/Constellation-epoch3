@@ -1,3 +1,4 @@
+import { FileStats } from "../lib/fs";
 import { InputConfig, KeyPressModifiers, Log, Sound } from "../ui/ui";
 
 export type NetworkRequestType = "get" | "post";
@@ -69,6 +70,9 @@ export interface Environment {
 		};
 	};
 
+	/**
+	 * Reassign me to change working directory.
+	 */
 	workingDirectory: string;
 
 	/**
@@ -85,8 +89,17 @@ export interface Environment {
 		onExit: Promise<{ return?: Log; logs: Log[] }>;
 	}>;
 
+	/**
+	 * Provides a list of processes and basic information
+	 */
 	processes(): Promise<Process[]>;
-
+	/**
+	 * Provides the object for *this* process
+	 */
+	self(): Promise<Process>;
+	/**
+	 * Provides the object for the parent process.
+	 */
 	parent(): Promise<Process | undefined>;
 
 	/**
@@ -144,6 +157,41 @@ export interface Environment {
 			remove(): Promise<void>;
 		}>;
 	};
+
+	sockets: {
+		createSocket(directory: string): Promise<SocketServer>;
+		connectToSocket(directory: string): Promise<SocketConnection>;
+	};
+
+	timers: {
+		sleep(ms: number): Promise<void>;
+
+		setInterval(callback: () => void, ms: number): number;
+
+		clearInterval(id: number): void;
+	};
+}
+
+export interface SocketServer {
+	directory: string;
+
+	onClientConnect?: (client: { pid: number }) => any;
+	onClientDisconnect?: (client: { pid: number }) => any;
+
+	onMessage: undefined | ((client: { pid: number }, payload: any) => any);
+	sendMessage(clientPid: number, payload: any): void;
+
+	exit(): void;
+}
+export interface SocketConnection {
+	directory: string;
+
+	onMessage?: (payload: any) => void;
+	onClose?: () => void;
+
+	sendMessage(payload: any): void;
+
+	exit(): void;
 }
 
 export interface EnvironmentFilesystem {
@@ -163,7 +211,7 @@ export interface EnvironmentFilesystem {
 	writeFile(path: string, contents: string): Promise<any>;
 	unlink(path: string): Promise<void>;
 
-	mkdir(path: string): Promise<boolean>;
+	mkdir(path: string, options?: { recursive?: boolean }): Promise<boolean>;
 	readdir(path: string): Promise<string[]>;
 	rmdir(path: string): Promise<void>;
 
@@ -171,6 +219,8 @@ export interface EnvironmentFilesystem {
 
 	isDirectory(path: string): Promise<boolean>;
 	exists(path: string): Promise<boolean>;
+
+	stats(path: string): Promise<FileStats | undefined>;
 }
 
 export interface Process {
@@ -192,17 +242,14 @@ export interface WorkerProgramStore {
 	locked: boolean;
 	passValue?: any;
 
-	outputHandlers: Record<
-		number,
-		{
-			onLog(type: "log" | "warning" | "error", data: Log): any;
-			onInput(message: string): Promise<string> | string;
-		}
-	>;
-
 	inputRequest?: {
 		onPaste?: (data: onPasteData) => any;
 	};
+
+	socketConnections: { connection: SocketConnection; socketId: number }[];
+	socketServers: { server: SocketServer; socketId: number }[];
+
+	onExit: (() => any)[];
 }
 
 interface onPasteData {

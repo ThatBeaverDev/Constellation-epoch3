@@ -1,7 +1,7 @@
 import Fs, { FilesystemInterface } from "./lib/fs";
 import applyStringPrototypes from "./lib/strings";
 import Runtime from "./runtime";
-import Ui, { UiManager } from "./ui/ui";
+import Ui, { Log, UiManager } from "./ui/ui";
 
 export default class Constellation {
 	ui: UiManager;
@@ -18,12 +18,19 @@ export default class Constellation {
 		applyStringPrototypes();
 		this.#onInstallReady = onInstallReady;
 
-		this.fs = new Fs(this.panic);
+		let log: UiManager["log"] | undefined = undefined;
+
+		this.fs = new Fs((message: Log) => {
+			if (log) return log("fs", message);
+
+			return 0;
+		}, this.panic);
 		this.ui = new Ui(this.fs);
+		log = this.ui.log.bind(this.ui);
 		this.runtime = new Runtime(
 			this,
 
-			this.ui.log.bind(this.ui),
+			log,
 			this.ui.warn.bind(this.ui),
 			this.ui.error.bind(this.ui),
 

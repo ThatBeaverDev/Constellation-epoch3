@@ -105,7 +105,7 @@ export function mainThreadMessageHandler(worker: Worker, store: WorkerStore) {
 		}
 	};
 
-	function sendMessage(intent: string, data?: any): Promise<any> {
+	function sendMessage(intent: string, data: any): Promise<any> {
 		const id = nextMessageID++;
 
 		return new Promise((resolve, reject) => {
@@ -120,7 +120,7 @@ export function mainThreadMessageHandler(worker: Worker, store: WorkerStore) {
 		});
 	}
 
-	function emit(event: string, data?: any) {
+	function emit(event: string, data: any) {
 		worker.postMessage({
 			kind: "event",
 			event,
@@ -165,9 +165,28 @@ export function implementWorkerFS(
 		return await fs.unlink(path);
 	});
 
-	handle("fs_mkdir", async ({ path }: { path: string }) => {
-		return await fs.mkdir(path);
-	});
+	handle(
+		"fs_mkdir",
+		async ({
+			path,
+			options
+		}: {
+			path: string;
+			options?: { recursive?: boolean };
+		}) => {
+			if (options?.recursive) {
+				const parts = path
+					.split("/")
+					.filter((item) => item.trim() !== "");
+
+				let workingPath = "/";
+				for (const part of parts) {
+					workingPath += part;
+					await fs.mkdir(workingPath);
+				}
+			} else return await fs.mkdir(path);
+		}
+	);
 	handle("fs_readdir", async ({ path }: { path: string }) => {
 		return await fs.readdir(path);
 	});
@@ -185,5 +204,9 @@ export function implementWorkerFS(
 
 	handle("fs_exists", async ({ path }: { path: string }) => {
 		return await fs.exists(path);
+	});
+
+	handle("fs_stats", async ({ path }: { path: string }) => {
+		return await fs.stats(path);
 	});
 }

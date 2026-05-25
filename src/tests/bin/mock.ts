@@ -30,12 +30,30 @@ export function createMockEnv(): Environment {
 
 		execute: vi.fn(),
 		processes: vi.fn(),
+		self: vi.fn(),
 		parent: vi.fn(),
 
 		systemStats: {} as any,
 
 		sound: {
 			play: vi.fn()
+		},
+
+		sockets: {
+			connectToSocket: vi.fn(),
+			createSocket: vi.fn()
+		},
+
+		timers: {
+			sleep(ms: number) {
+				return new Promise<void>((resolve) => {
+					setTimeout(resolve, ms);
+				});
+			},
+
+			setInterval,
+
+			clearInterval
 		}
 	};
 }

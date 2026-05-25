@@ -189,6 +189,28 @@ function renderConsole(log: NormalizedLog = []) {
 	return { text, styles };
 }
 
+export function consoleLog(origin: string, message: Log) {
+	const normalized = withOrigin(origin, normalizeLog(message));
+
+	const consoleData = renderConsole(normalized);
+
+	console.log(consoleData.text, ...consoleData.styles);
+}
+export function consoleWarn(origin: string, message: Log) {
+	const normalized = withOrigin(origin, normalizeLog(message));
+
+	const consoleData = renderConsole(normalized);
+
+	console.warn(consoleData.text, ...consoleData.styles);
+}
+export function consoleError(origin: string, message: Log) {
+	const normalized = withOrigin(origin, normalizeLog(message));
+
+	const consoleData = renderConsole(normalized);
+
+	console.error(consoleData.text, ...consoleData.styles);
+}
+
 const urlRegex = /https?:\/\/[^\s"'\\]+[^\s"']+/g;
 async function renderHtml(
 	log: NormalizedLog = [],
@@ -260,13 +282,7 @@ async function renderHtml(
 	return parts.join("");
 }
 
-function withOrigin(
-	origin: string,
-	log: NormalizedLog,
-	includeOrigin: boolean
-): NormalizedLog {
-	if (!includeOrigin) return log;
-
+function withOrigin(origin: string, log: NormalizedLog): NormalizedLog {
 	return [{ text: `[${origin}] `, colour: "#888888" }, ...log];
 }
 
@@ -322,10 +338,6 @@ class DomManager implements UiManager {
 
 		document.body.innerHTML = "";
 		document.body.appendChild(this.#container);
-	}
-
-	#includeOrigin() {
-		return !this.controller;
 	}
 
 	#elementQueue: { element: HTMLElement; onAddition?: Function }[] = [];
@@ -407,11 +419,7 @@ class DomManager implements UiManager {
 	}
 
 	log(origin: string, message: Log) {
-		const normalized = withOrigin(
-			origin,
-			normalizeLog(message),
-			this.#includeOrigin()
-		);
+		const normalized = withOrigin(origin, normalizeLog(message));
 
 		const consoleData = renderConsole(normalized);
 		console.log(consoleData.text, ...consoleData.styles);
@@ -420,11 +428,7 @@ class DomManager implements UiManager {
 	}
 
 	warn(origin: string, message: Log) {
-		const normalized = withOrigin(
-			origin,
-			normalizeLog(message, "#ffd900"),
-			this.#includeOrigin()
-		);
+		const normalized = withOrigin(origin, normalizeLog(message, "#ffd900"));
 
 		console.warn(renderConsole(normalized).text);
 
@@ -432,11 +436,7 @@ class DomManager implements UiManager {
 	}
 
 	error(origin: string, message: Log, consoleLog: boolean = true) {
-		const normalized = withOrigin(
-			origin,
-			normalizeLog(message, "#ff0000"),
-			this.#includeOrigin()
-		);
+		const normalized = withOrigin(origin, normalizeLog(message, "#ff0000"));
 
 		if (consoleLog) console.error(renderConsole(normalized).text);
 
@@ -444,11 +444,7 @@ class DomManager implements UiManager {
 	}
 
 	async editLog(origin: string, id: number, message: Log) {
-		const normalized = withOrigin(
-			origin,
-			normalizeLog(message),
-			this.#includeOrigin()
-		);
+		const normalized = withOrigin(origin, normalizeLog(message));
 
 		const element = this.lines[id]?.element;
 

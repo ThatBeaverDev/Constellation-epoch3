@@ -4,18 +4,32 @@ import {
 	EnvironmentFilesystem,
 	NetworkRequestType,
 	Process,
+	SocketConnection,
+	SocketServer,
 	WorkerProgramStore,
 	type Environment
 } from "../types/worker.js";
 import {
+	Worker_Sockets_Client_endConnection,
+	Worker_Sockets_Client_newConnection,
+	Worker_Sockets_Client_sendPacket,
+	Worker_Sockets_Server_endServer,
+	Worker_Sockets_Server_newServer,
+	Worker_Sockets_Server_sendPacket,
 	WorkerEnv_Exec,
 	WorkerEnv_Input,
 	WorkerEnv_Network_Get
 } from "../types/workerMessages.js";
 import {
+	Runtime_Sockets_Client_endConnection,
+	Runtime_Sockets_Client_newConnection,
+	Runtime_Sockets_Client_sendPacket,
+	Runtime_Sockets_Server_endServer,
+	Runtime_Sockets_Server_sendPacket,
 	RuntimeExecuteProgram,
 	RuntimeProgramInputOnPaste
 } from "../types/runtimeMessages.js";
+import { FileStats } from "./fs.js";
 
 /// <reference path="@typescript/lib-webworker@npm:@types/webworker" />
 
@@ -684,7 +698,7 @@ export async function workerFunction(this: undefined) {
 
 		function sendMessage<T = any, K = any>(
 			intent: string,
-			data?: K
+			data: K
 		): Promise<T> {
 			const id = nextMessageID++;
 
@@ -700,7 +714,7 @@ export async function workerFunction(this: undefined) {
 			});
 		}
 
-		function emit(event: string, data?: any) {
+		function emit<T = any>(event: string, data: T) {
 			postMessage({
 				kind: "event",
 				event,
@@ -805,11 +819,14 @@ export async function workerFunction(this: undefined) {
 			return await this.#sendMessage("fs_unlink", { path });
 		}
 
-		async mkdir(path: string): Promise<boolean> {
+		async mkdir(
+			path: string,
+			options?: { recursive?: boolean }
+		): Promise<boolean> {
 			if (typeof path !== "string")
 				throw new Error("Path must be string");
 
-			return await this.#sendMessage("fs_mkdir", { path });
+			return await this.#sendMessage("fs_mkdir", { path, options });
 		}
 		async readdir(path: string): Promise<string[]> {
 			if (typeof path !== "string")
@@ -838,12 +855,16 @@ export async function workerFunction(this: undefined) {
 		async exists(path: string): Promise<boolean> {
 			return await this.#sendMessage("fs_exists", { path });
 		}
+
+		async stats(path: string): Promise<FileStats | undefined> {
+			return await this.#sendMessage("fs_stats", { path });
+		}
 	}
 
 	const { sendMessage, emit, handle } = workerMessageHandler();
 
 	setInterval(() => {
-		emit("keepAlive");
+		emit("keepAlive", undefined);
 	}, 100);
 
 	function log(message: Log) {
@@ -869,6 +890,20 @@ export async function workerFunction(this: undefined) {
 		let handlingInput = false;
 
 		let logs: Log[] = [];
+
+		/**
+		 * Maps the interval ID for the program to the interval ID for the worker
+		 */
+		const intervalIds: Record<number, number> = {};
+		let nextIntervalId = 0;
+
+		program.onExit.push(() => {
+			for (const programId in intervalIds) {
+				const workerIntervalId = intervalIds[programId];
+
+				clearInterval(workerIntervalId);
+			}
+		});
 
 		const env: Environment = {
 			print(data: Log) {
@@ -980,7 +1015,10 @@ export async function workerFunction(this: undefined) {
 				return result;
 			},
 			async processes() {
-				return await sendMessage<Process[]>("env_processes");
+				return await sendMessage<Process[]>("env_processes", undefined);
+			},
+			async self() {
+				return await sendMessage<Process>("env_selfProcess", { pid });
 			},
 			async parent() {
 				return await sendMessage<Process>("env_parent_process", {
@@ -1011,17 +1049,23 @@ export async function workerFunction(this: undefined) {
 
 			systemStats: {
 				async uptime() {
-					return await sendMessage<number>("kernel_uptime");
+					return await sendMessage<number>(
+						"kernel_uptime",
+						undefined
+					);
 				},
 
 				async kernelVersion() {
-					return await sendMessage<number>("kernel_version");
+					return await sendMessage<number>(
+						"kernel_version",
+						undefined
+					);
 				},
 
 				async workerStats() {
 					return await sendMessage<
 						{ id: number; processes: number; activeTime: number }[]
-					>("worker_stats");
+					>("worker_stats", undefined);
 				}
 			},
 
@@ -1064,6 +1108,142 @@ export async function workerFunction(this: undefined) {
 							});
 						}
 					};
+				}
+			},
+
+			sockets: {
+				async connectToSocket(directory: string) {
+					const socketId = await sendMessage<
+						number,
+						Worker_Sockets_Client_newConnection
+					>("Sockets/Client/newConnection", {
+						initiatorPid: pid,
+						socketDirectory: directory
+					});
+
+					let exited = false;
+
+					const connection: SocketConnection = {
+						directory: directory,
+
+						// called from outside
+						onMessage: undefined,
+						sendMessage(payload: unknown) {
+							if (exited)
+								throw new Error(
+									"Connection is no longer active and messages can no longer be sent."
+								);
+
+							emit<Worker_Sockets_Client_sendPacket>(
+								"Sockets/Client/sendPacket",
+								{ initiatorPid: pid, payload, socketId }
+							);
+						},
+
+						exit() {
+							if (exited) return;
+
+							this.onClose?.();
+
+							exited = true;
+							program.socketConnections =
+								program.socketConnections.filter(
+									(socket) => socket.connection !== connection
+								);
+
+							emit<Worker_Sockets_Client_endConnection>(
+								"Sockets/Client/endConnection",
+								{ initiatorPid: pid, socketId }
+							);
+						}
+					};
+
+					program.socketConnections.push({ connection, socketId });
+
+					return connection;
+				},
+
+				async createSocket(directory: string) {
+					const socketId = await sendMessage<
+						number,
+						Worker_Sockets_Server_newServer
+					>("Sockets/Server/newServer", {
+						initiatorPid: pid,
+						socketDirectory: directory
+					});
+
+					let exited = false;
+
+					const server: SocketServer = {
+						directory: directory,
+
+						onClientConnect: undefined,
+						onClientDisconnect: undefined,
+						onMessage: undefined,
+
+						sendMessage(clientPid, payload) {
+							if (exited)
+								throw new Error(
+									"Server is no longer active and messages can no longer be sent"
+								);
+
+							emit<Worker_Sockets_Server_sendPacket>(
+								"Sockets/Server/sendPacket",
+								{
+									initiatorPid: pid,
+									payload,
+									socketId: socketId,
+									targetPid: clientPid
+								}
+							);
+						},
+
+						exit() {
+							if (exited) return;
+
+							exited = true;
+
+							program.socketServers =
+								program.socketServers.filter(
+									(socket) => socket.server !== server
+								);
+
+							emit<Worker_Sockets_Server_endServer>(
+								"Sockets/Server/endServer",
+								{ initiatorPid: pid, socketId }
+							);
+						}
+					};
+
+					program.socketServers.push({ server, socketId });
+
+					return server;
+				}
+			},
+
+			timers: {
+				sleep(ms: number) {
+					return new Promise<void>((resolve) => {
+						setTimeout(resolve, ms);
+					});
+				},
+
+				setInterval(callback, ms) {
+					const interval = setInterval(callback, ms);
+					const programIntervalId = nextIntervalId++;
+
+					intervalIds[programIntervalId] = interval;
+
+					return programIntervalId;
+				},
+
+				clearInterval(id) {
+					const interval = intervalIds[id];
+
+					if (!interval) return;
+					delete intervalIds[id];
+
+					clearInterval(interval);
 				}
 			}
 		};
@@ -1114,7 +1294,11 @@ export async function workerFunction(this: undefined) {
 
 				locked: false,
 
-				outputHandlers: {}
+				outputHandlers: {},
+
+				socketConnections: [],
+				socketServers: [],
+				onExit: []
 			};
 			store.env = newEnv(store, workingDirectory);
 
@@ -1159,8 +1343,18 @@ export async function workerFunction(this: undefined) {
 	}
 
 	function terminateProgram(program: WorkerProgramStore, data: Log) {
+		for (const server of program.socketServers) {
+			server.server.exit();
+		}
+		for (const connection of program.socketConnections) {
+			connection.connection.exit();
+		}
+		program.onExit.forEach((fn) => fn());
+
 		completedQueue.push({ pid: program.pid });
+
 		programs.splice(programs.indexOf(program), 1);
+
 		sendMessage("termination", { pid: program.pid, data });
 	}
 
@@ -1264,6 +1458,101 @@ export async function workerFunction(this: undefined) {
 			program.inputRequest.onPaste(msg.data);
 		}
 	});
+
+	// sockets
+
+	function socketServerBySocketId(
+		id: number
+	): WorkerProgramStore["socketServers"][0] | undefined {
+		for (const program of programs) {
+			const ids = program.socketServers.map((server) => server.socketId);
+			const index = ids.indexOf(id);
+
+			if (index !== -1) {
+				return program.socketServers[index];
+			}
+		}
+
+		return undefined;
+	}
+
+	function clientConnectionsBySocketId(id: number) {
+		const connections: WorkerProgramStore["socketConnections"] = [];
+		for (const program of programs) {
+			const ids = program.socketConnections.map(
+				(connection) => connection.socketId
+			);
+			const index = ids.indexOf(id);
+
+			if (index !== -1) {
+				connections.push(program.socketConnections[index]);
+			}
+		}
+
+		return connections;
+	}
+
+	handle(
+		"Sockets/Client/newConnection",
+		(packet: Runtime_Sockets_Client_newConnection) => {
+			const server = socketServerBySocketId(packet.socketId);
+
+			server?.server?.onClientConnect?.({ pid: packet.initiatorPid });
+		}
+	);
+	handle(
+		"Sockets/Client/endConnection",
+		(packet: Runtime_Sockets_Client_endConnection) => {
+			const server = socketServerBySocketId(packet.socketId);
+
+			server?.server?.onClientDisconnect?.({ pid: packet.initiatorPid });
+		}
+	);
+	handle(
+		"Sockets/Client/sendPacket",
+		(packet: Runtime_Sockets_Client_sendPacket) => {
+			const server = socketServerBySocketId(packet.socketId);
+
+			server?.server?.onMessage?.(
+				{ pid: packet.initiatorPid },
+				packet.payload
+			);
+		}
+	);
+
+	// shouldnt fire
+	handle("Sockets/Server/newServer", () => {});
+	handle(
+		"Sockets/Server/endServer",
+		(packet: Runtime_Sockets_Server_endServer) => {
+			// a server has terminated, so we need to disconnect clients.
+			const connections = clientConnectionsBySocketId(packet.socketId);
+
+			for (const connection of connections) {
+				// need onClose()
+				connection.connection.onClose?.();
+				connection.connection.exit();
+			}
+		}
+	);
+	handle(
+		"Sockets/Server/sendPacket",
+		(packet: Runtime_Sockets_Server_sendPacket) => {
+			// recieve server packet
+			const recipient = programByPid(packet.targetPid);
+
+			const ids = recipient.socketConnections.map(
+				(connection) => connection.socketId
+			);
+			const index = ids.indexOf(packet.socketId);
+
+			if (index == -1) return; // not connected
+
+			const { connection } = recipient.socketConnections[index];
+
+			connection.onMessage?.(packet.payload);
+		}
+	);
 
 	log("Initialisation Complete.");
 }

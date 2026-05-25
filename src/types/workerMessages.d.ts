@@ -3,6 +3,7 @@
 import { InputConfig_BoolOnPaste, Log } from "../ui/ui";
 import { NetworkRequestType } from "./worker";
 import { Sound } from "../ui/ui";
+import { NodeArray } from "typescript";
 
 export interface WorkerEnv_Exec {
 	path: string;
@@ -29,6 +30,8 @@ export interface WorkerEnv_Network_Get {
 	headers?: Record<string, string>;
 }
 
+// sound types
+
 export interface WorkerEnv_PlaySound {
 	pid: number;
 	config: Sound;
@@ -40,4 +43,46 @@ export interface WorkerEnv_SoundAction {
 
 export interface WorkerEnv_SoundRemove {
 	soundID: number;
+}
+
+/* ========== Sockets ========== */
+
+// Client connecting
+export interface Worker_Sockets_Client_newConnection {
+	initiatorPid: number;
+	socketDirectory: string;
+}
+
+// Client disconnecting
+export interface Worker_Sockets_Client_endConnection {
+	initiatorPid: number;
+	socketId: number;
+}
+
+// Client sending packet
+export interface Worker_Sockets_Client_sendPacket {
+	initiatorPid: number;
+	socketId: number;
+	payload: unknown;
+}
+
+// Server initialisation
+
+export interface Worker_Sockets_Server_newServer {
+	initiatorPid: number;
+	socketDirectory: string;
+}
+
+// Server disconnecting
+export interface Worker_Sockets_Server_endServer {
+	initiatorPid: number;
+	socketId: number;
+}
+
+// Server sending packet
+export interface Worker_Sockets_Server_sendPacket {
+	initiatorPid: number;
+	socketId: number;
+	targetPid: number;
+	payload: unknown;
 }

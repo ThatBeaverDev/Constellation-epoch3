@@ -4,6 +4,11 @@ import { newWorker, workerFunction } from "./lib/worker";
 import { Process } from "./types/worker";
 import { implementWorkerFS, mainThreadMessageHandler } from "./lib/workerUtils";
 import {
+	Worker_Sockets_Client_endConnection,
+	Worker_Sockets_Client_newConnection,
+	Worker_Sockets_Client_sendPacket,
+	Worker_Sockets_Server_endServer,
+	Worker_Sockets_Server_newServer,
 	WorkerEnv_Exec,
 	WorkerEnv_Input,
 	WorkerEnv_Network_Get,
@@ -12,16 +17,26 @@ import {
 	WorkerEnv_SoundRemove
 } from "./types/workerMessages";
 import {
+	Runtime_Sockets_Server_sendPacket,
 	RuntimeExecuteProgram,
 	RuntimeProgramInputOnPaste
 } from "./types/runtimeMessages";
-import { InputConfig, Log, PlaySoundResponse, UiManager } from "./ui/ui";
+import {
+	consoleError,
+	consoleLog,
+	consoleWarn,
+	InputConfig,
+	Log,
+	PlaySoundResponse,
+	UiManager
+} from "./ui/ui";
+import SocketManager from "./lib/sockets";
 
 export interface ProgramStore {
 	worker: WorkerStore;
 
 	parent?: ProgramStore;
-	children: ProgramStore[];
+	children: Set<ProgramStore>;
 
 	pid: number;
 	directory: string;
@@ -46,15 +61,15 @@ export interface WorkerStore {
 	name: string;
 	lock: boolean;
 
-	sendMessage<T = any, K = any>(intent: string, data?: K): Promise<T>;
-	emit<T = any>(event: string, data?: T): void;
+	sendMessage<T = any, K = any>(intent: string, data: K): Promise<T>;
+	emit<T = any>(event: string, data: T): void;
 	exit(): void;
 }
 
 export default class Runtime {
-	#log: (message: string) => void;
-	#warn: (message: string) => void;
-	#error: (message: string) => void;
+	#log: (message: Log) => number;
+	#warn: (message: Log) => number;
+	#error: (message: Log) => number;
 
 	#workerLog: UiManager["log"];
 	#workerWarn: UiManager["warn"];
@@ -64,8 +79,10 @@ export default class Runtime {
 	#kernel: Constellation;
 	#fs: FilesystemInterface;
 
-	targetWorkers: number = 3;
-	#workers: WorkerStore[];
+	#sockets: SocketManager;
+
+	targetWorkers: number = 5;
+	workers: WorkerStore[];
 
 	#sounds = new Map<
 		number,
@@ -86,13 +103,22 @@ export default class Runtime {
 		this.#kernel = kernel;
 
 		this.#log = (data: Log) => {
-			if (!this.#kernel.ui.controller) log("runtime", data);
+			if (!this.#kernel.ui.controller) return log("runtime", data);
+
+			consoleLog("runtime", data);
+			return 0;
 		};
 		this.#warn = (data: Log) => {
-			if (!this.#kernel.ui.controller) warn("runtime", data);
+			if (!this.#kernel.ui.controller) return warn("runtime", data);
+
+			consoleWarn("runtime", data);
+			return 0;
 		};
 		this.#error = (data: Log) => {
-			if (!this.#kernel.ui.controller) error("runtime", data);
+			if (!this.#kernel.ui.controller) return error("runtime", data);
+
+			consoleError("runtime", data);
+			return 0;
 		};
 
 		this.#log("Program Runtime Initialising...");
@@ -104,39 +130,44 @@ export default class Runtime {
 		this.#panic = panic;
 		this.#fs = fs;
 
-		this.#sessions = [];
-		this.#workers = [];
+		this.#sockets = new SocketManager(this, this.#log, this.#fs);
+		this.#fs.socketManager = this.#sockets;
+
+		this.#fs;
+
+		this.programs = [];
+		this.workers = [];
 
 		this.#log("Program runtime initialised.");
 
 		document.addEventListener("visibilitychange", this.#onVisibilityChange);
 	}
 
-	#sessions: ProgramStore[];
-	#initSession!: ProgramStore;
-	#programByPid(id: number) {
-		const index = this.#sessions.map((program) => program.pid).indexOf(id);
+	programs: ProgramStore[];
+	#initProgram!: ProgramStore;
+	programByPid(id: number): ProgramStore {
+		const index = this.programs.map((program) => program.pid).indexOf(id);
 
 		if (index == -1) {
 			throw new Error(`Session by ID '${id}' does not exist.`);
 		}
 
-		return this.#sessions[index];
+		return this.programs[index];
 	}
 
 	#nextPID: number = 1;
 	#nextWorkerID: number = 1;
 
-	#onVisibilityChange() {
+	#onVisibilityChange = () => {
 		// prevent workers dying randomly
-		this.#workers.forEach((worker) => (worker.lastKeepAlive = Date.now()));
-	}
+		this.workers.forEach((worker) => (worker.lastKeepAlive = Date.now()));
+	};
 
 	#updateWorkers() {
 		if (this.#exited) return;
 
 		// insure we have the right amount of workers
-		while (this.#workers.length < this.targetWorkers) {
+		while (this.workers.length < this.targetWorkers) {
 			// initialise worker
 			const workerID = this.#nextWorkerID++;
 			const workerName = `runtimeWorker#${workerID}`;
@@ -163,7 +194,7 @@ export default class Runtime {
 
 					workerStore.worker.terminate();
 
-					this.#workers = this.#workers.filter(
+					this.workers = this.workers.filter(
 						(item) => item !== workerStore
 					);
 				}
@@ -192,7 +223,7 @@ export default class Runtime {
 			handle(
 				"program_log",
 				({ data, pid }: { data: Log; pid: number }) => {
-					const program = this.#programByPid(pid);
+					const program = this.programByPid(pid);
 
 					program.onLog("log", data);
 				}
@@ -200,7 +231,7 @@ export default class Runtime {
 			handle(
 				"program_warn",
 				({ data, pid }: { data: Log; pid: number }) => {
-					const program = this.#programByPid(pid);
+					const program = this.programByPid(pid);
 
 					program.onLog("warning", data);
 				}
@@ -208,7 +239,7 @@ export default class Runtime {
 			handle(
 				"program_error",
 				({ data, pid }: { data: Log; pid: number }) => {
-					const program = this.#programByPid(pid);
+					const program = this.programByPid(pid);
 
 					program.onLog("error", data);
 				}
@@ -224,7 +255,7 @@ export default class Runtime {
 					parentPid,
 					input
 				}: WorkerEnv_Exec) => {
-					const parent = this.#programByPid(parentPid);
+					const parent = this.programByPid(parentPid);
 
 					const program = await this.executeProgram(
 						path,
@@ -254,7 +285,7 @@ export default class Runtime {
 			handle("env_processes", () => {
 				const list: Process[] = [];
 
-				for (const proc of this.#sessions) {
+				for (const proc of this.programs) {
 					const obj = sessionToProgram(proc);
 
 					list.push(obj);
@@ -263,8 +294,16 @@ export default class Runtime {
 				return list;
 			});
 
-			handle("env_parent_process", async ({ pid }: { pid: number }) => {
-				const program = this.#programByPid(pid);
+			handle("env_selfProcess", ({ pid }: { pid: number }) => {
+				const program = this.programByPid(pid);
+
+				const store = sessionToProgram(program);
+
+				return store;
+			});
+
+			handle("env_parent_process", ({ pid }: { pid: number }) => {
+				const program = this.programByPid(pid);
 
 				const parent = program.parent;
 				if (!parent) return undefined;
@@ -359,7 +398,7 @@ export default class Runtime {
 					message = "Messsage not provided.",
 					config
 				}: WorkerEnv_Input) => {
-					const program = this.#programByPid(pid);
+					const program = this.programByPid(pid);
 
 					return await program.onInput(message, {
 						hideTyping: config.hideTyping,
@@ -383,7 +422,7 @@ export default class Runtime {
 			);
 
 			handle("env_clear_logs", ({ pid }: { pid: number }) => {
-				const program = this.#programByPid(pid);
+				const program = this.programByPid(pid);
 
 				program.logs = [];
 
@@ -396,7 +435,7 @@ export default class Runtime {
 			handle("kernel_version", () => this.#kernel.version);
 
 			handle("worker_stats", () => {
-				const workers = this.#workers;
+				const workers = this.workers;
 
 				const result: {
 					id: number;
@@ -426,7 +465,7 @@ export default class Runtime {
 			handle(
 				"env_sound_play",
 				async ({ config, pid }: WorkerEnv_PlaySound) => {
-					const program = this.#programByPid(pid);
+					const program = this.programByPid(pid);
 					const sound = await this.#kernel.ui.playSound(config);
 
 					const id = this.#nextSoundID++;
@@ -484,16 +523,49 @@ export default class Runtime {
 				}
 			);
 
-			this.#workers.push(workerStore);
+			// sockets
+			handle(
+				"Sockets/Client/newConnection",
+				(packet: Worker_Sockets_Client_newConnection) =>
+					this.#sockets.newClientConnection(packet)
+			);
+			handle(
+				"Sockets/Client/endConnection",
+				(packet: Worker_Sockets_Client_endConnection) =>
+					this.#sockets.endClientConnection(packet)
+			);
+			handle(
+				"Sockets/Client/sendPacket",
+				(packet: Worker_Sockets_Client_sendPacket) =>
+					this.#sockets.clientSendMessage(packet)
+			);
+
+			handle(
+				"Sockets/Server/newServer",
+				(packet: Worker_Sockets_Server_newServer) =>
+					this.#sockets.newServerInstance(packet)
+			);
+			handle(
+				"Sockets/Server/endServer",
+				(packet: Worker_Sockets_Server_endServer) =>
+					this.#sockets.endServerInstance(packet)
+			);
+			handle(
+				"Sockets/Server/sendPacket",
+				(packet: Runtime_Sockets_Server_sendPacket) =>
+					this.#sockets.serverSendMessage(packet)
+			);
+
+			this.workers.push(workerStore);
 
 			this.#log(`New worker created. (#${workerID})`);
 		}
-		while (this.#workers.length > this.targetWorkers) {
+		while (this.workers.length > this.targetWorkers) {
 			let hasTerminated = false;
 
 			// too many, try to terminate one
-			for (let i = this.#workers.length - 1; i > 0; i--) {
-				const worker = this.#workers[i];
+			for (let i = this.workers.length - 1; i > 0; i--) {
+				const worker = this.workers[i];
 
 				if (worker.totalPrograms == 0) {
 					// we can terminate it.
@@ -562,7 +634,7 @@ export default class Runtime {
 
 		const now = Date.now();
 
-		for (const worker of this.#workers) {
+		for (const worker of this.workers) {
 			if (worker.lastKeepAlive + 1000 < now) {
 				// uh
 				console.warn(
@@ -594,7 +666,7 @@ export default class Runtime {
 			}
 
 			worker
-				.sendMessage<execLoopResponse>("execLoop")
+				.sendMessage<execLoopResponse>("execLoop", undefined)
 				.then(({ programs, completePrograms, computePercentage }) => {
 					worker.totalPrograms -= completePrograms.length;
 					worker.computePercentage = computePercentage;
@@ -622,15 +694,15 @@ export default class Runtime {
 			input?: Log[];
 		}
 	) {
-		if (this.#workers.length == 0) {
+		if (this.workers.length == 0) {
 			this.#updateWorkers();
 		}
 
 		this.#log("Executing program from " + directory);
 
-		let freestWorker: WorkerStore = this.#workers[0];
+		let freestWorker: WorkerStore = this.workers[0];
 
-		for (const worker of this.#workers) {
+		for (const worker of this.workers) {
 			if (worker.totalPrograms < freestWorker.totalPrograms) {
 				// it has less
 				freestWorker = worker;
@@ -645,14 +717,14 @@ export default class Runtime {
 			worker: worker,
 
 			parent,
-			children: [],
+			children: new Set(),
 
 			directory,
 			pid,
 			startTime: new Date(),
 
 			onExit: (data?: Log) => {
-				this.#workers.forEach((store) => {
+				this.workers.forEach((store) => {
 					store.emit("program_exit", {
 						pid: program.pid,
 						data,
@@ -718,17 +790,17 @@ export default class Runtime {
 		if (this.#kernel.ui.controller == undefined) {
 			this.#kernel.ui.controller = program;
 		} else if (config?.displayHandover?.oldOwner) {
-			oldDisplayOwner = this.#programByPid(
+			oldDisplayOwner = this.programByPid(
 				config?.displayHandover?.oldOwner
 			);
 
 			this.#handoverDisplay(oldDisplayOwner, program);
 		}
 
-		if (this.#initSession == undefined) this.#initSession = program;
+		if (this.#initProgram == undefined) this.#initProgram = program;
 
-		if (parent) parent.children.push(program);
-		this.#sessions.push(program);
+		if (parent) parent.children.add(program);
+		this.programs.push(program);
 
 		const ok = await worker.sendMessage<boolean, RuntimeExecuteProgram>(
 			"executeProgram",
@@ -759,26 +831,24 @@ export default class Runtime {
 	}
 
 	#registerTermination(pid: number, data?: any) {
-		const id = this.#sessions.map((item) => item.pid).indexOf(pid);
+		const id = this.programs.map((item) => item.pid).indexOf(pid);
 		if (id == -1) return;
 
-		const program = this.#sessions[id];
+		const program = this.programs[id];
 		this.#log(
 			`Program by PID ${pid} (from ${program.directory}) has exited.`
 		);
 
 		// reparent children to init
-		if (program.children.length !== 0) {
+		if (program.children.size !== 0) {
 			program.children.forEach(
-				(child) => (child.parent = this.#initSession)
+				(child) => (child.parent = this.#initProgram)
 			);
 		}
 
 		// remove from parent's child list
 		if (program.parent) {
-			program.parent.children = program.parent.children.filter(
-				(item) => item !== program
-			);
+			program.parent.children.delete(program);
 		}
 
 		// remove from controller stack if present
@@ -802,12 +872,12 @@ export default class Runtime {
 		}
 
 		// remove
-		this.#sessions.splice(id, 1);
+		this.programs.splice(id, 1);
 
 		// update worker.totalPrograms, inform workers it has exited.
 		program.onExit(data);
 
-		if (this.#sessions.length == 0) {
+		if (this.programs.length == 0) {
 			this.#kernel.exit();
 			this.#exited = true;
 		}
@@ -820,6 +890,6 @@ export default class Runtime {
 			this.#onVisibilityChange
 		);
 
-		this.#workers.forEach((store) => store.exit());
+		this.workers.forEach((store) => store.exit());
 	}
 }

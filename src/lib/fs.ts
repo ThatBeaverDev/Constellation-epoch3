@@ -1,5 +1,12 @@
 import Constellation from "../index";
+import { Log } from "../ui/ui";
 import { deleteFS } from "./config";
+import SocketManager from "./sockets";
+
+export interface FileStats {
+	size: number;
+	type: "file" | "directory" | "socket";
+}
 
 /**
  * An interface to access a Filesystem.
@@ -7,8 +14,11 @@ import { deleteFS } from "./config";
 export interface FilesystemInterface {
 	ready: boolean;
 	waitForReady(): Promise<void>;
+	socketManager?: SocketManager;
 
 	init?(): Promise<void> | void;
+
+	registerSocket(directory: string, socketId: number): void;
 
 	/**
 	 * Reads contents from a file
@@ -62,40 +72,37 @@ export interface FilesystemInterface {
 	 * Determines whether a given path is a directory
 	 * @param path Path to check
 	 */
-	isDir(path: string): boolean;
+	isDir(path: string): Promise<boolean>;
 
 	/**
 	 * Determines whether the given path contains a file OR directory
 	 * @param path Path to check
 	 */
-	exists(path: string): boolean;
+	exists(path: string): Promise<boolean>;
+
+	/**
+	 * Provides stats about a file, such as type and size.
+	 * @param path Path to retrieve stats of
+	 */
+	stats(path: string): Promise<FileStats | undefined>;
 }
 
 interface DomFsFile {
-	/**
-	 * Store ID for the file contents
-	 */
 	store: number;
-
-	/**
-	 * Filesize in characters
-	 */
 	size: number;
-
-	/**
-	 * UNIX timestamp for when the file was created.
-	 */
 	creation: number;
-	/**
-	 * UNIX timestamp for when the file was last modified.
-	 */
 	modified: number;
-
-	/**
-	 * The type of the entry.
-	 */
 	type: "file" | "directory";
 }
+
+interface DomFsSocket {
+	socketId: number;
+	creation: number;
+	modified: number;
+	type: "socket";
+}
+
+type FilesystemStore = DomFsFile | DomFsSocket;
 
 export function normalise(path: string): string {
 	if (path == undefined) {
@@ -139,10 +146,16 @@ export function basename(path: string): string {
 }
 
 class DomFs implements FilesystemInterface {
+	#log: (message: Log) => number;
 	#panic: Constellation["panic"];
+	socketManager?: SocketManager;
 
-	#index: Record<string, DomFsFile> = {};
+	#index: Record<string, FilesystemStore> = {};
 	#db?: IDBDatabase;
+
+	// tab-across syncronisation
+	#sync = new BroadcastChannel("domfs-sync");
+	#indexLoaded = false;
 
 	get ready() {
 		return Boolean(this.#db);
@@ -159,8 +172,43 @@ class DomFs implements FilesystemInterface {
 		});
 	}
 
-	constructor(panic: Constellation["panic"]) {
+	constructor(
+		log: (message: Log) => number,
+		panic: Constellation["panic"],
+		socketManager?: SocketManager
+	) {
+		this.#log = log;
 		this.#panic = panic;
+
+		this.socketManager = socketManager;
+
+		this.#sync.onmessage = async () => {
+			this.#indexLoaded = false;
+			await this.#loadIndex();
+		};
+	}
+
+	registerSocket(path: string, socketId: number) {
+		path = normalise(path);
+
+		const parentDir = parent(path);
+		const parentEntry = this.#index[parentDir];
+
+		if (!parentEntry || parentEntry.type !== "directory")
+			throw new Error(
+				`Parent directory does not exist (writeFile ${path})`
+			);
+
+		const entry: DomFsSocket = {
+			type: "socket",
+			socketId,
+
+			creation: Date.now(),
+			modified: Date.now()
+		};
+
+		// no IDB update
+		this.#index[path] = entry;
 	}
 
 	/* ================================
@@ -169,7 +217,7 @@ class DomFs implements FilesystemInterface {
 
 	async init() {
 		if (deleteFS) {
-			console.log("Erasing old DomFs...");
+			this.#log("Erasing old DomFs...");
 			const dbs = await indexedDB.databases();
 			const promises = dbs.map(() => {
 				return new Promise<void>((resolve, reject) => {
@@ -182,7 +230,7 @@ class DomFs implements FilesystemInterface {
 						reject();
 					};
 					DBDeleteRequest.onsuccess = () => {
-						console.log("Database deleted successfully");
+						this.#log("Database deleted successfully");
 						resolve();
 					};
 				});
@@ -190,6 +238,7 @@ class DomFs implements FilesystemInterface {
 			await Promise.all(promises);
 		}
 
+		this.#log("Opeining filesystem from indexedDB...");
 		const request = indexedDB.open("fs", 1);
 
 		request.onerror = () => {
@@ -200,6 +249,7 @@ class DomFs implements FilesystemInterface {
 			const db = (event.target as IDBOpenDBRequest).result;
 
 			if (!db.objectStoreNames.contains("files")) {
+				this.#log("Creating files store in indexedDB");
 				db.createObjectStore("files", {
 					keyPath: "id",
 					autoIncrement: true
@@ -207,6 +257,7 @@ class DomFs implements FilesystemInterface {
 			}
 
 			if (!db.objectStoreNames.contains("index")) {
+				this.#log("Creating index store in indexedDB");
 				db.createObjectStore("index", {
 					keyPath: "path"
 				});
@@ -214,15 +265,21 @@ class DomFs implements FilesystemInterface {
 		};
 
 		request.onsuccess = async () => {
+			this.#log("Successfully loaded filesystem from indexedDB.");
 			this.#db = request.result;
 			await this.#loadIndex();
 		};
 	}
 
-	async #loadIndex() {
+	async #loadIndex(force = false) {
 		if (!this.#db) return;
 
+		if (this.#indexLoaded && !force) return;
+
+		this.#index = {};
+
 		const transaction = this.#db.transaction("index", "readonly");
+
 		const store = transaction.objectStore("index");
 
 		await new Promise<void>((resolve) => {
@@ -235,11 +292,13 @@ class DomFs implements FilesystemInterface {
 				}
 
 				this.#index[cursor.key as string] = cursor.value.entry;
+
 				cursor.continue();
 			};
 		});
 
-		// Ensure root directory exists
+		this.#indexLoaded = true;
+
 		if (!this.#index["/"]) {
 			const now = Date.now();
 
@@ -251,8 +310,9 @@ class DomFs implements FilesystemInterface {
 				type: "directory"
 			};
 
-			const transaction2 = this.#db.transaction("index", "readwrite");
-			transaction2.objectStore("index").put({
+			const transaction = this.#db.transaction("index", "readwrite");
+
+			transaction.objectStore("index").put({
 				path: "/",
 				entry: root
 			});
@@ -267,6 +327,7 @@ class DomFs implements FilesystemInterface {
 
 	async mkdir(path: string) {
 		path = normalise(path);
+		await this.#loadIndex();
 
 		if (this.#index[path]) return false;
 
@@ -286,8 +347,12 @@ class DomFs implements FilesystemInterface {
 			type: "directory"
 		};
 
-		const transactioon = this.#db!.transaction("index", "readwrite");
-		transactioon.objectStore("index").put({ path, entry });
+		const transaction = this.#db!.transaction("index", "readwrite");
+		transaction.objectStore("index").put({ path, entry });
+		this.#sync.postMessage({
+			type: "mkdir",
+			path
+		});
 
 		this.#index[path] = entry;
 		return true;
@@ -295,6 +360,7 @@ class DomFs implements FilesystemInterface {
 
 	async readdir(path: string): Promise<string[]> {
 		path = normalise(path);
+		await this.#loadIndex();
 
 		const dir = this.#index[path];
 		if (!dir || dir.type !== "directory")
@@ -312,6 +378,7 @@ class DomFs implements FilesystemInterface {
 
 	async rmdir(path: string) {
 		path = normalise(path);
+		await this.#loadIndex();
 
 		if (path === "/") throw new Error("Cannot remove root");
 
@@ -327,6 +394,11 @@ class DomFs implements FilesystemInterface {
 		transaction.objectStore("index").delete(path);
 
 		delete this.#index[path];
+
+		this.#sync.postMessage({
+			type: "rmdir",
+			path
+		});
 	}
 
 	/* ================================
@@ -338,6 +410,7 @@ class DomFs implements FilesystemInterface {
 		format: "text" | "json" = "text"
 	): Promise<string | T | undefined> {
 		path = normalise(path);
+		await this.#loadIndex();
 
 		const file = this.#index[path];
 		if (!file || file.type !== "file") return undefined;
@@ -381,6 +454,7 @@ class DomFs implements FilesystemInterface {
 
 	async writeFile(path: string, contents: string) {
 		path = normalise(path);
+		await this.#loadIndex();
 
 		const parentDir = parent(path);
 		const parentEntry = this.#index[parentDir];
@@ -395,8 +469,8 @@ class DomFs implements FilesystemInterface {
 
 		// MODIFY
 		if (existing) {
-			if (existing.type === "directory")
-				throw new Error("Cannot write to directory");
+			if (existing.type !== "file")
+				throw new Error(`Cannot write to ${existing.type}`);
 
 			const transaction = this.#db!.transaction(
 				["files", "index"],
@@ -417,6 +491,10 @@ class DomFs implements FilesystemInterface {
 			transaction.objectStore("index").put({ path, entry: updated });
 
 			this.#index[path] = updated;
+			this.#sync.postMessage({
+				type: "write",
+				path
+			});
 			return;
 		}
 
@@ -445,11 +523,17 @@ class DomFs implements FilesystemInterface {
 
 		indexStore.put({ path, entry });
 
+		this.#sync.postMessage({
+			type: "write",
+			path
+		});
+
 		this.#index[path] = entry;
 	}
 
 	async unlink(path: string) {
 		path = normalise(path);
+		await this.#loadIndex();
 
 		const entry = this.#index[path];
 		if (!entry || entry.type !== "file") return;
@@ -463,10 +547,16 @@ class DomFs implements FilesystemInterface {
 		transaction.objectStore("index").delete(path);
 
 		delete this.#index[path];
+
+		this.#sync.postMessage({
+			type: "unlink",
+			path
+		});
 	}
 
 	async rm(path: string) {
 		path = normalise(path);
+		await this.#loadIndex();
 
 		const entry = this.#index[path];
 		if (!entry) return;
@@ -485,56 +575,37 @@ class DomFs implements FilesystemInterface {
 		await this.rmdir(path);
 	}
 
-	isDir(path: string): boolean {
+	async isDir(path: string) {
 		path = normalise(path);
+
+		await this.#loadIndex();
 
 		if (path === "/") return true;
 
-		const dir = this.#index[path];
-		if (!dir || dir.type !== "directory") return false;
-
-		return true;
+		return this.#index[path]?.type === "directory";
 	}
 
-	exists(path: string) {
+	async exists(path: string) {
 		path = normalise(path);
+
+		await this.#loadIndex();
 
 		if (path === "/") return true;
 
-		const fileEntry = this.#index[path];
-		return fileEntry !== undefined;
+		return this.#index[path] !== undefined;
+	}
+
+	async stats(path: string) {
+		path = normalise(path);
+
+		await this.#loadIndex();
+
+		const entry = this.#index[path];
+
+		if (!entry) return;
+
+		return { size: "size" in entry ? entry.size : -1, type: entry.type };
 	}
 }
 
-/*class NodeFs implements FilesystemInterface {
-	#log: UiManager["log"];
-	#panic: Constellation["panic"];
-	ready = false;
-	waitForReady() {
-		return new Promise<void>((resolve) => {
-			setInterval(() => {
-				if (this.ready) {
-					resolve();
-				}
-			}, 2);
-		});
-	}
-
-	constructor(log: (message: string) => void, panic: Constellation["panic"]) {
-		this.#log = log;
-		this.#panic = panic;
-
-		log("Initialising NodeFs...");
-	}
-
-	async readFile(directory: string) {}
-
-	async writeFile(directory: string, contents: string) {}
-}
-
-const Fs: new (
-	log: (message: string) => void,
-	panic: Constellation["panic"]
-) => FilesystemInterface = env == "web" ? DomFs : NodeFs;
-export default Fs;*/
 export default DomFs;

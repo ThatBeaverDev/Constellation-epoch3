@@ -8,18 +8,24 @@ import DomFs, {
 } from "../lib/fs.js";
 
 describe("Filesystem stress tests", async () => {
-	const fs: FilesystemInterface = new DomFs((_, err) => {
-		throw err;
-	});
+	const fs: FilesystemInterface = new DomFs(
+		(...data: any[]) => {
+			console.log(...data);
+			return -1;
+		},
+		(_, err) => {
+			throw err;
+		}
+	);
 	await fs.init?.();
 	await fs.waitForReady();
 
 	// -------------------------
 	// BASIC INTEGRITY
 	// -------------------------
-	it("root directory exists", () => {
-		expect(fs.exists("/")).toBe(true);
-		expect(fs.isDir("/")).toBe(true);
+	it("root directory exists", async () => {
+		await expect(fs.exists("/")).resolves.toBe(true);
+		await expect(fs.isDir("/")).resolves.toBe(true);
 	});
 
 	it("cannot remove root", async () => {
@@ -31,12 +37,12 @@ describe("Filesystem stress tests", async () => {
 	// -------------------------
 	it("normalises missing leading slash", async () => {
 		await fs.mkdir("/test");
-		expect(fs.exists("test")).toBe(true);
+		await expect(fs.exists("test")).resolves.toBe(true);
 	});
 
 	it("normalises trailing slash", async () => {
 		await fs.mkdir("/dir");
-		expect(fs.isDir("/dir/")).toBe(true);
+		await expect(fs.isDir("/dir/")).resolves.toBe(true);
 	});
 
 	it("handles duplicate slashes (should fail or normalise)", async () => {
