@@ -22,6 +22,10 @@ export function createMockEnv(): Environment {
 			resolve: (...args: string[]) => args.join("/")
 		} as any,
 
+		addEventListener: vi.fn(),
+		removeEventListener: vi.fn(),
+		triggerEvent: vi.fn(),
+
 		workingDirectory: "/cwd",
 
 		network: {
