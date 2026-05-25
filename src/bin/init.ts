@@ -114,15 +114,9 @@ export default async function* initSystem(env: Environment) {
 	yield;
 	env.print("Starting services.");
 
-	//let startedShell = false;
 	while (true) {
 		startServices(services);
 
-		//if (!startedShell) {
-		//	await env.execute("/bin/shell.js", [], { handOverDisplay: true });
-		//
-		//	startedShell = true;
-		//}
 		yield;
 	}
 }
