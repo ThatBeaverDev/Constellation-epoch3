@@ -1,3 +1,4 @@
+import { clamp } from "../lib/util";
 import { Environment } from "../types/worker";
 import { blobToDataURL, dataURItoBlob } from "../usrlib/dataUri";
 import { sleep } from "../usrlib/time";
@@ -121,7 +122,86 @@ export default async function* microsoftPaint(
 		];
 	}
 
-	while (true) {
+	let input = false;
+	let allowNext = 0;
+	env.addEventListener("keydown", async (event) => {
+		if (input) return;
+		const now = Date.now();
+		if (allowNext > now) await sleep(allowNext - now);
+		allowNext = now + 25;
+
+		switch (event.name) {
+			case "w":
+				penY = clamp(penY - 1, 0, 50);
+				break;
+			case "a":
+				penX = clamp(penX - 1, 0, 50);
+				break;
+			case "s":
+				penY = clamp(penY + 1, 0, 50);
+				break;
+			case "d":
+				penX = clamp(penX + 1, 0, 50);
+				break;
+
+			case "q":
+				penDown = true;
+				break;
+			case "e":
+				penDown = false;
+				break;
+
+			case "c":
+				input = true;
+				const newColour = await env.input("Enter a hex colour: ");
+				input = false;
+				penColour = newColour;
+				break;
+
+			case "r":
+				const blob = await drawingCanvas.convertToBlob({
+					type: "image/png"
+				});
+				const dataUrl = await blobToDataURL(blob);
+
+				input = true;
+				const savePath = await env.input(
+					"Enter the directory to save to: "
+				);
+				input = false;
+
+				await env.fs.writeFile(savePath, dataUrl);
+
+				break;
+
+			case "x":
+				const sure = await env.input("Exit? (no autosave) (y/N) ", {
+					leaveInputOnCompletion: false
+				});
+				if (sure.toLowerCase().trim() == "y") {
+					exit = true;
+				} else {
+					// don't exit
+				}
+				return;
+
+			default:
+				return;
+		}
+
+		if (penDown == true) {
+			// draw rect in that pixel
+			const penCanvasX = penX * canvasIncrementX;
+			const penCanvasY = penY * canvasIncrementX;
+
+			rect(
+				drawingCtx,
+				penColour,
+				[penCanvasX, penCanvasY],
+				[canvasIncrementX, canvasIncrementX]
+			);
+		}
+
 		env.clearLogs();
 		if (expireLastCanvas) expireLastCanvas();
 
@@ -193,98 +273,22 @@ export default async function* microsoftPaint(
 
 		env.print([
 			{
+				text: "Commands:\n\n- W: Move cursor up by one\n- A: Move cursor left by one\n- S: Move cursor down by one\n- D: Move cursor right by one\n\n- Q - Move Brush Down (start drawing)\n- E - Move Brush Up (stop drawing)\n- C - Set colour\n\n- X - Exit\n- R - Save image.\n"
+			},
+			{
 				type: "image",
 				url: canvasData.url,
 				width: 100
 			}
 		]);
+	});
 
-		const unformattedActions = await env.input(
-			"Action(s) [W, A, S, D, Q, E, C, H, R]: "
-		);
-		const actions = unformattedActions.toLowerCase().trim().split("");
-
-		if (actions.length == 0) {
-			const sure = await env.input("Exit? (no autosave) (y/N) ", {
-				leaveInputOnCompletion: false
-			});
-			if (sure.toLowerCase().trim() == "y") {
-				exit = true;
-			} else {
-				// don't exit
-			}
-		}
-
-		for (const action of actions) {
-			switch (action) {
-				case "h":
-					env.clearLogs();
-
-					env.print(
-						"Commands:\n\n- W: Move cursor up by one\n- A: Move cursor left by one\n- S: Move cursor down by one\n- D: Move cursor right by one\n\n- Q - Move Brush Down (start drawing)\n- E - Move Brush Up (stop drawing)\n- C - Set colour\n\n- None - Exit\n- R - Save image."
-					);
-
-					await sleep(2000);
-
-					break;
-
-				case "w":
-					penY -= 1;
-					break;
-				case "a":
-					penX -= 1;
-					break;
-				case "s":
-					penY += 1;
-					break;
-				case "d":
-					penX += 1;
-					break;
-
-				case "q":
-					penDown = true;
-					break;
-				case "e":
-					penDown = false;
-					break;
-
-				case "c":
-					const newColour = await env.input("Enter a hex colour: ");
-					penColour = newColour;
-					break;
-
-				case "r":
-					const blob = await drawingCanvas.convertToBlob({
-						type: "image/png"
-					});
-					const dataUrl = await blobToDataURL(blob);
-
-					const savePath = await env.input(
-						"Enter the directory to save to: "
-					);
-
-					await env.fs.writeFile(savePath, dataUrl);
-
-					break;
-			}
-
-			if (penDown == true) {
-				// draw rect in that pixel
-				const penCanvasX = penX * canvasIncrementX;
-				const penCanvasY = penY * canvasIncrementX;
-
-				rect(
-					drawingCtx,
-					penColour,
-					[penCanvasX, penCanvasY],
-					[canvasIncrementX, canvasIncrementX]
-				);
-			}
-
-			if (exit == true) break;
-		}
-
+	env.triggerEvent("keydown", { alt: false, name: "e", shift: false });
+	while (true) {
+		// @ts-expect-error
 		if (exit == true) break;
+
+		yield;
 	}
 
 	// the URLs will just have to stay
