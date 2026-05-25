@@ -328,20 +328,22 @@ class DomManager implements UiManager {
 				this.#focusInput(this.#input);
 			}
 		});
-		this.#container.addEventListener("keydown", (event) => {
-			if (!this.controller) return;
-
-			triggerProgramEvent(this.controller, "keydown", {
-				name: event.key,
-
-				alt: event.altKey,
-				shift: event.shiftKey
-			});
-		});
+		window.addEventListener("keydown", this.#onKeyDown);
 
 		document.body.innerHTML = "";
 		document.body.appendChild(this.#container);
 	}
+
+	#onKeyDown = (event: KeyboardEvent) => {
+		if (!this.controller) return;
+
+		triggerProgramEvent(this.controller, "keydown", {
+			name: event.key,
+
+			alt: event.altKey,
+			shift: event.shiftKey
+		});
+	};
 
 	#elementQueue: { element: HTMLElement; onAddition?: Function }[] = [];
 	#commitScheduled = false;
@@ -667,7 +669,9 @@ class DomManager implements UiManager {
 	cancelSounds() {}
 
 	exit() {
+		this.cancelSounds();
 		clearInterval(this.#focusInterval);
+		window.removeEventListener("keydown", this.#onKeyDown);
 	}
 }
 
