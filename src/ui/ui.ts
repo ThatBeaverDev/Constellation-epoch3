@@ -419,57 +419,35 @@ class DomManager implements UiManager {
 	}
 
 	log(origin: string, message: Log) {
-		const normalized = withOrigin(origin, normalizeLog(message));
+		const normalized = normalizeLog(message);
+		const originated = withOrigin(origin, normalized);
 
-		const consoleData = renderConsole(normalized);
+		const consoleData = renderConsole(originated);
 		console.log(consoleData.text, ...consoleData.styles);
 
 		return this.#postRich(normalized);
 	}
 
 	warn(origin: string, message: Log) {
-		const normalized = withOrigin(origin, normalizeLog(message, "#ffd900"));
+		const normalized = normalizeLog(message, "#ffd900");
+		const originated = withOrigin(origin, normalized);
 
-		console.warn(renderConsole(normalized).text);
+		const consoleData = renderConsole(originated);
+		console.warn(consoleData.text, ...consoleData.styles);
 
 		return this.#postRich(normalized);
 	}
 
 	error(origin: string, message: Log, consoleLog: boolean = true) {
-		const normalized = withOrigin(origin, normalizeLog(message, "#ff0000"));
+		const normalized = normalizeLog(message, "#ff0000");
+		const originated = withOrigin(origin, normalized);
 
-		if (consoleLog) console.error(renderConsole(normalized).text);
-
-		return this.#postRich(normalized);
-	}
-
-	async editLog(origin: string, id: number, message: Log) {
-		const normalized = withOrigin(origin, normalizeLog(message));
-
-		const element = this.lines[id]?.element;
-
-		if (!element) {
-			console.warn(
-				`Program ${origin} tried to edit log#${id} which does not exist. ignoring.`
-			);
-			return;
+		if (consoleLog) {
+			const consoleData = renderConsole(originated);
+			console.error(consoleData.text, ...consoleData.styles);
 		}
 
-		const token = this.#nextRenderToken();
-		(element as any).__renderToken = token;
-
-		const data = await renderHtml(
-			normalized,
-			this.#fs.readFile.bind(this.#fs)
-		);
-
-		if ((element as any).__renderToken !== token) return;
-
-		const scrollComplete = scrollContainer(this.#logbox);
-
-		element.innerHTML = data;
-
-		scrollComplete();
+		return this.#postRich(normalized);
 	}
 
 	#focusInput(input: HTMLInputElement) {
