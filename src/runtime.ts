@@ -102,12 +102,13 @@ export default class Runtime {
 	) {
 		this.#kernel = kernel;
 
-		this.#log = (data: Log) => {
-			if (!this.#kernel.ui.controller) return log("runtime", data);
+		const logWithSource = (source: string, data: Log) => {
+			if (!this.#kernel.ui.controller) return log(source, data);
 
-			consoleLog("runtime", data);
+			consoleLog(source, data);
 			return 0;
 		};
+		this.#log = logWithSource.bind(undefined, "runtime");
 		this.#warn = (data: Log) => {
 			if (!this.#kernel.ui.controller) return warn("runtime", data);
 
@@ -130,7 +131,11 @@ export default class Runtime {
 		this.#panic = panic;
 		this.#fs = fs;
 
-		this.#sockets = new SocketManager(this, this.#log, this.#fs);
+		this.#sockets = new SocketManager(
+			this,
+			logWithSource.bind(undefined, "runtime/sockets"),
+			this.#fs
+		);
 		this.#fs.socketManager = this.#sockets;
 
 		this.#fs;

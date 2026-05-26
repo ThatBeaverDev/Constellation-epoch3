@@ -274,6 +274,12 @@ async function renderHtml(
 }
 
 function withOrigin(origin: string, log: NormalizedLog): NormalizedLog {
+	log = log ?? [];
+
+	if (!(log instanceof Array)) {
+		throw new Error("Normalized log must be provided!");
+	}
+
 	return [{ text: `[${origin}] `, colour: "#888888" }, ...log];
 }
 
