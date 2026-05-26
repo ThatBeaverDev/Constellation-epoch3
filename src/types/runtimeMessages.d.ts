@@ -1,5 +1,4 @@
-import { KeyPressModifiers, Log } from "../ui/ui";
-import { EventMap, EventName, onPasteData } from "./worker";
+import { EventMap, EventName, Log, onPasteData } from "../util/types/worker";
 import {
 	Worker_Sockets_Client_endConnection,
 	Worker_Sockets_Client_newConnection,

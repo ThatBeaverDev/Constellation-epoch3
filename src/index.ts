@@ -1,7 +1,8 @@
 import Fs, { FilesystemInterface } from "./lib/fs";
 import applyStringPrototypes from "./lib/strings";
 import Runtime from "./runtime";
-import Ui, { Log, UiManager } from "./ui/ui";
+import Ui, { UiManager } from "./ui/ui";
+import { Log } from "./util/types/worker";
 
 export default class Constellation {
 	ui: UiManager;

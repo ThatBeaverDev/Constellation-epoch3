@@ -1,5 +1,5 @@
 import { vi } from "vitest";
-import { Environment } from "../../types/worker";
+import { Environment } from "../../util/types/worker";
 
 export function createMockEnv(): Environment {
 	return {

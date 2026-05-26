@@ -1,4 +1,4 @@
-import { Environment } from "../types/worker";
+import { Environment } from "../util/types/worker";
 
 export default function* echo(env: Environment, args: string[]) {
 	env.print(

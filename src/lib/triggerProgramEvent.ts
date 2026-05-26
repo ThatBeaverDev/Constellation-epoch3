@@ -1,6 +1,6 @@
 import { ProgramStore } from "../runtime";
 import { Runtime_Events_Trigger } from "../types/runtimeMessages";
-import { EventMap, EventName } from "../types/worker";
+import { EventMap, EventName } from "../util/types/worker";
 
 export async function triggerProgramEvent<K extends EventName>(
 	program: ProgramStore,

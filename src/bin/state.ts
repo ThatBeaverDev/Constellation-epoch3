@@ -1,4 +1,4 @@
-import { Environment } from "../types/worker";
+import { Environment } from "../util/types/worker";
 
 export default async function* getState(env: Environment) {
 	const workers = await env.systemStats.workerStats();

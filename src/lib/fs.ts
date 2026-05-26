@@ -1,12 +1,7 @@
 import Constellation from "../index";
-import { Log } from "../ui/ui";
 import { deleteFS } from "./config";
 import SocketManager from "./sockets";
-
-export interface FileStats {
-	size: number;
-	type: "file" | "directory" | "socket";
-}
+import { FileStats, Log } from "../util/types/worker";
 
 /**
  * An interface to access a Filesystem.

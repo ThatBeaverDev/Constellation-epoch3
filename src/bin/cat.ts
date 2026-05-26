@@ -1,4 +1,4 @@
-import { Environment } from "../types/worker";
+import { Environment } from "../util/types/worker";
 
 export default async function* cat(env: Environment, paths: string[]) {
 	const strings = await Promise.all(

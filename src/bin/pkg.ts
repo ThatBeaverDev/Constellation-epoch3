@@ -1,5 +1,5 @@
-import { Environment } from "../types/worker";
-import { objectFallback } from "../usrlib/object";
+import { Environment } from "../util/types/worker";
+import { objectFallback } from "../util/lib/object";
 
 // remote
 

@@ -1,7 +1,7 @@
 import Constellation from "./index";
 import { FilesystemInterface } from "./lib/fs";
 import { newWorker, workerFunction } from "./lib/worker";
-import { Process } from "./types/worker";
+import { InputConfig, Log, Process } from "./util/types/worker";
 import { implementWorkerFS, mainThreadMessageHandler } from "./lib/workerUtils";
 import {
 	Worker_Sockets_Client_endConnection,
@@ -25,8 +25,6 @@ import {
 	consoleError,
 	consoleLog,
 	consoleWarn,
-	InputConfig,
-	Log,
 	PlaySoundResponse,
 	UiManager
 } from "./ui/ui";

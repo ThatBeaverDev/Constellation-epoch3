@@ -1,9 +1,11 @@
 // Types for messages sent by workers.
 
-import { InputConfig_BoolOnPaste, Log } from "../ui/ui";
-import { NetworkRequestType } from "./worker";
-import { Sound } from "../ui/ui";
-import { NodeArray } from "typescript";
+import {
+	InputConfig_BoolOnPaste,
+	Log,
+	NetworkRequestType,
+	Sound
+} from "../util/types/worker";
 
 export interface WorkerEnv_Exec {
 	path: string;

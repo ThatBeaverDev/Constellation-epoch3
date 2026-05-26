@@ -1,36 +1,38 @@
-import { InputConfig, Log, Sound } from "../ui/ui.js";
 import {
-	ConstellationProgram,
-	EnvironmentFilesystem,
-	NetworkRequestType,
-	Process,
-	SocketConnection,
-	SocketServer,
-	WorkerProgramStore,
-	type Environment
-} from "../types/worker.js";
+	type ConstellationProgram,
+	type EnvironmentFilesystem,
+	type NetworkRequestType,
+	type Process,
+	type SocketConnection,
+	type SocketServer,
+	type WorkerProgramStore,
+	type Environment,
+	type InputConfig,
+	type Log,
+	type Sound
+} from "../util/types/worker.js";
 import {
-	Worker_Sockets_Client_endConnection,
-	Worker_Sockets_Client_newConnection,
-	Worker_Sockets_Client_sendPacket,
-	Worker_Sockets_Server_endServer,
-	Worker_Sockets_Server_newServer,
-	Worker_Sockets_Server_sendPacket,
-	WorkerEnv_Exec,
-	WorkerEnv_Input,
-	WorkerEnv_Network_Get
+	type Worker_Sockets_Client_endConnection,
+	type Worker_Sockets_Client_newConnection,
+	type Worker_Sockets_Client_sendPacket,
+	type Worker_Sockets_Server_endServer,
+	type Worker_Sockets_Server_newServer,
+	type Worker_Sockets_Server_sendPacket,
+	type WorkerEnv_Exec,
+	type WorkerEnv_Input,
+	type WorkerEnv_Network_Get
 } from "../types/workerMessages.js";
 import {
-	Runtime_Events_Trigger,
-	Runtime_Sockets_Client_endConnection,
-	Runtime_Sockets_Client_newConnection,
-	Runtime_Sockets_Client_sendPacket,
-	Runtime_Sockets_Server_endServer,
-	Runtime_Sockets_Server_sendPacket,
-	RuntimeExecuteProgram,
-	RuntimeProgramInputOnPaste
+	type Runtime_Events_Trigger,
+	type Runtime_Sockets_Client_endConnection,
+	type Runtime_Sockets_Client_newConnection,
+	type Runtime_Sockets_Client_sendPacket,
+	type Runtime_Sockets_Server_endServer,
+	type Runtime_Sockets_Server_sendPacket,
+	type RuntimeExecuteProgram,
+	type RuntimeProgramInputOnPaste
 } from "../types/runtimeMessages.js";
-import { FileStats } from "./fs.js";
+import { type FileStats } from "../util/types/worker";
 
 /// <reference path="@typescript/lib-webworker@npm:@types/webworker" />
 

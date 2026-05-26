@@ -1,5 +1,5 @@
-import { Environment } from "../types/worker";
-import { formatTable } from "../usrlib/table";
+import { Environment } from "../util/types/worker";
+import { formatTable } from "../util/lib/table";
 
 export default async function* getInfo(env: Environment) {
 	const username = "root";

@@ -1,44 +1,13 @@
 import { FilesystemInterface } from "../lib/fs";
 import { triggerProgramEvent } from "../lib/triggerProgramEvent";
-import { clamp } from "../lib/util";
+import { clamp } from "../util/lib/maths";
 import { ProgramStore } from "../runtime";
-import { onPasteData } from "../types/worker";
 import styles from "./styles.css";
+import { InputConfig, Log, NormalizedLog, Sound } from "../util/types/worker";
 
 const lineHeight = 15;
 function linesToPx(lines: number) {
 	return lineHeight * lines;
-}
-
-export interface KeyPressModifiers {
-	/**
-	 * Whether Control on Windows/Linux is pressed, Command on macOS. Also returns whether 'Meta' (super/windows) was pressed, due to implementation.
-	 */
-	control: boolean;
-	/**
-	 * Whether Alt on Windows/Linux is pressed, Option on macOS
-	 */
-	alt: boolean;
-	/**
-	 * Shift is pressed
-	 */
-	shift: boolean;
-}
-
-export interface InputConfig {
-	hideTyping: boolean;
-	leaveInputOnCompletion: boolean;
-	onPaste: (data: onPasteData) => void;
-	inline: boolean;
-	initialText: string;
-}
-
-export interface InputConfig_BoolOnPaste {
-	hideTyping: boolean;
-	leaveInputOnCompletion: boolean;
-	onPasteFunctionPresent: boolean;
-	inline: boolean;
-	initialText: string;
 }
 
 export interface UiManager {
@@ -58,72 +27,6 @@ export interface UiManager {
 
 	exit(): Promise<void> | void;
 }
-
-type HexColour = string;
-type LogSegment =
-	| {
-			type?: "string";
-			text: string;
-			colour?: HexColour;
-	  }
-	| {
-			type: "image";
-			url: string;
-
-			/**
-			 * width in lines
-			 */
-			width: number;
-
-			/**
-			 * height in lines
-			 */
-			height?: number | "auto";
-	  }
-	| {
-			type: "image";
-			dir: string;
-
-			/**
-			 * width in lines
-			 */
-			width: number;
-
-			/**
-			 * height in lines
-			 */
-			height?: number | "auto";
-	  };
-
-export type ArrayLog = LogSegment[];
-export type Log = string | ArrayLog;
-
-type NormalizedLog = LogSegment[];
-
-interface BaseSound {
-	volume?: number;
-	start?: number;
-
-	metadata?: {
-		title?: string;
-		artist?: string;
-		album?: string;
-		/**
-		 * URL or Directory
-		 */
-		artwork?: string;
-	};
-}
-
-export interface FileSound extends BaseSound {
-	file: string;
-}
-
-export interface URLSound extends BaseSound {
-	url: string;
-}
-
-export type Sound = FileSound | URLSound;
 
 export interface PlaySoundResponse {
 	duration: number;

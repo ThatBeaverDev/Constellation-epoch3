@@ -1,5 +1,5 @@
-import { Environment } from "../types/worker";
-import { copyFiles } from "../usrlib/files";
+import { Environment } from "../util/types/worker";
+import { copyFiles } from "../util/lib/files";
 
 export default async function* copyFilesUtility(
 	env: Environment,

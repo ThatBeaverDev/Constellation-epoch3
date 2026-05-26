@@ -13,7 +13,7 @@ import {
 	Worker_Sockets_Server_newServer,
 	Worker_Sockets_Server_sendPacket
 } from "../types/workerMessages";
-import { Log } from "../ui/ui";
+import { Log } from "../util/types/worker";
 import { FilesystemInterface } from "./fs";
 
 interface Socket {

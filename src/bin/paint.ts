@@ -1,7 +1,7 @@
-import { clamp } from "../lib/util";
-import { Environment } from "../types/worker";
-import { blobToDataURL, dataURItoBlob } from "../usrlib/dataUri";
-import { sleep } from "../usrlib/time";
+import { clamp } from "../util/lib/maths";
+import { Environment } from "../util/types/worker";
+import { blobToDataURL, dataURItoBlob } from "../util/lib/dataUri";
+import { sleep } from "../util/lib/time";
 
 function line(
 	ctx: OffscreenCanvasRenderingContext2D,
