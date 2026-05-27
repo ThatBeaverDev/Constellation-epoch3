@@ -233,7 +233,7 @@ class DomFs implements FilesystemInterface {
 			await Promise.all(promises);
 		}
 
-		this.#log("Opeining filesystem from indexedDB...");
+		this.#log("Opening filesystem from indexedDB...");
 		const request = indexedDB.open("fs", 1);
 
 		request.onerror = () => {
