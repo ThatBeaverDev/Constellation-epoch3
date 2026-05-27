@@ -8,8 +8,9 @@ export interface RemotePackagesJson {
 }
 
 export interface RemotePackage {
-	author: string;
+	author?: string;
 	dependencies?: string[];
+	published?: number;
 }
 
 // local
@@ -59,18 +60,44 @@ export default async function* packageInstall(
 		url: string,
 		json: boolean = false
 	) {
-		const corsURL = `https://proxy.mistium.com/?url=${url}`;
+		try {
+			return await env.network.request<T>(
+				"get",
+				url,
+				json ? "json" : "text"
+			);
+		} catch (e) {
+			const corsURL = `https://proxy.mistium.com/?url=${url}`;
 
-		return await env.network.request<T>(
-			"get",
-			corsURL,
-			json ? "json" : "text"
-		);
+			return await env.network.request<T>(
+				"get",
+				corsURL,
+				json ? "json" : "text"
+			);
+		}
+	}
+
+	async function resolvePackageFromRepos(packageName: string) {
+		for (const repo of packages.repositories) {
+			const repoJson = await fetch<RemotePackagesJson>(
+				repo.url + "/packages.json",
+				true
+			);
+
+			const pkg = repoJson?.packages?.[packageName];
+			if (!pkg) continue;
+
+			return {
+				repo,
+				meta: pkg
+			};
+		}
+		return null;
 	}
 
 	switch (command) {
 		case "install":
-		case "add":
+		case "add": {
 			const toInstall = [subcommand, ...finalParams].filter(
 				(item) => item !== undefined
 			);
@@ -154,6 +181,7 @@ export default async function* packageInstall(
 					}
 
 					await env.fs.writeFile(binpath, source);
+
 					env.print([
 						{
 							text: `Package ${packageName} successfully installed.`,
@@ -175,9 +203,10 @@ export default async function* packageInstall(
 			}
 
 			break;
+		}
 
 		case "uninstall":
-		case "remove":
+		case "remove": {
 			const toUninstall = [subcommand, ...finalParams].filter(
 				(item) => item !== undefined
 			);
@@ -206,21 +235,20 @@ export default async function* packageInstall(
 			}
 
 			break;
+		}
 
-		case "list":
+		case "list": {
 			const names: string[] = [];
 
 			if (subcommand == "remote") {
 				for (const repo of packages.repositories) {
-					const url = repo.url;
-
 					const repoPackageJson = await fetch<RemotePackagesJson>(
-						url + "/packages.json",
+						repo.url + "/packages.json",
 						true
 					);
 
 					for (const name in repoPackageJson.packages)
-						names.push(`${url} - ${name}`);
+						names.push(`${repo.url} - ${name}`);
 				}
 			} else {
 				for (const name in packages.packages) names.push(name);
@@ -228,15 +256,14 @@ export default async function* packageInstall(
 
 			env.print([
 				{ text: `${names.length} package(s):\n`, colour: "#29dee8" },
-				...names.map((item) => {
-					return { text: item + "\n" };
-				})
+				...names.map((item) => ({ text: item + "\n" }))
 			]);
 
 			break;
+		}
 
 		case "repo":
-		case "repos":
+		case "repos": {
 			switch (subcommand) {
 				case "add":
 					if (!finalParams?.[0]) {
@@ -252,11 +279,10 @@ export default async function* packageInstall(
 					for (const url of finalParams) {
 						if (!url) continue;
 
-						const repository: Repository = {
+						packages.repositories.push({
 							url,
 							packages: {}
-						};
-						packages.repositories.push(repository);
+						});
 
 						env.print([
 							{
@@ -274,11 +300,9 @@ export default async function* packageInstall(
 							text: `${packages.repositories.length} repositories:\n`,
 							colour: "#29dee8"
 						},
-						...packages.repositories.map((item) => {
-							return {
-								text: `${item.url} (${Object.keys(item.packages).length} packages)\n`
-							};
-						})
+						...packages.repositories.map((item) => ({
+							text: `${item.url} (${Object.keys(item.packages).length} packages)\n`
+						}))
 					]);
 
 					break;
@@ -336,13 +360,113 @@ export default async function* packageInstall(
 			}
 
 			break;
+		}
+
+		case "update": {
+			// what the user asked for
+			const targets = [subcommand, ...finalParams].filter(Boolean);
+
+			// whether the user asked for none, and so wants to update all
+			const updateAll = targets.length === 0;
+
+			// installed package names
+			const installed = Object.keys(packages.packages);
+
+			// what to update
+			const toUpdate = updateAll ? installed : targets;
+
+			if (toUpdate.length === 0) {
+				env.print([
+					{
+						text: "No packages to update.",
+						colour: "#ff0000"
+					}
+				]);
+				break;
+			}
+
+			for (const name of toUpdate) {
+				if (!name) continue;
+
+				const localPkg = packages.packages[name];
+				if (!localPkg) {
+					env.print([
+						{
+							text: `Package ${name} is not installed.`,
+							colour: "#ff0000"
+						}
+					]);
+					continue;
+				}
+
+				const resolved = await resolvePackageFromRepos(name);
+
+				if (!resolved) {
+					env.print([
+						{
+							text: `No repository contains ${name}.`,
+							colour: "#ff0000"
+						}
+					]);
+					continue;
+				}
+
+				const { repo, meta } = resolved;
+
+				if (
+					localPkg.published &&
+					meta.published &&
+					meta.published <= localPkg.published
+				) {
+					env.print([
+						{
+							text: `${name} is already up to date.`,
+							colour: "#00ff00"
+						}
+					]);
+					continue;
+				}
+
+				const source = await fetch(
+					repo.url + `/packages/${name}/package.js`
+				);
+
+				if (!source) {
+					env.print([
+						{
+							text: `Failed to fetch update for ${name}.`,
+							colour: "#ff0000"
+						}
+					]);
+					continue;
+				}
+
+				const binpath = `/bin/${name}.js`;
+
+				await env.fs.writeFile(binpath, source);
+
+				packages.packages[name] = {
+					...meta,
+					files: [binpath]
+				};
+
+				env.print([
+					{
+						text: `Updated ${name}.`,
+						colour: "#00ff00"
+					}
+				]);
+			}
+
+			break;
+		}
 
 		default:
 			if (command) env.print([{ text: `Unknown command: ${command}` }]);
 
 			env.print([
 				{
-					text: "Commands:\npkg [add|install]\npkg [remove|uninstall]\npkg list [Local|remote]\npkg [repo|repos] [add|list|remove|listpkgs]"
+					text: "Commands:\npkg [add|install]\npkg [remove|uninstall]\npkg list [local|remote]\npkg [repo|repos] [add|list|remove]\npkg update [name]"
 				}
 			]);
 	}
