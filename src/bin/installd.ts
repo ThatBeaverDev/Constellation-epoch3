@@ -28,13 +28,13 @@ export default async function* install(env: Environment) {
 		env.print("Installing system...");
 
 		// basic directories
-		yield env.fs.mkdir("/bin");
+		await env.fs.mkdir("/bin");
 
-		yield env.fs.mkdir("/data");
-		yield env.fs.mkdir("/config");
+		await env.fs.mkdir("/data");
+		await env.fs.mkdir("/config");
 
-		yield env.fs.mkdir("/user");
-		yield env.fs.mkdir("/users");
+		await env.fs.mkdir("/user");
+		await env.fs.mkdir("/users");
 
 		let installerJSON: InstallationDataFile;
 		try {
@@ -48,18 +48,24 @@ export default async function* install(env: Environment) {
 		}
 
 		installerData.files = [];
-		installerData.directories = ["/bin", "/data", "/config", "/user"];
+		installerData.directories = [
+			"/bin",
+			"/data",
+			"/config",
+			"/user",
+			"/users"
+		];
 
 		env.print("Creating directories...");
 		for (const directory of installerJSON.directories) {
-			yield env.fs.mkdir(directory);
+			await env.fs.mkdir(directory);
 		}
 
 		env.print("Writing files...");
 		for (const filename in installerJSON.files) {
 			const contents = installerJSON.files[filename];
 
-			yield env.fs.writeFile(filename, contents);
+			await env.fs.writeFile(filename, contents);
 			installerData.files.push(filename);
 		}
 
@@ -69,8 +75,8 @@ export default async function* install(env: Environment) {
 		env.print("Installation complete.");
 	}
 
-	yield env.fs.mkdir("/data/installd");
-	yield env.fs.writeFile(
+	await env.fs.mkdir("/data/installd");
+	await env.fs.writeFile(
 		"/data/installd/run.json",
 		JSON.stringify(installerData, null, 4)
 	);

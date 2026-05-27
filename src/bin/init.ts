@@ -111,7 +111,6 @@ export default async function* initSystem(env: Environment) {
 	env.print("Installer has exited. Finding services...");
 	const services = await findServices();
 
-	yield;
 	env.print("Starting services.");
 
 	while (true) {
