@@ -1,3 +1,6 @@
+git submodule init
+git submodule update
+
 npx tsc -b
 
 cp src/ui/styles.css build/ui/styles.css
