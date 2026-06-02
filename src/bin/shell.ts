@@ -165,6 +165,7 @@ export default async function* Shell(env: Environment) {
 	const welcome = await env.fs.readFile(welcomeMessage);
 	if (welcome) env.print(welcome);
 
+	const executedCommandRequiresExitReturn = Symbol();
 	async function executeCommand(command: ShellCommand, input?: Log[]) {
 		const result: Log[] = [];
 
@@ -199,7 +200,7 @@ export default async function* Shell(env: Environment) {
 				break;
 
 			case "exit":
-				return;
+				return executedCommandRequiresExitReturn;
 
 			case "which":
 				for (const commandName of command.args) {
@@ -271,6 +272,8 @@ export default async function* Shell(env: Environment) {
 
 		for (const command of commands) {
 			const logs = await executeCommand(command);
+			if (logs == executedCommandRequiresExitReturn) return; // exit
+
 			if (logs) {
 				for (const log of logs) env.print(log);
 			}
