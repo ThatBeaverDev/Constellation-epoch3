@@ -1,4 +1,4 @@
-import { Environment } from "../util/types/worker";
+import { Environment } from "../../../util/types/worker";
 
 export default async function* ResolveCommand(
 	env: Environment,

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseShellCommand } from "../../bin/shell";
+import { parseShellCommand } from "../../pkgs/packages/shell/shell";
 
 describe("Shell tests", () => {
 	it("Handle standard commands (ls /bin)", () => {

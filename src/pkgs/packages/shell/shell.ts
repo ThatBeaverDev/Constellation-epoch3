@@ -1,5 +1,5 @@
-import { Environment, Log } from "../util/types/worker";
-import { logsToString, logToString } from "../util/lib/logs";
+import { Environment, Log } from "../../../util/types/worker";
+import { logsToString, logToString } from "../../../util/lib/logs";
 
 export interface ShellCommand {
 	name: string;

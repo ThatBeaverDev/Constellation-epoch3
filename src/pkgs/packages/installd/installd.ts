@@ -1,5 +1,5 @@
-import { Environment } from "../util/types/worker";
-import { objectFallback } from "../util/lib/object";
+import { Environment } from "../../../util/types/worker";
+import { objectFallback } from "../../../util/lib/object";
 
 interface InstallerData {
 	installed: boolean;
@@ -16,6 +16,7 @@ const installerDataFallback: InstallerData = {
 interface InstallationDataFile {
 	files: Record<string, string>;
 	directories: string[];
+	packages?: string[];
 }
 
 export default async function* install(env: Environment) {
@@ -69,10 +70,36 @@ export default async function* install(env: Environment) {
 			installerData.files.push(filename);
 		}
 
+		env.print("Installing packages...");
+		// download pkg first
+		const pkgSrc = await env.network.request(
+			"get",
+			"/dist/pkgs/packages/pkg/pkg.js"
+		);
+		await env.fs.writeFile("/bin/pkg.js", pkgSrc);
+
+		if (installerJSON.packages) {
+			const pkgExec = await env.execute("/bin/pkg.js", [
+				"install",
+				...installerJSON.packages
+			]);
+
+			// don't care about result
+			await pkgExec.onExit;
+		}
+
 		installerData.installed = true;
 		installerData.shipNum = 1;
 
 		env.print("Installation complete.");
+	} else {
+		env.print("Updating packages...");
+
+		// update system
+		const pkgExec = await env.execute("/bin/pkg.js", ["update"]);
+
+		// wait for it to finish
+		await pkgExec.onExit;
 	}
 
 	await env.fs.mkdir("/data/installd");

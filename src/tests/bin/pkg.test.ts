@@ -1,5 +1,5 @@
 import { describe, it, expect, type Mock } from "vitest";
-import pkg from "../../bin/pkg";
+import pkg from "../../pkgs/packages/pkg/pkg";
 import { createMockEnv } from "./mock";
 
 describe("Package manager, `pkg`", () => {

@@ -1,5 +1,5 @@
-import { Environment } from "../util/types/worker";
-import { objectFallback } from "../util/lib/object";
+import { Environment } from "../../../util/types/worker";
+import { objectFallback } from "../../../util/lib/object";
 
 // remote
 
@@ -43,6 +43,10 @@ export default async function* packageInstall(
 		{
 			packages: {},
 			repositories: [
+				{
+					url: "/dist/pkgs",
+					packages: {}
+				},
 				{
 					url: "https://git.rotur.dev/Constellation/packages/raw/main",
 					packages: {}
@@ -155,9 +159,13 @@ export default async function* packageInstall(
 						`Match for ${packageName} found in repository ${url}`
 					);
 
-					const source = await fetch(
-						url + `/packages/${packageName}/package.js`
-					);
+					const source =
+						(await fetch(
+							url + `/packages/${packageName}/${packageName}.js`
+						)) ??
+						(await fetch(
+							url + `/packages/${packageName}/package.js`
+						));
 
 					if (!source) continue;
 					env.print(`Match has source, installing`);

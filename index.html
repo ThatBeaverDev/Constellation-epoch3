@@ -13,13 +13,15 @@
 				await fs.mkdir("/bin");
 
 				// init
-				const initSrc = await (await fetch("/dist/bin/init.js")).text();
+				const initSrc = await (
+					await fetch("/dist/pkgs/packages/init/init.js")
+				).text();
 
 				await fs.writeFile("/bin/init.js", initSrc);
 
 				// installer
 				const installerSrc = await (
-					await fetch("/dist/bin/installd.js")
+					await fetch("/dist/pkgs/packages/installd/installd.js")
 				).text();
 
 				await fs.writeFile("/bin/installd.js", installerSrc);

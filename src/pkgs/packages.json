@@ -1,0 +1,26 @@
+{
+	"packages": {
+		"env": {
+			"author": "ThatBeaverDev",
+			"published": 1780383996872
+		},
+		"installd": {
+			"author": "ThatBeaverDev",
+			"published": 1780383996872
+		},
+		"pkg": {
+			"author": "ThatBeaverDev",
+			"published": 1780383996872
+		},
+		"init": {
+			"author": "ThatBeaverDev",
+			"published": 1780401763208,
+			"dependencies": ["installd"]
+		},
+		"shell": {
+			"author": "ThatBeaverDev",
+			"published": 1780401763208,
+			"dependencies": ["env"]
+		}
+	}
+}

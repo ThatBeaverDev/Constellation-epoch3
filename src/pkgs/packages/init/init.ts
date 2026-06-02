@@ -1,5 +1,5 @@
-import { type Environment } from "../util/types/worker.js";
-import { objectFallback } from "../util/lib/object.js";
+import { type Environment } from "../../../util/types/worker.js";
+import { objectFallback } from "../../../util/lib/object.js";
 
 interface Service {
 	running: boolean;
