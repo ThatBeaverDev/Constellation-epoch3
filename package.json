@@ -1,4 +1,5 @@
 {
+	"type": "module",
 	"scripts": {
 		"build": "sh build.sh",
 		"test": "tsc && vitest run src"
@@ -7,6 +8,7 @@
 		"glob": "^13.0.6",
 		"path-browserify": "^1.0.1",
 		"prettier": "^3.8.3",
+		"readline-promise": "^1.0.5",
 		"rollup": "^4.60.4",
 		"typescript": "^6.0.3"
 	},

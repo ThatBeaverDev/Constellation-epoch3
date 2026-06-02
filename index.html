@@ -7,9 +7,9 @@
 
 	<body>
 		<script type="module">
-			import Constellation from "/dist/kernel.js";
+			import ConstellationWeb from "/dist/kernel.js";
 
-			const kernel = new Constellation(async (fs) => {
+			const kernel = ConstellationWeb(async (fs) => {
 				await fs.mkdir("/bin");
 
 				// init

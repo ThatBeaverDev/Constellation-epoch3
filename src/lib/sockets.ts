@@ -26,11 +26,11 @@ interface Socket {
 
 export default class SocketManager {
 	#runtime: Runtime;
-	#log: (data: Log) => number;
+	#log: (data: Log) => void;
 	#fs: FilesystemInterface;
 	constructor(
 		runtime: Runtime,
-		log: (data: Log) => number,
+		log: (data: Log) => void,
 		fs: FilesystemInterface
 	) {
 		this.#runtime = runtime;

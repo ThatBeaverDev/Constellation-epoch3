@@ -25,10 +25,12 @@ import {
 	consoleError,
 	consoleLog,
 	consoleWarn,
-	PlaySoundResponse,
-	UiManager
-} from "./ui/ui";
+	PlaySoundResponse
+} from "./ui/dom";
+import { UiManager } from "./types/ui";
 import SocketManager from "./lib/sockets";
+import { nodeJs } from "./lib/config";
+import { blobToDataURL } from "./util/lib/dataUri";
 
 export interface ProgramLog {
 	type: "log" | "warning" | "error";
@@ -76,9 +78,9 @@ export interface WorkerStore {
 }
 
 export default class Runtime {
-	#log: (message: Log) => number;
-	#warn: (message: Log) => number;
-	#error: (message: Log) => number;
+	#log: (message: Log) => void;
+	#warn: (message: Log) => void;
+	#error: (message: Log) => void;
 
 	#workerLog: UiManager["log"];
 	#workerWarn: UiManager["warn"];
@@ -154,7 +156,11 @@ export default class Runtime {
 
 		this.#log("Program runtime initialised.");
 
-		document.addEventListener("visibilitychange", this.#onVisibilityChange);
+		if (!nodeJs)
+			window.document.addEventListener(
+				"visibilitychange",
+				this.#onVisibilityChange
+			);
 	}
 
 	programs: ProgramStore[];
@@ -177,7 +183,7 @@ export default class Runtime {
 		this.workers.forEach((worker) => (worker.lastKeepAlive = Date.now()));
 	};
 
-	#updateWorkers() {
+	async #updateWorkers() {
 		if (this.#exited) return;
 
 		// insure we have the right amount of workers
@@ -186,7 +192,7 @@ export default class Runtime {
 			const workerID = this.#nextWorkerID++;
 			const workerName = `runtimeWorker#${workerID}`;
 
-			const worker = newWorker(workerFunction, workerName);
+			const worker = await newWorker(workerFunction, workerName);
 
 			const workerStore: WorkerStore = {
 				worker,
@@ -214,10 +220,8 @@ export default class Runtime {
 				}
 			};
 
-			const { sendMessage, handle, emit } = mainThreadMessageHandler(
-				worker,
-				workerStore
-			);
+			const { sendMessage, handle, emit } =
+				await mainThreadMessageHandler(worker, workerStore);
 
 			workerStore.sendMessage = sendMessage;
 			workerStore.emit = emit;
@@ -359,31 +363,63 @@ export default class Runtime {
 								? JSON.stringify(body)
 								: String(body);
 
-					const request = await fetch(url, {
-						method,
-						body: bodyString,
-						headers: headers
-					});
+					if (url[0] == "/" && nodeJs) {
+						// this is to a local position, we should read from the program store (if node)
+						// @ts-expect-error
+						const fs = await import("node:fs/promises");
+						// @ts-expect-error
+						const path = await import("node:path");
 
-					switch (format) {
-						case "text":
-							return request.text();
-						case "json":
-							return request.json();
+						const constellationRoot: string = path.resolve(
+							// @ts-expect-error
+							import.meta.dirname,
+							".."
+						);
 
-						case "datauri":
-							const blob = await request.blob();
+						const targetPath: string = path.resolve(
+							constellationRoot,
+							"." + url
+						);
 
-							return new Promise((resolve) => {
-								const reader = new FileReader();
-								reader.onload = () => resolve(reader.result);
-								reader.readAsDataURL(blob);
-							});
-
-						default:
+						if (!targetPath.startsWith(constellationRoot)) {
 							throw new Error(
-								`Unkown request format: '${format}'`
+								"Attempt to read above project root denied."
 							);
+						}
+
+						const contents = await fs.readFile(targetPath, "utf8");
+
+						switch (format) {
+							case "text":
+								return contents;
+							case "json":
+								return JSON.parse(contents);
+							case "datauri":
+								return blobToDataURL(new Blob([contents]));
+						}
+					} else {
+						const request = await fetch(url, {
+							method,
+							body: bodyString,
+							headers: headers
+						});
+
+						switch (format) {
+							case "text":
+								return request.text();
+							case "json":
+								return request.json();
+
+							case "datauri":
+								const blob = await request.blob();
+
+								return await blobToDataURL(blob);
+
+							default:
+								throw new Error(
+									`Unkown request format: '${format}'`
+								);
+						}
 					}
 				}
 			);
@@ -480,9 +516,11 @@ export default class Runtime {
 				"env_sound_play",
 				async ({ config, pid }: WorkerEnv_PlaySound) => {
 					const program = this.programByPid(pid);
-					const sound = await this.#kernel.ui.playSound(config);
+					const sound = await this.#kernel.ui.playSound?.(config);
 
 					const id = this.#nextSoundID++;
+
+					if (!sound) return { id, duration: 5 };
 
 					this.#sounds.set(id, { info: sound, program });
 
@@ -660,7 +698,7 @@ export default class Runtime {
 	async execLoop() {
 		if (this.#exited) return;
 
-		this.#updateWorkers();
+		await this.#updateWorkers();
 
 		const now = Date.now();
 
@@ -673,7 +711,7 @@ export default class Runtime {
 
 				if (
 					worker.lastKeepAlive + 6000 < now &&
-					document.visibilityState == "visible"
+					(window?.document?.visibilityState == "visible" || nodeJs)
 				) {
 					this.#panic(
 						new Error(
@@ -732,7 +770,7 @@ export default class Runtime {
 		}
 	) {
 		if (this.workers.length == 0) {
-			this.#updateWorkers();
+			await this.#updateWorkers();
 		}
 
 		this.#log("Executing program from " + directory);
@@ -962,10 +1000,11 @@ export default class Runtime {
 
 	#exited = false;
 	exit() {
-		document.removeEventListener(
-			"visibilitychange",
-			this.#onVisibilityChange
-		);
+		if (!nodeJs)
+			window.document.removeEventListener(
+				"visibilitychange",
+				this.#onVisibilityChange
+			);
 
 		this.workers.forEach((store) => store.exit());
 	}

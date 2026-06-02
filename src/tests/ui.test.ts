@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import Ui from "../ui/ui";
+import Ui from "../ui/dom";
 
 function flushAnimationFrames() {
 	return new Promise<void>((resolve) => {
@@ -13,7 +13,7 @@ function flushPromises() {
 	});
 }
 
-describe("DomManager", () => {
+describe("BrowserUI", () => {
 	let ui: InstanceType<typeof Ui>;
 
 	const mockFs = {

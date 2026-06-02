@@ -1,4 +1,5 @@
 import { WorkerStore } from "../runtime";
+import { nodeJs } from "./config";
 import { FilesystemInterface } from "./fs";
 
 type WorkerRequest = {
@@ -31,15 +32,18 @@ type Pending = {
 
 type RequestHandler = (data: any) => Promise<any> | any;
 
-export function mainThreadMessageHandler(worker: Worker, store: WorkerStore) {
+export async function mainThreadMessageHandler(
+	worker: Worker,
+	store: WorkerStore
+) {
 	let nextMessageID = 1;
 
 	const pendingMessages = new Map<number, Pending>();
 	const requestHandlers = new Map<string, RequestHandler>();
 
-	worker.onmessage = async (event: MessageEvent<WorkerMessage>) => {
-		const msg = event.data;
+	const onMessage = async (msg: WorkerMessage) => {
 		store.lastKeepAlive = Date.now();
+		if (!msg) return;
 
 		// ---------- RESPONSE ----------
 		if (msg.kind === "response") {
@@ -104,6 +108,13 @@ export function mainThreadMessageHandler(worker: Worker, store: WorkerStore) {
 			}
 		}
 	};
+
+	if (nodeJs) {
+		// @ts-expect-error
+		worker.on("message", onMessage);
+	} else {
+		worker.onmessage = (event) => onMessage(event.data);
+	}
 
 	function sendMessage(intent: string, data: any): Promise<any> {
 		const id = nextMessageID++;

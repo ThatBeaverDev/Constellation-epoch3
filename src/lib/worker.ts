@@ -33,6 +33,8 @@ import {
 	type RuntimeProgramInputOnPaste
 } from "../types/runtimeMessages.js";
 import { type FileStats } from "../util/types/worker";
+import { writeTempFile } from "./tempFile.js";
+import { nodeJs } from "./config.js";
 
 /// <reference path="@typescript/lib-webworker@npm:@types/webworker" />
 
@@ -618,18 +620,29 @@ export async function workerFunction(this: undefined) {
 
 	/* ===== END OF PASS-BROWSERIFY ===== */
 
-	function workerMessageHandler() {
+	async function workerMessageHandler() {
 		let nextMessageID = 1;
 
-		const postMessage = self.postMessage;
-		self.postMessage = () => {};
+		// @ts-expect-error
+		const isNode = typeof process !== "undefined";
+
+		let postMessage: (typeof globalThis)["postMessage"];
+
+		if (isNode) {
+			// @ts-expect-error
+			const parentPort = (await import("node:worker_threads")).parentPort;
+
+			postMessage = parentPort.postMessage.bind(parentPort);
+		} else {
+			postMessage = globalThis.postMessage;
+		}
+
+		globalThis.postMessage = () => {};
 
 		const pendingMessages = new Map<number, Pending>();
 		const requestHandlers = new Map<string, RequestHandler>();
 
-		self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
-			const msg = event.data;
-
+		const onRecievedMessage = async (msg: WorkerMessage) => {
 			// ---------- RESPONSE ----------
 			if (msg.kind === "response") {
 				const pending = pendingMessages.get(msg.id);
@@ -698,6 +711,16 @@ export async function workerFunction(this: undefined) {
 				}
 			}
 		};
+
+		if (isNode) {
+			// node
+			// @ts-expect-error
+			const { parentPort } = await import("node:worker_threads");
+			parentPort.on("message", onRecievedMessage);
+		} else {
+			// web worker
+			globalThis.onmessage = (event) => onRecievedMessage(event.data);
+		}
 
 		function sendMessage<T = any, K = any>(
 			intent: string,
@@ -771,13 +794,13 @@ export async function workerFunction(this: undefined) {
 	/* Secure some bases */
 
 	// @ts-expect-error
-	self.eval = undefined;
+	globalThis.eval = undefined;
 	// @ts-expect-error
-	self.fetch = undefined;
+	globalThis.fetch = undefined;
 	// @ts-expect-error
-	self.XMLHttpRequest = undefined;
+	globalThis.XMLHttpRequest = undefined;
 	// @ts-expect-error
-	self.Worker = undefined;
+	globalThis.Worker = undefined;
 
 	class WorkerFS implements EnvironmentFilesystem {
 		ready = true;
@@ -864,7 +887,7 @@ export async function workerFunction(this: undefined) {
 		}
 	}
 
-	const { sendMessage, emit, handle } = workerMessageHandler();
+	const { sendMessage, emit, handle } = await workerMessageHandler();
 
 	setInterval(() => {
 		emit("keepAlive", undefined);
@@ -1298,6 +1321,23 @@ export async function workerFunction(this: undefined) {
 			workingDirectory,
 			input
 		}: RuntimeExecuteProgram) => {
+			// from src/util/lib/dataUri.ts
+			async function blobToDataURL(blob: Blob) {
+				const buffer = await blob.arrayBuffer();
+				const bytes = new Uint8Array(buffer);
+
+				const chunkSize = 0x8000;
+				let binary = "";
+
+				for (let i = 0; i < bytes.length; i += chunkSize) {
+					const chunk = bytes.subarray(i, i + chunkSize);
+					// @ts-expect-error
+					binary += String.fromCharCode.apply(null, chunk);
+				}
+
+				return `data:${blob.type};base64,${btoa(binary)}`;
+			}
+
 			if (!directory) throw new Error("Directory is required!");
 			if (!pid) throw new Error("PID is required!");
 
@@ -1305,7 +1345,7 @@ export async function workerFunction(this: undefined) {
 			if (!contents) throw new Error("File does not exist!");
 
 			const blob = new Blob([contents], { type: "text/javascript" });
-			const url = URL.createObjectURL(blob);
+			const url = await blobToDataURL(blob);
 
 			const exports = await import(url);
 			const program = exports.default as ConstellationProgram;
@@ -1328,8 +1368,6 @@ export async function workerFunction(this: undefined) {
 				onExit: []
 			};
 			store.env = newEnv(store, workingDirectory);
-
-			URL.revokeObjectURL(url);
 
 			try {
 				const generator = program(store.env, args ?? [], input);
@@ -1595,16 +1633,15 @@ export async function workerFunction(this: undefined) {
 // Posted by timkay
 // Retrieved 2026-03-05, License - CC BY-SA 4.0
 // I added the name parameter.
-export function newWorker(fn: Function, name?: string, ...params: any[]) {
-	return new Worker(
-		URL.createObjectURL(
-			new Blob(
-				[
-					`(${fn.toString()})(${params.map((item) => JSON.stringify(item))})`
-				],
-				{ type: "application/javascript" }
-			)
-		),
-		{ name, type: "module" }
-	);
+export async function newWorker(fn: Function, name?: string, ...params: any[]) {
+	const stringifiedParameters = params.map((item) => JSON.stringify(item));
+	const code = `(${fn.toString()})(${stringifiedParameters})`;
+
+	const reference = nodeJs
+		? await writeTempFile(code)
+		: URL.createObjectURL(
+				new Blob([code], { type: "application/javascript" })
+			);
+
+	return new Worker(reference, { name, type: "module" });
 }

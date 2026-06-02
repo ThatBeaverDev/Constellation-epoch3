@@ -1,7 +1,8 @@
+import { nodeJs } from "./lib/config";
 import Fs, { FilesystemInterface } from "./lib/fs";
 import applyStringPrototypes from "./lib/strings";
 import Runtime from "./runtime";
-import Ui, { UiManager } from "./ui/ui";
+import { UiManager } from "./types/ui";
 import { Log } from "./util/types/worker";
 
 export default class Constellation {
@@ -14,7 +15,8 @@ export default class Constellation {
 	readonly version = "0.1gen3";
 
 	constructor(
-		onInstallReady: (fs: FilesystemInterface) => Promise<void> | void
+		onInstallReady: (fs: FilesystemInterface) => Promise<void> | void,
+		GivenUiManager: new (fs: FilesystemInterface) => UiManager
 	) {
 		applyStringPrototypes();
 		this.#onInstallReady = onInstallReady;
@@ -22,11 +24,11 @@ export default class Constellation {
 		let log: UiManager["log"] | undefined = undefined;
 
 		this.fs = new Fs((message: Log) => {
-			if (log) return log("fs", message);
-
-			return 0;
+			log?.("fs", message);
 		}, this.panic);
-		this.ui = new Ui(this.fs);
+
+		this.ui = new GivenUiManager(this.fs);
+
 		log = this.ui.log.bind(this.ui);
 		this.runtime = new Runtime(
 			this,
@@ -81,9 +83,13 @@ export default class Constellation {
 
 	exit() {
 		clearInterval(this.#execInterval);
+
 		this.runtime.exit();
 
 		this.ui.log("kernel", "Exiting...");
 		this.ui.exit();
+
+		// @ts-expect-error
+		if (nodeJs) process.exit();
 	}
 }

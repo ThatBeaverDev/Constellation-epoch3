@@ -47,9 +47,28 @@ const packageConfigs = globSync("./build/pkgs/packages/**/*.js").map((file) => {
 export default [
 	// Kernel bundle
 	{
-		input: "build/index.js",
+		input: "build/entry/web.js",
 		output: {
 			file: "./dist/kernel.js",
+			format: "es",
+			inlineDynamicImports: true
+		},
+		plugins: [
+			nodeResolve({
+				browser: true,
+				preferBuiltins: false
+			}),
+			commonjs(),
+			string({
+				include: ["**/*"],
+				exclude: ["**/*.js"]
+			})
+		]
+	},
+	{
+		input: "build/nodeboot.js",
+		output: {
+			file: "./dist/kernel.node.js",
 			format: "es",
 			inlineDynamicImports: true
 		},

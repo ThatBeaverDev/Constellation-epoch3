@@ -4,32 +4,14 @@ import { clamp } from "../util/lib/maths";
 import { ProgramStore } from "../runtime";
 import styles from "./styles.css";
 import { InputConfig, Log, NormalizedLog, Sound } from "../util/types/worker";
+import { UiManager } from "../types/ui";
+import { normalizeLog, withOrigin } from "./shared";
+import { renderConsole } from "./shared";
+import { nodeJs } from "../lib/config";
 
 const lineHeight = 15;
 function linesToPx(lines: number) {
 	return lineHeight * lines;
-}
-
-export interface UiManager {
-	log(source: string, message: Log): number;
-	warn(source: string, message: Log): number;
-	error(source: string, message: Log, console?: boolean): number;
-
-	clear(): void;
-	cancelInput?(): void;
-	input(
-		message: string,
-		config: InputConfig
-	): Promise<
-		| { response: string; displayText: string; finished: true }
-		| { finished: false }
-	>;
-
-	controller?: ProgramStore;
-
-	playSound(config: Sound): Promise<PlaySoundResponse>;
-
-	exit(): Promise<void> | void;
 }
 
 export interface PlaySoundResponse {
@@ -41,14 +23,6 @@ export interface PlaySoundResponse {
 	remove(): void;
 }
 
-function normalizeLog(log: Log, defaultColour?: string): NormalizedLog {
-	if (typeof log === "string") {
-		return [{ text: log, colour: defaultColour }];
-	}
-
-	return log;
-}
-
 function escapeHtml(text: string) {
 	return String(text)
 		.replaceAll("&", "&amp;")
@@ -57,34 +31,6 @@ function escapeHtml(text: string) {
 		.replaceAll('"', "&quot;")
 		.replaceAll("'", "&#39;")
 		.replaceAll("\n", "<br>");
-}
-
-function renderConsole(log: NormalizedLog = []) {
-	let text = "";
-	const styles: string[] = [];
-
-	for (const part of log) {
-		switch (part.type) {
-			case undefined:
-			case "string":
-				text += `%c${part.text}`;
-				styles.push(part.colour ? `color: ${part.colour};` : "");
-				break;
-
-			case "image":
-				text += `%c[Image from Location ${"url" in part ? part.url : part.dir}]`;
-				styles.push("color: #ffff00");
-
-				break;
-
-			default:
-				// @ts-expect-error // trust
-				text += `%cError parsing log request, unknown segment type ${part.type}`;
-				styles.push("color: #ff0000;");
-		}
-	}
-
-	return { text, styles };
 }
 
 export function consoleLog(origin: string, message: Log) {
@@ -180,20 +126,8 @@ async function renderHtml(
 	return parts.join("");
 }
 
-function withOrigin(origin: string, log: NormalizedLog): NormalizedLog {
-	log = log ?? [];
-
-	if (!(log instanceof Array)) {
-		throw new Error("Normalized log must be provided!");
-	}
-
-	return [{ text: `[${origin}] `, colour: "#888888" }, ...log];
-}
-
 function scrollContainer(container: HTMLElement | null): () => void {
 	if (!container) return () => {};
-	// @ts-expect-error
-	if (typeof process !== "undefined") return () => {};
 
 	const containerHTML = container;
 	const isScrolledToBottom =
@@ -207,13 +141,12 @@ function scrollContainer(container: HTMLElement | null): () => void {
 	};
 }
 
-class DomManager implements UiManager {
+export default class BrowserUI implements UiManager {
 	#container: HTMLDivElement;
 	#logbox: HTMLDivElement;
 
-	mode: "tui" | "gui" = "tui";
 	controller?: ProgramStore;
-	lines: {
+	#lines: {
 		element: HTMLElement;
 	}[] = [];
 	#fs: FilesystemInterface;
@@ -269,8 +202,8 @@ class DomManager implements UiManager {
 		addLine: boolean = true
 	): number {
 		this.#elementQueue.push({ element, onAddition });
-		const line = this.lines.length;
-		if (addLine) this.lines.push({ element });
+		const line = this.#lines.length;
+		if (addLine) this.#lines.push({ element });
 
 		if (!this.#commitScheduled) {
 			this.#commitScheduled = true;
@@ -341,32 +274,21 @@ class DomManager implements UiManager {
 		const normalized = normalizeLog(message);
 		const originated = withOrigin(origin, normalized);
 
-		const consoleData = renderConsole(originated);
-		console.log(consoleData.text, ...consoleData.styles);
-
-		return this.#postRich(normalized);
+		return this.#postRich(this.controller ? normalized : originated);
 	}
 
 	warn(origin: string, message: Log) {
 		const normalized = normalizeLog(message, "#ffd900");
 		const originated = withOrigin(origin, normalized);
 
-		const consoleData = renderConsole(originated);
-		console.warn(consoleData.text, ...consoleData.styles);
-
-		return this.#postRich(normalized);
+		return this.#postRich(this.controller ? normalized : originated);
 	}
 
-	error(origin: string, message: Log, consoleLog: boolean = true) {
+	error(origin: string, message: Log) {
 		const normalized = normalizeLog(message, "#ff0000");
 		const originated = withOrigin(origin, normalized);
 
-		if (consoleLog) {
-			const consoleData = renderConsole(originated);
-			console.error(consoleData.text, ...consoleData.styles);
-		}
-
-		return this.#postRich(normalized);
+		return this.#postRich(this.controller ? normalized : originated);
 	}
 
 	#focusInput(input: HTMLInputElement) {
@@ -413,6 +335,8 @@ class DomManager implements UiManager {
 			input.value = config.initialText;
 
 			input.addEventListener("paste", (event) => {
+				if (nodeJs) return;
+
 				const clipboardData = event.clipboardData;
 				if (!clipboardData) return;
 
@@ -494,8 +418,8 @@ class DomManager implements UiManager {
 	}
 
 	clear() {
-		this.lines.forEach((line) => line.element.remove());
-		this.lines = [];
+		this.#lines.forEach((line) => line.element.remove());
+		this.#lines = [];
 
 		this.#elementQueue.forEach((item) => item.element.remove());
 		this.#elementQueue = [];
@@ -601,6 +525,3 @@ class DomManager implements UiManager {
 		window.removeEventListener("keydown", this.#onKeyDown);
 	}
 }
-
-const Ui: new (fs: FilesystemInterface) => UiManager = DomManager;
-export default Ui;

@@ -1,2 +1,7 @@
 export const deleteFS =
-	new URL(location.href).searchParams.get("delete") !== null;
+	new URL(globalThis?.location?.href ?? "https://node.js").searchParams.get(
+		"delete"
+	) !== null;
+
+// @ts-expect-error
+export const nodeJs = typeof process !== "undefined";

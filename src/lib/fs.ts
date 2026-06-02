@@ -141,7 +141,7 @@ export function basename(path: string): string {
 }
 
 class DomFs implements FilesystemInterface {
-	#log: (message: Log) => number;
+	#log: (message: Log) => void;
 	#panic: Constellation["panic"];
 	socketManager?: SocketManager;
 
@@ -168,7 +168,7 @@ class DomFs implements FilesystemInterface {
 	}
 
 	constructor(
-		log: (message: Log) => number,
+		log: (message: Log) => void,
 		panic: Constellation["panic"],
 		socketManager?: SocketManager
 	) {
