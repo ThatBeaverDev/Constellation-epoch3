@@ -188,8 +188,8 @@ describe("DomManager", () => {
 
 			const result = await promise;
 
-			expect(result.response).toBe("hello");
-			expect(result.displayText).toContain("hello");
+			expect((result as any).response).toBe("hello");
+			expect((result as any).displayText).toContain("hello");
 		});
 
 		it("supports password inputs", async () => {

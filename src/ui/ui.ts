@@ -16,10 +16,14 @@ export interface UiManager {
 	error(source: string, message: Log, console?: boolean): number;
 
 	clear(): void;
+	cancelInput?(): void;
 	input(
 		message: string,
 		config: InputConfig
-	): Promise<{ response: string; displayText: string }>;
+	): Promise<
+		| { response: string; displayText: string; finished: true }
+		| { finished: false }
+	>;
 
 	controller?: ProgramStore;
 
@@ -215,6 +219,7 @@ class DomManager implements UiManager {
 	#fs: FilesystemInterface;
 	#focusInterval: number = 0;
 	#input?: HTMLInputElement;
+	cancelInput?(): void;
 
 	constructor(fs: FilesystemInterface) {
 		this.#fs = fs;
@@ -379,100 +384,113 @@ class DomManager implements UiManager {
 	}
 
 	input(prompt: string, config: InputConfig) {
-		return new Promise<{ response: string; displayText: string }>(
-			(resolve) => {
-				const text = document.createElement("p");
-				text.innerText = prompt;
+		const inputPromise = new Promise<
+			| {
+					response: string;
+					displayText: string;
+					finished: true;
+			  }
+			| { finished: false }
+		>((resolve) => {
+			this.cancelInput = () => {
+				resolve({ finished: false });
+			};
 
-				const input = document.createElement("input");
-				input.classList.add("reqInput");
-				input.type = config.hideTyping ? "password" : "text";
-				this.#input = input;
+			const text = document.createElement("p");
+			text.innerText = prompt;
 
-				input.autocomplete = "off";
-				input.autocorrect = false;
-				input.autocapitalize = "off";
-				input.spellcheck = false;
-				input.enterKeyHint = "Send";
+			const input = document.createElement("input");
+			input.classList.add("reqInput");
+			input.type = config.hideTyping ? "password" : "text";
+			this.#input = input;
 
-				input.value = config.initialText;
+			input.autocomplete = "off";
+			input.autocorrect = false;
+			input.autocapitalize = "off";
+			input.spellcheck = false;
+			input.enterKeyHint = "Send";
 
-				input.addEventListener("paste", (event) => {
-					const clipboardData = event.clipboardData;
-					if (!clipboardData) return;
+			input.value = config.initialText;
 
-					for (let i = 0; i < clipboardData.items.length; i++) {
-						const item = clipboardData.items[i];
-						const { type } = item;
+			input.addEventListener("paste", (event) => {
+				const clipboardData = event.clipboardData;
+				if (!clipboardData) return;
 
-						if (type === "text/plain") {
-							item.getAsString((text) => {
-								config.onPaste({
-									type: "text",
-									data: text
-								});
+				for (let i = 0; i < clipboardData.items.length; i++) {
+					const item = clipboardData.items[i];
+					const { type } = item;
+
+					if (type === "text/plain") {
+						item.getAsString((text) => {
+							config.onPaste({
+								type: "text",
+								data: text
 							});
-							return;
-						} else {
-							event.preventDefault();
-
-							const isSvg = type == "application/svg+xml";
-							const isImage = isSvg || type.startsWith("image/");
-
-							const file = item.getAsFile();
-							if (!file) continue;
-
-							const reader = new FileReader();
-							reader.onload = (e) => {
-								const result =
-									typeof e.target?.result === "string"
-										? e.target.result
-										: "";
-
-								config.onPaste({
-									type: isImage ? "image" : "file",
-									data: result
-								});
-							};
-
-							reader.readAsDataURL(file);
-							return;
-						}
-					}
-				});
-
-				const div = document.createElement("div");
-				div.classList.add("input");
-				if (config.inline) div.classList.add("inline");
-				div.appendChild(text);
-				div.appendChild(input);
-
-				input.addEventListener("keydown", (e) => {
-					if (e.key === "Enter") {
-						const response = input.value;
-						div.remove();
-						// remove from lines
-
-						const displayText = `${prompt}${response}`;
-						if (config.leaveInputOnCompletion)
-							this.#postPlain(displayText);
-
-						this.#input = undefined;
-						resolve({ response, displayText });
-					}
-				});
-
-				input.addEventListener("focus", () => {
-					setTimeout(() => {
-						input.scrollIntoView({
-							block: "nearest"
 						});
-					}, 100);
-				});
+						return;
+					} else {
+						event.preventDefault();
 
-				this.#newLog(div, () => this.#focusInput(input), false);
-			}
-		);
+						const isSvg = type == "application/svg+xml";
+						const isImage = isSvg || type.startsWith("image/");
+
+						const file = item.getAsFile();
+						if (!file) continue;
+
+						const reader = new FileReader();
+						reader.onload = (e) => {
+							const result =
+								typeof e.target?.result === "string"
+									? e.target.result
+									: "";
+
+							config.onPaste({
+								type: isImage ? "image" : "file",
+								data: result
+							});
+						};
+
+						reader.readAsDataURL(file);
+						return;
+					}
+				}
+			});
+
+			const div = document.createElement("div");
+			div.classList.add("input");
+			if (config.inline) div.classList.add("inline");
+			div.appendChild(text);
+			div.appendChild(input);
+
+			input.addEventListener("keydown", (e) => {
+				if (e.key === "Enter") {
+					const response = input.value;
+					div.remove();
+					// remove from lines
+
+					const displayText = `${prompt}${response}`;
+					if (config.leaveInputOnCompletion)
+						this.#postPlain(displayText);
+
+					this.#input = undefined;
+					this.cancelInput = undefined;
+
+					resolve({ response, displayText, finished: true });
+				}
+			});
+
+			input.addEventListener("focus", () => {
+				setTimeout(() => {
+					input.scrollIntoView({
+						block: "nearest"
+					});
+				}, 100);
+			});
+
+			this.#newLog(div, () => this.#focusInput(input), false);
+		});
+
+		return inputPromise;
 	}
 
 	clear() {

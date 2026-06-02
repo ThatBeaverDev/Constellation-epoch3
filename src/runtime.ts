@@ -30,6 +30,17 @@ import {
 } from "./ui/ui";
 import SocketManager from "./lib/sockets";
 
+export interface ProgramLog {
+	type: "log" | "warning" | "error";
+	data: Log;
+}
+export interface ProgramInputLog {
+	type: "input";
+	message: string;
+	config: InputConfig;
+	callback(value: Awaited<ReturnType<UiManager["input"]>>): void;
+}
+
 export interface ProgramStore {
 	worker: WorkerStore;
 
@@ -42,7 +53,7 @@ export interface ProgramStore {
 
 	onExit: (data?: any) => void;
 
-	logs: { type: "log" | "warning" | "error"; data: Log }[];
+	logs: (ProgramLog | ProgramInputLog)[];
 
 	onLog(type: "log" | "warning" | "error", data: Log): void;
 	onInput(message: string, config: InputConfig): Promise<string>;
@@ -624,7 +635,23 @@ export default class Runtime {
 					this.#workerError(workerName, log.data);
 					break;
 
+				case "input":
+					const result = this.#kernel.ui.input(
+						log.message,
+						log.config
+					);
+					result.then((result) => {
+						if (result.finished == false) {
+							// not done yet, leave it
+							return;
+						}
+
+						log.callback(result);
+					});
+					break;
+
 				default:
+					// @ts-expect-error
 					throw new Error(`Unknown log type: ${log.type}`);
 			}
 		}
@@ -687,6 +714,13 @@ export default class Runtime {
 		}
 	}
 
+	switchToProgram(pid: number) {
+		const program = this.programByPid(pid);
+
+		this.#kernel.ui.controller = program;
+		this.#switchLogs(program);
+	}
+
 	async executeProgram(
 		directory: string,
 		parent?: ProgramStore,
@@ -731,7 +765,9 @@ export default class Runtime {
 					store.emit("program_exit", {
 						pid: program.pid,
 						data,
-						logs: program.logs.map((item) => item.data)
+						logs: program.logs
+							.filter((item) => item.type !== "input")
+							.map((item) => item.data)
 					});
 				});
 			},
@@ -771,18 +807,56 @@ export default class Runtime {
 				}
 			},
 			onInput: async (message: string, config) => {
+				let onResolve: (value: string) => void = () => {};
+				const promise = new Promise<string>(
+					(resolve) => (onResolve = resolve)
+				);
+
+				const inputLog: ProgramInputLog = {
+					type: "input",
+					message: message,
+					config: config,
+					callback: (result) => {
+						if (result.finished == false) return; // false alarm
+
+						const { response, displayText } = result;
+
+						// remove input log, add resultant log
+						program.logs = program.logs.filter(
+							(item) => item !== inputLog
+						);
+						program.logs.push({ type: "log", data: displayText });
+
+						onResolve(response);
+					}
+				};
+
+				program.logs.push(inputLog);
+
+				const fallbackInput = async () => {
+					// it'll get resolved at some point, when the UI switches again. just leave it.
+				};
+
+				const directInput = async () => {
+					const inputResponse = await this.#kernel.ui.input(
+						message,
+						config
+					);
+
+					if (inputResponse.finished == false) {
+						return fallbackInput();
+					}
+
+					inputLog.callback(inputResponse);
+				};
+
 				if (this.#kernel.ui.controller !== program) {
-					// sorrey.
-					return new Promise<string>(() => {});
+					fallbackInput();
+				} else {
+					directInput();
 				}
 
-				const { response, displayText } = await this.#kernel.ui.input(
-					message,
-					config
-				);
-				program.logs.push({ type: "log", data: displayText });
-
-				return response;
+				return promise;
 			},
 
 			logs: []
