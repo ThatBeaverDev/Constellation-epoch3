@@ -590,7 +590,7 @@ class DomFs implements FilesystemInterface {
 		return this.#index[path] !== undefined;
 	}
 
-	async stats(path: string) {
+	async stats(path: string): Promise<FileStats | undefined> {
 		path = normalise(path);
 
 		await this.#loadIndex();
@@ -599,7 +599,12 @@ class DomFs implements FilesystemInterface {
 
 		if (!entry) return;
 
-		return { size: "size" in entry ? entry.size : -1, type: entry.type };
+		return {
+			size: "size" in entry ? entry.size : -1,
+			type: entry.type,
+			modified: entry.modified,
+			created: entry.creation
+		};
 	}
 }
 
