@@ -1,4 +1,4 @@
-import { Environment } from "../../../util/types/worker";
+import { Environment, NetworkDataResponse } from "../../../util/types/worker";
 import { objectFallback } from "../../../util/lib/object";
 
 // remote
@@ -38,55 +38,84 @@ export default async function* packageInstall(
 
 	await env.fs.mkdir(dataDirectory);
 
-	const packages = objectFallback<PackagesJson>(
-		await env.fs.readFile(packageFile, "json"),
-		{
-			packages: {},
-			repositories: [
-				{
-					url: "/dist/pkgs",
-					packages: {}
-				},
-				{
-					url: "https://git.rotur.dev/Constellation/packages/raw/main",
-					packages: {}
-				}
-			]
-		}
-	);
+	let packages = await readPackages();
+	async function readPackages() {
+		return objectFallback<PackagesJson>(
+			await env.fs.readFile(packageFile, "json"),
+			{
+				packages: {},
+				repositories: [
+					{
+						url: "/dist/pkgs",
+						packages: {}
+					},
+					{
+						url: "https://git.rotur.dev/Constellation/packages/raw/main",
+						packages: {}
+					}
+				]
+			}
+		);
+	}
 
-	async function fetch(url: string, json?: false): Promise<string>;
+	async function writePackages(packages: PackagesJson) {
+		await env.fs.writeFile(packageFile, JSON.stringify(packages, null, 4));
+	}
+
+	async function fetch(
+		url: string,
+		json?: false
+	): Promise<NetworkDataResponse<string>>;
 	async function fetch<T extends Object = Object>(
 		url: string,
 		json: true
-	): Promise<T>;
+	): Promise<NetworkDataResponse<T>>;
 	async function fetch<T extends Object = Object>(
 		url: string,
 		json: boolean = false
 	) {
-		try {
-			return await env.network.request<T>(
-				"get",
-				url,
-				json ? "json" : "text"
-			);
-		} catch (e) {
-			const corsURL = `https://proxy.mistium.com/?url=${url}`;
+		async function corsRequest() {
+			const corsURL = `https://proxy.mistium.com/?url=${encodeURIComponent(url)}`;
 
-			return await env.network.request<T>(
+			const corsRequest = await env.network.request<T>(
 				"get",
 				corsURL,
 				json ? "json" : "text"
 			);
+
+			return corsRequest;
+		}
+
+		try {
+			const standardRequest = await env.network.request<T>(
+				"get",
+				url,
+				json ? "json" : "text"
+			);
+
+			if (!standardRequest.isOk) return corsRequest();
+
+			return standardRequest;
+		} catch (e) {
+			return corsRequest();
 		}
 	}
 
 	async function resolvePackageFromRepos(packageName: string) {
 		for (const repo of packages.repositories) {
-			const repoJson = await fetch<RemotePackagesJson>(
+			const jsonRequest = await fetch<RemotePackagesJson>(
 				repo.url + "/packages.json",
 				true
 			);
+
+			if (!jsonRequest.isOk) {
+				env.warn(
+					`Repository at ${repo.url} did not respond with a package.json.`
+				);
+				continue;
+			}
+
+			const repoJson = jsonRequest.response;
 
 			const pkg = repoJson?.packages?.[packageName];
 			if (!pkg) continue;
@@ -119,10 +148,11 @@ export default async function* packageInstall(
 			const repoJsons: Partial<Record<string, RemotePackagesJson>> = {};
 
 			for (const packageName of toInstall) {
+				console.debug(packageName, packages.packages[packageName]);
 				if (packages.packages[packageName]) {
 					env.print([
 						{
-							text: `Package '${packageName}' is already installed.`,
+							text: `Package ${packageName} is already installed.`,
 							colour: "#00ff00"
 						}
 					]);
@@ -143,13 +173,24 @@ export default async function* packageInstall(
 				for (const repo of packages.repositories) {
 					const url = repo.url;
 
-					const repoPackageJson =
-						repoJsons[url] ??
-						(await fetch<RemotePackagesJson>(
+					if (!repoJsons[url]) {
+						const repoJsonRequest = await fetch<RemotePackagesJson>(
 							url + "/packages.json",
 							true
-						));
-					repoJsons[url] = repoPackageJson;
+						);
+
+						if (!repoJsonRequest.isOk) {
+							env.warn(
+								`Repository at ${repo.url} did not respond with a package.json.`
+							);
+
+							continue;
+						}
+
+						repoJsons[url] = repoJsonRequest.response;
+					}
+
+					const repoPackageJson = repoJsons[url];
 
 					const packageInfo =
 						repoPackageJson?.packages?.[packageName];
@@ -159,13 +200,23 @@ export default async function* packageInstall(
 						`Match for ${packageName} found in repository ${url}`
 					);
 
-					const source =
-						(await fetch(
-							url + `/packages/${packageName}/${packageName}.js`
-						)) ??
-						(await fetch(
+					let sourceRequest = await fetch(
+						url + `/packages/${packageName}/${packageName}.js`
+					);
+
+					if (!sourceRequest.isOk) {
+						sourceRequest = await fetch(
 							url + `/packages/${packageName}/package.js`
-						));
+						);
+
+						if (!sourceRequest.isOk) {
+							throw new Error(
+								`Source code for package ${packageName} could not be found.`
+							);
+						}
+					}
+
+					const source = sourceRequest.response;
 
 					if (!source) continue;
 					env.print(`Match has source, installing`);
@@ -177,18 +228,29 @@ export default async function* packageInstall(
 					};
 
 					packages.packages[packageName] = pkg;
+					console.debug(
+						`set ${packageName}`,
+						packages.packages[packageName]
+					);
 					repo.packages[packageName] = pkg;
+
+					await env.fs.writeFile(binpath, source);
 
 					if (packageInfo.dependencies) {
 						env.print(
 							`Installing ${packageInfo.dependencies?.length} dependencies...`
 						);
+
+						// need to refresh `packages` for this.
+
+						await writePackages(packages);
+
 						for (const name of packageInfo.dependencies) {
 							yield* packageInstall(env, ["install", name]);
 						}
-					}
 
-					await env.fs.writeFile(binpath, source);
+						packages = await readPackages();
+					}
 
 					env.print([
 						{
@@ -250,13 +312,23 @@ export default async function* packageInstall(
 
 			if (subcommand == "remote") {
 				for (const repo of packages.repositories) {
-					const repoPackageJson = await fetch<RemotePackagesJson>(
-						repo.url + "/packages.json",
-						true
-					);
+					const repoPackageJsonRequest =
+						await fetch<RemotePackagesJson>(
+							repo.url + "/packages.json",
+							true
+						);
+
+					if (!repoPackageJsonRequest.isOk) {
+						env.warn(
+							`Repository at ${repo.url} did not respond with a package.json.`
+						);
+						continue;
+					}
+
+					const repoPackageJson = repoPackageJsonRequest.response;
 
 					for (const name in repoPackageJson.packages)
-						names.push(`${repo.url} - ${name}`);
+						names.push(`${name} (${repo.url})`);
 				}
 			} else {
 				for (const name in packages.packages) names.push(name);
@@ -435,13 +507,23 @@ export default async function* packageInstall(
 					continue;
 				}
 
-				const source =
-					(await fetch(
-						repo.url + `/packages/${packageName}/${packageName}.js`
-					)) ??
-					(await fetch(
+				let sourceRequest = await fetch(
+					repo.url + `/packages/${packageName}/${packageName}.js`
+				);
+
+				if (!sourceRequest.isOk) {
+					sourceRequest = await fetch(
 						repo.url + `/packages/${packageName}/package.js`
-					));
+					);
+
+					if (!sourceRequest.isOk) {
+						throw new Error(
+							`Source code for package ${packageName} could not be found.`
+						);
+					}
+				}
+
+				const source = sourceRequest.response;
 
 				if (!source) {
 					env.print([
@@ -483,5 +565,5 @@ export default async function* packageInstall(
 			]);
 	}
 
-	await env.fs.writeFile(packageFile, JSON.stringify(packages, null, 4));
+	await writePackages(packages);
 }

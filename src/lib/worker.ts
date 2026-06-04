@@ -9,7 +9,8 @@ import {
 	type Environment,
 	type InputConfig,
 	type Log,
-	type Sound
+	type Sound,
+	NetworkDataResponse
 } from "../util/types/worker.js";
 import {
 	type Worker_Sockets_Client_endConnection,
@@ -1084,16 +1085,18 @@ export async function workerFunction(this: undefined) {
 					body?: Object,
 					headers?: Record<string, string>
 				) => {
-					return await sendMessage<any, WorkerEnv_Network_Get>(
-						"env_network_get",
-						{
-							type,
-							url,
-							format,
-							body,
-							headers
-						}
-					);
+					const result = await sendMessage<
+						NetworkDataResponse,
+						WorkerEnv_Network_Get
+					>("env_network_get", {
+						type,
+						url,
+						format,
+						body,
+						headers
+					});
+
+					return result;
 				}
 			},
 

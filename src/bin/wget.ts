@@ -9,7 +9,15 @@ export default async function* wget(
 
 	path = env.path.resolve(env.workingDirectory, path);
 
-	const contents = await env.network.request("get", url);
+	const request = await env.network.request("get", url);
+
+	if (!request.isOk) {
+		throw new Error(
+			`Failed to fetch data: response code ${request.statusCode} (${request.statusText})`
+		);
+	}
+
+	const contents = request.response;
 
 	await env.fs.writeFile(path, contents);
 }

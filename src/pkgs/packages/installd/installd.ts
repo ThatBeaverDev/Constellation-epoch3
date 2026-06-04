@@ -39,11 +39,19 @@ export default async function* install(env: Environment) {
 
 		let installerJSON: InstallationDataFile;
 		try {
-			installerJSON = await env.network.request<InstallationDataFile>(
+			const jsonRequest = await env.network.request<InstallationDataFile>(
 				"get",
 				"/build/data.json",
 				"json"
 			);
+
+			if (!jsonRequest.isOk) {
+				throw new Error(
+					`Failed to fetch installation JSON (HTTP error code ${jsonRequest.statusCode} (${jsonRequest.statusText})`
+				);
+			}
+
+			installerJSON = jsonRequest.response;
 		} catch (e) {
 			throw new Error("Failed to retrieve installation data file: " + e);
 		}
@@ -72,10 +80,19 @@ export default async function* install(env: Environment) {
 
 		env.print("Installing packages...");
 		// download pkg first
-		const pkgSrc = await env.network.request(
+		const sourceRequest = await env.network.request(
 			"get",
 			"/dist/pkgs/packages/pkg/pkg.js"
 		);
+
+		if (!sourceRequest.isOk) {
+			throw new Error(
+				"Source code for `pkg` does not exist, so installation may not proceed."
+			);
+		}
+
+		const pkgSrc = sourceRequest.response;
+
 		await env.fs.writeFile("/bin/pkg.js", pkgSrc);
 
 		if (installerJSON.packages) {

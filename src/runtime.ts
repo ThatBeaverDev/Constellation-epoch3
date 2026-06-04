@@ -1,7 +1,12 @@
 import Constellation from "./index";
 import { FilesystemInterface } from "./lib/fs";
 import { newWorker, workerFunction } from "./lib/worker";
-import { InputConfig, Log, Process } from "./util/types/worker";
+import {
+	InputConfig,
+	Log,
+	NetworkDataResponse,
+	Process
+} from "./util/types/worker";
 import { implementWorkerFS, mainThreadMessageHandler } from "./lib/workerUtils";
 import {
 	Worker_Sockets_Client_endConnection,
@@ -337,7 +342,7 @@ export default class Runtime {
 					format,
 					body,
 					headers
-				}: WorkerEnv_Network_Get) => {
+				}: WorkerEnv_Network_Get): Promise<NetworkDataResponse> => {
 					const processedType = `${type}`.toLowerCase();
 					let method = "GET";
 
@@ -389,14 +394,32 @@ export default class Runtime {
 
 						const contents = await fs.readFile(targetPath, "utf8");
 
+						let result;
 						switch (format) {
 							case "text":
-								return contents;
+								result = contents;
+								break;
 							case "json":
-								return JSON.parse(contents);
+								result = JSON.parse(contents);
+								break;
 							case "datauri":
-								return blobToDataURL(new Blob([contents]));
+								result = await blobToDataURL(
+									new Blob([contents])
+								);
+								break;
+
+							default:
+								throw new Error(
+									`Unkown request format: '${format}'`
+								);
 						}
+
+						return {
+							response: result,
+							isOk: true,
+							statusCode: 200,
+							statusText: ""
+						};
 					} else {
 						const request = await fetch(url, {
 							method,
@@ -404,22 +427,35 @@ export default class Runtime {
 							headers: headers
 						});
 
+						let result;
 						switch (format) {
 							case "text":
-								return request.text();
+								result = await request.text();
+								break;
 							case "json":
-								return request.json();
+								result = await request.json();
+								break;
 
 							case "datauri":
 								const blob = await request.blob();
 
-								return await blobToDataURL(blob);
+								result = await blobToDataURL(blob);
+								break;
 
 							default:
 								throw new Error(
 									`Unkown request format: '${format}'`
 								);
 						}
+
+						return {
+							response: request.ok ? result : undefined,
+							errorResponse: request.ok ? undefined : result,
+
+							isOk: request.ok,
+							statusCode: request.status,
+							statusText: request.statusText
+						};
 					}
 				}
 			);
