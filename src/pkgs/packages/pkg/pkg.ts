@@ -393,26 +393,26 @@ export default async function* packageInstall(
 				break;
 			}
 
-			for (const name of toUpdate) {
-				if (!name) continue;
+			for (const packageName of toUpdate) {
+				if (!packageName) continue;
 
-				const localPkg = packages.packages[name];
+				const localPkg = packages.packages[packageName];
 				if (!localPkg) {
 					env.print([
 						{
-							text: `Package ${name} is not installed.`,
+							text: `Package ${packageName} is not installed.`,
 							colour: "#ff0000"
 						}
 					]);
 					continue;
 				}
 
-				const resolved = await resolvePackageFromRepos(name);
+				const resolved = await resolvePackageFromRepos(packageName);
 
 				if (!resolved) {
 					env.print([
 						{
-							text: `No repository contains ${name}.`,
+							text: `No repository contains ${packageName}.`,
 							colour: "#ff0000"
 						}
 					]);
@@ -428,39 +428,43 @@ export default async function* packageInstall(
 				) {
 					env.print([
 						{
-							text: `${name} is already up to date.`,
+							text: `${packageName} is already up to date.`,
 							colour: "#00ff00"
 						}
 					]);
 					continue;
 				}
 
-				const source = await fetch(
-					repo.url + `/packages/${name}/package.js`
-				);
+				const source =
+					(await fetch(
+						repo.url + `/packages/${packageName}/${packageName}.js`
+					)) ??
+					(await fetch(
+						repo.url + `/packages/${packageName}/package.js`
+					));
 
 				if (!source) {
 					env.print([
 						{
-							text: `Failed to fetch update for ${name}.`,
+							text: `Failed to fetch update for ${packageName}.`,
 							colour: "#ff0000"
 						}
 					]);
 					continue;
 				}
 
-				const binpath = `/bin/${name}.js`;
+				const binpath = `/bin/${packageName}.js`;
 
 				await env.fs.writeFile(binpath, source);
 
-				packages.packages[name] = {
+				packages.packages[packageName] = {
 					...meta,
 					files: [binpath]
 				};
 
 				env.print([
 					{
-						text: `Updated ${name}.`,
+						text: `Updated ${packageName}.`,
 						colour: "#00ff00"
 					}
 				]);
