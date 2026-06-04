@@ -463,6 +463,8 @@ export default async function* packageInstall(
 				break;
 			}
 
+			let totalUpdated = 0;
+
 			for (const packageName of toUpdate) {
 				if (!packageName) continue;
 
@@ -496,14 +498,10 @@ export default async function* packageInstall(
 					meta.published &&
 					meta.published <= localPkg.published
 				) {
-					env.print([
-						{
-							text: `${packageName} is already up to date.`,
-							colour: "#00ff00"
-						}
-					]);
+					// silently skip
 					continue;
 				}
+				totalUpdated++;
 
 				let sourceRequest = await fetch(
 					repo.url + `/packages/${packageName}/${packageName}.js`
@@ -545,6 +543,15 @@ export default async function* packageInstall(
 				env.print([
 					{
 						text: `Updated ${packageName}.`,
+						colour: "#00ff00"
+					}
+				]);
+			}
+
+			if (totalUpdated == 0) {
+				env.print([
+					{
+						text: "All packages are already up to date.",
 						colour: "#00ff00"
 					}
 				]);
