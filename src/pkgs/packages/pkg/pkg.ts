@@ -148,7 +148,6 @@ export default async function* packageInstall(
 			const repoJsons: Partial<Record<string, RemotePackagesJson>> = {};
 
 			for (const packageName of toInstall) {
-				console.debug(packageName, packages.packages[packageName]);
 				if (packages.packages[packageName]) {
 					env.print([
 						{
@@ -228,10 +227,6 @@ export default async function* packageInstall(
 					};
 
 					packages.packages[packageName] = pkg;
-					console.debug(
-						`set ${packageName}`,
-						packages.packages[packageName]
-					);
 					repo.packages[packageName] = pkg;
 
 					await env.fs.writeFile(binpath, source);
@@ -429,7 +424,10 @@ export default async function* packageInstall(
 				default:
 					if (finalParams?.[0])
 						env.print([
-							{ text: `Unknown subcommand: ${finalParams[0]}` }
+							{
+								text: `Unknown subcommand: ${finalParams[0]}`,
+								colour: "#ff0000"
+							}
 						]);
 
 					env.print([
@@ -556,7 +554,10 @@ export default async function* packageInstall(
 		}
 
 		default:
-			if (command) env.print([{ text: `Unknown command: ${command}` }]);
+			if (command)
+				env.print([
+					{ text: `Unknown command: ${command}`, colour: "#ff0000" }
+				]);
 
 			env.print([
 				{
