@@ -62,3 +62,11 @@ export function createMockEnv(): Environment {
 		}
 	};
 }
+
+export const basicNetworkGetSuccess = {
+	isOk: true,
+
+	statusCode: 200,
+	statusText: "OK",
+	response: undefined
+};

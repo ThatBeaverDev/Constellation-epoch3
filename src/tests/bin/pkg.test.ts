@@ -1,6 +1,6 @@
 import { describe, it, expect, type Mock } from "vitest";
 import pkg from "../../pkgs/packages/pkg/pkg";
-import { createMockEnv } from "./mock";
+import { basicNetworkGetSuccess, createMockEnv } from "./mock";
 
 describe("Package manager, `pkg`", () => {
 	it("Help printed without command", async () => {
@@ -59,16 +59,23 @@ describe("Package manager, `pkg`", () => {
 			async (_method, url) => {
 				if (url.includes("packages.json")) {
 					return {
-						packages: {
-							testpkg: {
-								author: "ThatBeaverDev"
+						...basicNetworkGetSuccess,
+
+						response: {
+							packages: {
+								testpkg: {
+									author: "ThatBeaverDev"
+								}
 							}
 						}
 					};
 				}
 
-				if (url.includes("package.js")) {
-					return "console.log('hello')";
+				if (url.includes("testpkg/testpkg.js")) {
+					return {
+						...basicNetworkGetSuccess,
+						response: "console.log('hello')"
+					};
 				}
 
 				return null;
@@ -113,7 +120,7 @@ describe("Package manager, `pkg`", () => {
 
 		expect(env.print).toHaveBeenCalledWith([
 			{
-				text: "Package 'testpkg' is already installed.",
+				text: "Package testpkg is already installed.",
 				colour: "#00ff00"
 			}
 		]);
@@ -151,9 +158,12 @@ describe("Package manager, `pkg`", () => {
 		});
 
 		(env.network.request as Mock).mockResolvedValue({
-			packages: {
-				alpha: {},
-				beta: {}
+			...basicNetworkGetSuccess,
+			response: {
+				packages: {
+					alpha: {},
+					beta: {}
+				}
 			}
 		});
 
@@ -223,16 +233,23 @@ describe("Package manager, `pkg`", () => {
 			async (_method, url) => {
 				if (url.includes("packages.json")) {
 					return {
-						packages: {
-							newpkg: {
-								author: "ThatBeaverDev"
+						...basicNetworkGetSuccess,
+
+						response: {
+							packages: {
+								newpkg: {
+									author: "ThatBeaverDev"
+								}
 							}
 						}
 					};
 				}
 
-				if (url.includes("newpkg/package.js")) {
-					return "export default true";
+				if (url.includes("newpkg/newpkg.js")) {
+					return {
+						...basicNetworkGetSuccess,
+						response: "export default true"
+					};
 				}
 			}
 		);
@@ -241,7 +258,7 @@ describe("Package manager, `pkg`", () => {
 
 		expect(env.print).toHaveBeenCalledWith([
 			{
-				text: "Package 'already' is already installed.",
+				text: "Package already is already installed.",
 				colour: "#00ff00"
 			}
 		]);
@@ -269,18 +286,22 @@ describe("Package manager, `pkg`", () => {
 			async (_method, url) => {
 				if (url.includes("packages.json")) {
 					return {
-						packages: {
-							alpha: {
-								author: "ThatBeaverDev"
-							},
-							beta: {
-								author: "ThatBeaverDev"
+						...basicNetworkGetSuccess,
+
+						response: {
+							packages: {
+								alpha: {
+									author: "ThatBeaverDev"
+								},
+								beta: {
+									author: "ThatBeaverDev"
+								}
 							}
 						}
 					};
 				}
 
-				return "source";
+				return { ...basicNetworkGetSuccess, response: "source" };
 			}
 		);
 
@@ -310,24 +331,28 @@ describe("Package manager, `pkg`", () => {
 			async (_method, url) => {
 				if (url.includes("packages.json")) {
 					return {
-						packages: {
-							mainpkg: {
-								author: "ThatBeaverDev",
-								dependencies: ["dep"]
-							},
-							dep: {
-								author: "ThatBeaverDev"
+						...basicNetworkGetSuccess,
+
+						response: {
+							packages: {
+								mainpkg: {
+									author: "ThatBeaverDev",
+									dependencies: ["dep"]
+								},
+								dep: {
+									author: "ThatBeaverDev"
+								}
 							}
 						}
 					};
 				}
 
-				if (url.includes("mainpkg/package.js")) {
-					return "main";
+				if (url.includes("mainpkg/mainpkg.js")) {
+					return { ...basicNetworkGetSuccess, response: "main" };
 				}
 
-				if (url.includes("dep/package.js")) {
-					return "dep";
+				if (url.includes("dep/dep.js")) {
+					return { ...basicNetworkGetSuccess, response: "dep" };
 				}
 			}
 		);

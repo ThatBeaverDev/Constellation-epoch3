@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { createMockEnv } from "./mock.js";
+import { basicNetworkGetSuccess, createMockEnv } from "./mock.js";
 import wget from "../../bin/wget.js";
 import applyStringPrototypes from "../../lib/strings.js";
 
@@ -11,7 +11,12 @@ describe("Wget tests", () => {
 	it("fetches and writes file", async () => {
 		const env = createMockEnv();
 
-		env.network.request = vi.fn().mockResolvedValue("file contents");
+		env.network.request = vi
+			.fn()
+			.mockResolvedValue({
+				...basicNetworkGetSuccess,
+				response: "file contents"
+			});
 
 		const gen = wget(env, ["http://example.com/file.txt", "file.txt"]);
 		await gen.next();
@@ -30,7 +35,9 @@ describe("Wget tests", () => {
 	it("uses filename from URL if path not provided", async () => {
 		const env = createMockEnv();
 
-		env.network.request = vi.fn().mockResolvedValue("data");
+		env.network.request = vi
+			.fn()
+			.mockResolvedValue({ ...basicNetworkGetSuccess, response: "data" });
 
 		const gen = wget(env, ["http://site/a/b.txt", undefined]);
 		await gen.next();
@@ -49,7 +56,11 @@ describe("Wget tests", () => {
 	it("writes to resolved absolute path", async () => {
 		const env = createMockEnv();
 
-		env.network.request = vi.fn().mockResolvedValue("x");
+		env.network.request = vi.fn().mockResolvedValue({
+			...basicNetworkGetSuccess,
+
+			response: "x"
+		});
 
 		env.path.resolve = vi.fn().mockReturnValue("/abs/file.txt");
 
