@@ -2,7 +2,7 @@ import { Environment } from "../../../util/types/worker";
 import { objectFallback } from "../../../util/lib/object";
 
 interface InstallerData {
-	installed: boolean;
+	installed: number | boolean;
 	shipNum?: number;
 
 	files?: string[];
@@ -88,7 +88,7 @@ export default async function* install(env: Environment) {
 			await pkgExec.onExit;
 		}
 
-		installerData.installed = true;
+		installerData.installed = Date.now();
 		installerData.shipNum = 1;
 
 		env.print("Installation complete.");
