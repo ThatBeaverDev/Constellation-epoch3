@@ -13,6 +13,7 @@ import {
 	NetworkDataResponse
 } from "../util/types/worker.js";
 import {
+	Worker_Env_Get_LiveCanvas,
 	type Worker_Sockets_Client_endConnection,
 	type Worker_Sockets_Client_newConnection,
 	type Worker_Sockets_Client_sendPacket,
@@ -24,6 +25,7 @@ import {
 	type WorkerEnv_Network_Get
 } from "../types/workerMessages.js";
 import {
+	Runtime_Env_Get_LiveCanvas,
 	type Runtime_Events_Trigger,
 	type Runtime_Sockets_Client_endConnection,
 	type Runtime_Sockets_Client_newConnection,
@@ -951,6 +953,17 @@ export async function workerFunction(this: undefined) {
 				emit("program_error", { pid, data });
 
 				return logs.push(data);
+			},
+			async getLiveCanvas(width, height) {
+				const { canvas } = await sendMessage<
+					Runtime_Env_Get_LiveCanvas,
+					Worker_Env_Get_LiveCanvas
+				>("env_get_liveCanvas", { width, height });
+
+				const ctx = canvas.getContext("2d");
+				if (!ctx) throw new Error("No Context given.");
+
+				return ctx;
 			},
 
 			input: async function (

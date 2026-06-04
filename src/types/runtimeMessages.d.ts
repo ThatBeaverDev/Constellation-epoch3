@@ -53,3 +53,8 @@ export interface Runtime_Events_Trigger<K extends EventName> {
 	name: K;
 	data: EventMap[K];
 }
+
+export interface Runtime_Env_Get_LiveCanvas {
+	canvas: OffscreenCanvas;
+	id: number;
+}

@@ -9,6 +9,7 @@ import {
 } from "./util/types/worker";
 import { implementWorkerFS, mainThreadMessageHandler } from "./lib/workerUtils";
 import {
+	Worker_Env_Get_LiveCanvas,
 	Worker_Sockets_Client_endConnection,
 	Worker_Sockets_Client_newConnection,
 	Worker_Sockets_Client_sendPacket,
@@ -32,10 +33,11 @@ import {
 	consoleWarn,
 	PlaySoundResponse
 } from "./ui/dom";
-import { UiManager } from "./types/ui";
+import { UiManager } from "./ui/ui";
 import SocketManager from "./lib/sockets";
 import { nodeJs } from "./lib/config";
 import { blobToDataURL } from "./util/lib/dataUri";
+import { logToString } from "./util/lib/logs";
 
 export interface ProgramLog {
 	type: "log" | "warning" | "error";
@@ -84,6 +86,7 @@ export interface WorkerStore {
 
 export default class Runtime {
 	#log: (message: Log) => void;
+	#logWithCustomSource: (source: string, message: Log) => void;
 	#warn: (message: Log) => void;
 	#error: (message: Log) => void;
 
@@ -121,10 +124,12 @@ export default class Runtime {
 		const logWithSource = (source: string, data: Log) => {
 			if (!this.#kernel.ui.controller) return log(source, data);
 
-			consoleLog(source, data);
+			// @ts-expect-error
+			if (typeof process == "undefined") consoleLog(source, data);
 			return 0;
 		};
 		this.#log = logWithSource.bind(undefined, "runtime");
+		this.#logWithCustomSource = logWithSource;
 		this.#warn = (data: Log) => {
 			if (!this.#kernel.ui.controller) return warn("runtime", data);
 
@@ -225,7 +230,7 @@ export default class Runtime {
 				}
 			};
 
-			const { sendMessage, handle, emit } =
+			const { sendMessage, handle, emit, withTransfer } =
 				await mainThreadMessageHandler(worker, workerStore);
 
 			workerStore.sendMessage = sendMessage;
@@ -644,6 +649,22 @@ export default class Runtime {
 					this.#sockets.serverSendMessage(packet)
 			);
 
+			handle(
+				"env_get_liveCanvas",
+				async ({ width, height }: Worker_Env_Get_LiveCanvas) => {
+					const offscreen = await this.#kernel.ui.getLiveCanvas?.(
+						width,
+						height
+					);
+
+					if (!offscreen) {
+						throw new Error("UI did not provide a canvas element.");
+					}
+
+					return withTransfer({ canvas: offscreen }, [offscreen]);
+				}
+			);
+
 			this.workers.push(workerStore);
 
 			this.#log(`New worker created. (#${workerID})`);
@@ -747,7 +768,7 @@ export default class Runtime {
 
 				if (
 					worker.lastKeepAlive + 6000 < now &&
-					(window?.document?.visibilityState == "visible" || nodeJs)
+					(nodeJs || window?.document?.visibilityState == "visible")
 				) {
 					this.#panic(
 						new Error(
@@ -867,15 +888,27 @@ export default class Runtime {
 				} else {
 					switch (type) {
 						case "log":
-							this.#log(`${workerName} ${data}`);
+							this.#logWithCustomSource(program.directory, data);
 							break;
 
 						case "warning":
-							this.#warn(`${workerName} ${data}`);
+							this.#warn([
+								{
+									text: `${program.directory} `,
+									colour: "#bbbbbb"
+								},
+								{ text: logToString(data) }
+							]);
 							break;
 
 						case "error":
-							this.#error(`${workerName} ${data}`);
+							this.#error([
+								{
+									text: `${program.directory} `,
+									colour: "#999999"
+								},
+								{ text: logToString(data) }
+							]);
 							break;
 					}
 				}

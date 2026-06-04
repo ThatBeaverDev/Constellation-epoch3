@@ -2,7 +2,7 @@ import { nodeJs } from "./lib/config";
 import Fs, { FilesystemInterface } from "./lib/fs";
 import applyStringPrototypes from "./lib/strings";
 import Runtime from "./runtime";
-import { UiManager } from "./types/ui";
+import { UiManager } from "./ui/ui";
 import { Log } from "./util/types/worker";
 
 export default class Constellation {

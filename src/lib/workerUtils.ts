@@ -73,14 +73,24 @@ export async function mainThreadMessageHandler(
 			}
 
 			try {
-				const result = await handler(msg.data);
+				const raw = await handler(msg.data);
 
-				worker.postMessage({
-					kind: "response",
-					id: msg.id,
-					success: true,
-					result
-				});
+				let result: any = raw;
+				let transfer: Transferable[] = [];
+
+				if (
+					raw != null &&
+					typeof raw === "object" &&
+					transferrableMarkerSymbol in raw
+				) {
+					result = (raw as any).result;
+					transfer = (raw as any).transfer;
+				}
+
+				worker.postMessage(
+					{ kind: "response", id: msg.id, success: true, result },
+					transfer
+				);
 			} catch (err: any) {
 				worker.postMessage({
 					kind: "response",
@@ -143,10 +153,16 @@ export async function mainThreadMessageHandler(
 		requestHandlers.set(intent, handler);
 	}
 
+	const transferrableMarkerSymbol = Symbol("transfer");
+	function withTransfer<T>(result: T, transfer: Transferable[]) {
+		return { [transferrableMarkerSymbol]: true as const, result, transfer };
+	}
+
 	return {
 		sendMessage,
 		emit,
-		handle
+		handle,
+		withTransfer
 	};
 }
 

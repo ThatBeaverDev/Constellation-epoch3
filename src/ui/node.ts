@@ -1,5 +1,5 @@
 import { ProgramStore } from "../runtime";
-import { UiManager } from "../types/ui";
+import { UiManager } from "./ui";
 import { InputConfig, Log } from "../util/types/worker";
 import { normalizeLog, renderConsole, withOrigin } from "./shared";
 

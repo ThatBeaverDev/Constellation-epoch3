@@ -88,3 +88,8 @@ export interface Worker_Sockets_Server_sendPacket {
 	targetPid: number;
 	payload: unknown;
 }
+
+export interface Worker_Env_Get_LiveCanvas {
+	width: number;
+	height: number;
+}

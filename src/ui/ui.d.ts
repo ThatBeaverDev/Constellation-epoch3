@@ -22,5 +22,12 @@ export interface UiManager {
 	playSound?(config: Sound): Promise<PlaySoundResponse>;
 	cancelSounds?(): void;
 
+	getLiveCanvas?(
+		width: number,
+		height: number,
+		onRemoval?: () => void
+	): { canvas: OffscreenCanvas; id: number };
+	removeLiveCanvas?(id: number): void;
+
 	exit(): Promise<void> | void;
 }

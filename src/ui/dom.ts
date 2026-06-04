@@ -4,7 +4,7 @@ import { clamp } from "../util/lib/maths";
 import { ProgramStore } from "../runtime";
 import styles from "./styles.css";
 import { InputConfig, Log, NormalizedLog, Sound } from "../util/types/worker";
-import { UiManager } from "../types/ui";
+import { UiManager } from "./ui";
 import { normalizeLog, withOrigin } from "./shared";
 import { renderConsole } from "./shared";
 import { nodeJs } from "../lib/config";
@@ -519,7 +519,49 @@ export default class BrowserUI implements UiManager {
 
 	cancelSounds() {}
 
+	#nextLiveCanvasId: number = 0;
+	#liveCanvases: {
+		id: number;
+		canvas: OffscreenCanvas;
+		remove(): void;
+	}[] = [];
+	getLiveCanvas(width: number, height: number, onRemoval?: () => void) {
+		const id = this.#nextLiveCanvasId++;
+
+		const htmlCanvas = document.createElement("canvas");
+		htmlCanvas.width = width;
+		htmlCanvas.height = height;
+
+		const offscreen = htmlCanvas.transferControlToOffscreen();
+
+		this.#liveCanvases.push({
+			canvas: offscreen,
+			id,
+			remove: () => {
+				onRemoval?.();
+
+				htmlCanvas.remove();
+
+				// remove from the live canvases list
+				this.#liveCanvases = this.#liveCanvases.filter(
+					(item) => item.id !== id
+				);
+			}
+		});
+
+		return { canvas: offscreen, id };
+	}
+	removeLiveCanvas(id: number) {
+		const canvases = this.#liveCanvases.filter((item) => item.id == id);
+
+		canvases.forEach((obj) => obj.remove());
+	}
+
 	exit() {
+		for (const canvas of this.#liveCanvases) {
+			canvas.remove();
+		}
+
 		this.cancelSounds();
 		clearInterval(this.#focusInterval);
 		window.removeEventListener("keydown", this.#onKeyDown);
