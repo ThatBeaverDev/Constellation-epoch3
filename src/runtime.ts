@@ -346,7 +346,8 @@ export default class Runtime {
 					url,
 					format,
 					body,
-					headers
+					headers,
+					options
 				}: WorkerEnv_Network_Get): Promise<NetworkDataResponse> => {
 					const processedType = `${type}`.toLowerCase();
 					let method = "GET";
@@ -429,7 +430,9 @@ export default class Runtime {
 						const request = await fetch(url, {
 							method,
 							body: bodyString,
-							headers: headers
+							headers: headers,
+							cache:
+								(options.cache ?? true) ? "no-store" : "default"
 						});
 
 						let result;

@@ -1096,7 +1096,8 @@ export async function workerFunction(this: undefined) {
 					url: string,
 					format: "text" | "json" | "datauri" = "text",
 					body?: Object,
-					headers?: Record<string, string>
+					headers?: Record<string, string>,
+					options?: WorkerEnv_Network_Get["options"]
 				) => {
 					const result = await sendMessage<
 						NetworkDataResponse,
@@ -1106,7 +1107,8 @@ export async function workerFunction(this: undefined) {
 						url,
 						format,
 						body,
-						headers
+						headers,
+						options: options ?? {}
 					});
 
 					return result;
