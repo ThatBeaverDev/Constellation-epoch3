@@ -522,7 +522,7 @@ export default class BrowserUI implements UiManager {
 	#nextLiveCanvasId: number = 0;
 	#liveCanvases: {
 		id: number;
-		canvas: OffscreenCanvas;
+		canvas: HTMLCanvasElement;
 		remove(): void;
 	}[] = [];
 	getLiveCanvas(width: number, height: number, onRemoval?: () => void) {
@@ -535,7 +535,7 @@ export default class BrowserUI implements UiManager {
 		const offscreen = htmlCanvas.transferControlToOffscreen();
 
 		this.#liveCanvases.push({
-			canvas: offscreen,
+			canvas: htmlCanvas,
 			id,
 			remove: () => {
 				onRemoval?.();

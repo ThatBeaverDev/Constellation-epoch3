@@ -66,6 +66,8 @@ export interface ProgramStore {
 
 	onLog(type: "log" | "warning" | "error", data: Log): void;
 	onInput(message: string, config: InputConfig): Promise<string>;
+
+	liveCanvasIds: number[];
 }
 
 export interface WorkerStore {
@@ -969,7 +971,8 @@ export default class Runtime {
 				return promise;
 			},
 
-			logs: []
+			logs: [],
+			liveCanvasIds: []
 		};
 
 		let oldDisplayOwner: ProgramStore | undefined;
