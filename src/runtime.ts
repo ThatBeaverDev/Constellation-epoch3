@@ -239,16 +239,6 @@ export default class Runtime {
 
 		implementWorkerFS(handle, this.#fs);
 
-		handle("worker_log", ({ data }: { data: string }) => {
-			this.#workerLog(workerName, data);
-		});
-		handle("worker_warn", ({ data }: { data: string }) => {
-			this.#workerWarn(workerName, data);
-		});
-		handle("worker_error", ({ data }: { data: string }) => {
-			this.#workerError(workerName, data);
-		});
-
 		handle("program_log", ({ data }: { data: Log }) => {
 			const program = getProgram();
 

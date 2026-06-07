@@ -896,16 +896,6 @@ export async function workerFunction(this: undefined) {
 		emit("keepAlive", undefined);
 	}, 100);
 
-	function log(message: Log) {
-		emit("worker_log", { data: message });
-	}
-	//function warn(message: Log) {
-	//	emit("worker_warn", { data: message });
-	//}
-	//function error(message: Log) {
-	//	emit("worker_error", { data: message });
-	//}
-
 	/* =============== Worker Code  =============== */
 
 	const programs: WorkerProgramStore[] = [];
