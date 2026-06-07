@@ -30,6 +30,9 @@ export interface WorkerEnv_Network_Get {
 	format: "text" | "json" | "datauri";
 	body?: Object;
 	headers?: Record<string, string>;
+	options: {
+		cache?: boolean;
+	};
 }
 
 // sound types

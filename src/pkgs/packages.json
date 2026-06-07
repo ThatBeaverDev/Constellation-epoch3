@@ -1,5 +1,9 @@
 {
 	"packages": {
+		"find": {
+			"author": "ThatBeaverDev",
+			"published": 1780671292247
+		},
 		"env": {
 			"author": "ThatBeaverDev",
 			"published": 1780383996872
@@ -10,7 +14,7 @@
 		},
 		"pkg": {
 			"author": "ThatBeaverDev",
-			"published": 1780599788001
+			"published": 1780671181792
 		},
 		"init": {
 			"author": "ThatBeaverDev",

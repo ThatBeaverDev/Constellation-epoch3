@@ -80,7 +80,10 @@ export default async function* packageInstall(
 			const corsRequest = await env.network.request<T>(
 				"get",
 				corsURL,
-				json ? "json" : "text"
+				json ? "json" : "text",
+				undefined,
+				undefined,
+				{ cache: false }
 			);
 
 			return corsRequest;
@@ -90,7 +93,10 @@ export default async function* packageInstall(
 			const standardRequest = await env.network.request<T>(
 				"get",
 				url,
-				json ? "json" : "text"
+				json ? "json" : "text",
+				undefined,
+				undefined,
+				{ cache: false }
 			);
 
 			if (!standardRequest.isOk) return corsRequest();
