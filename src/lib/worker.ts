@@ -982,7 +982,6 @@ export async function workerFunction(this: undefined) {
 				const text = await sendMessage<string, WorkerEnv_Input>(
 					"env_input",
 					{
-						pid,
 						message,
 
 						config: {
@@ -1046,7 +1045,6 @@ export async function workerFunction(this: undefined) {
 				const data: WorkerEnv_Exec = {
 					path,
 					args,
-					parentPid: pid,
 					handoverDisplayPid: config?.handOverDisplay
 						? pid
 						: undefined,
@@ -1185,7 +1183,6 @@ export async function workerFunction(this: undefined) {
 						number,
 						Worker_Sockets_Client_newConnection
 					>("Sockets/Client/newConnection", {
-						initiatorPid: pid,
 						socketDirectory: directory
 					});
 
@@ -1204,7 +1201,7 @@ export async function workerFunction(this: undefined) {
 
 							emit<Worker_Sockets_Client_sendPacket>(
 								"Sockets/Client/sendPacket",
-								{ initiatorPid: pid, payload, socketId }
+								{ payload, socketId }
 							);
 						},
 
@@ -1221,7 +1218,7 @@ export async function workerFunction(this: undefined) {
 
 							emit<Worker_Sockets_Client_endConnection>(
 								"Sockets/Client/endConnection",
-								{ initiatorPid: pid, socketId }
+								{ socketId }
 							);
 						}
 					};
@@ -1236,7 +1233,6 @@ export async function workerFunction(this: undefined) {
 						number,
 						Worker_Sockets_Server_newServer
 					>("Sockets/Server/newServer", {
-						initiatorPid: pid,
 						socketDirectory: directory
 					});
 
@@ -1258,7 +1254,6 @@ export async function workerFunction(this: undefined) {
 							emit<Worker_Sockets_Server_sendPacket>(
 								"Sockets/Server/sendPacket",
 								{
-									initiatorPid: pid,
 									payload,
 									socketId: socketId,
 									targetPid: clientPid
@@ -1278,7 +1273,7 @@ export async function workerFunction(this: undefined) {
 
 							emit<Worker_Sockets_Server_endServer>(
 								"Sockets/Server/endServer",
-								{ initiatorPid: pid, socketId }
+								{ socketId }
 							);
 						}
 					};
@@ -1644,7 +1639,7 @@ export async function workerFunction(this: undefined) {
 		program.env.triggerEvent(packet.name, packet.data);
 	});
 
-	log("Initialisation Complete.");
+	console.log("Initialisation Complete.");
 }
 
 // Source - https://stackoverflow.com/a/77602420

@@ -62,9 +62,11 @@ export default class SocketManager {
 		throw new Error(`No socket exists by ID '${id}'`);
 	}
 
-	newClientConnection(packet: Worker_Sockets_Client_newConnection) {
+	newClientConnection(
+		client: ProgramStore,
+		packet: Worker_Sockets_Client_newConnection
+	) {
 		this.#log(`New connection: ${JSON.stringify(packet)}`);
-		const client = this.#runtime.programByPid(packet.initiatorPid);
 
 		const socket = this.#socketByDirectory(packet.socketDirectory);
 
@@ -80,19 +82,19 @@ export default class SocketManager {
 		// inform the server
 		socket.server.worker.emit<Runtime_Sockets_Client_newConnection>(
 			"Sockets/Client/newConnection",
-			{ ...packet, socketId: socket.id }
+			{ ...packet, socketId: socket.id, initiatorPid: client.pid }
 		);
 
 		return socket.id;
 	}
-	endClientConnection(packet: Worker_Sockets_Client_endConnection) {
+	endClientConnection(
+		disconnectingClient: ProgramStore,
+		packet: Worker_Sockets_Client_endConnection
+	) {
 		this.#log(`Ended connection: ${JSON.stringify(packet)}`);
 		const socket = this.#socketById(packet.socketId);
 
 		const server = socket.server;
-		const disconnectingClient = this.#runtime.programByPid(
-			packet.initiatorPid
-		);
 
 		// remove the client from the connection list
 		socket.clients.delete(disconnectingClient);
@@ -100,28 +102,32 @@ export default class SocketManager {
 		// inform the server
 		server.worker.emit<Runtime_Sockets_Client_endConnection>(
 			"Sockets/Client/endConnection",
-			packet
+			{ ...packet, initiatorPid: disconnectingClient.pid }
 		);
 	}
 
-	clientSendMessage(packet: Worker_Sockets_Client_sendPacket) {
+	clientSendMessage(
+		client: ProgramStore,
+		packet: Worker_Sockets_Client_sendPacket
+	) {
 		this.#log(`Client Message: ${JSON.stringify(packet)}`);
 		const socket = this.#socketById(packet.socketId);
 
-		const client = this.#runtime.programByPid(packet.initiatorPid);
 		if (!socket.clients.has(client))
 			throw new Error("Not connected to this websocket."); // not connected. it must connect first.
 
 		socket.server.worker.emit<Runtime_Sockets_Client_sendPacket>(
 			"Sockets/Client/sendPacket",
-			packet
+			{ ...packet, initiatorPid: client.pid }
 		);
 	}
-	serverSendMessage(packet: Worker_Sockets_Server_sendPacket) {
+	serverSendMessage(
+		packetServer: ProgramStore,
+		packet: Worker_Sockets_Server_sendPacket
+	) {
 		this.#log(`Server Message: ${JSON.stringify(packet)}`);
 		const socket = this.#socketById(packet.socketId);
 
-		const packetServer = this.#runtime.programByPid(packet.initiatorPid);
 		if (packetServer !== socket.server) return; // not the right program
 
 		const target = this.#runtime.programByPid(packet.targetPid);
@@ -134,7 +140,10 @@ export default class SocketManager {
 		);
 	}
 
-	newServerInstance(packet: Worker_Sockets_Server_newServer) {
+	newServerInstance(
+		server: ProgramStore,
+		packet: Worker_Sockets_Server_newServer
+	) {
 		this.#log(`New Server: ${JSON.stringify(packet)}`);
 
 		let socketEmpty = false;
@@ -152,8 +161,6 @@ export default class SocketManager {
 			);
 		}
 
-		const server = this.#runtime.programByPid(packet.initiatorPid);
-
 		const socket: Socket = {
 			directory: packet.socketDirectory,
 			server,
@@ -168,12 +175,14 @@ export default class SocketManager {
 
 		return socket.id;
 	}
-	endServerInstance(packet: Worker_Sockets_Server_endServer) {
+	endServerInstance(
+		packetServer: ProgramStore,
+		packet: Worker_Sockets_Server_endServer
+	) {
 		this.#log(`Ended Server: ${JSON.stringify(packet)}`);
 
 		const socket = this.#socketById(packet.socketId);
 
-		const packetServer = this.#runtime.programByPid(packet.initiatorPid);
 		const socketServer = socket.server;
 
 		if (packetServer !== socketServer) return; // not the right program

@@ -30,13 +30,18 @@ export interface RuntimeProgramInputOnPaste {
 // Client connecting
 export interface Runtime_Sockets_Client_newConnection extends Worker_Sockets_Client_newConnection {
 	socketId: number;
+	initiatorPid: number;
 }
 
 // Client disconnecting
-export interface Runtime_Sockets_Client_endConnection extends Worker_Sockets_Client_endConnection {}
+export interface Runtime_Sockets_Client_endConnection extends Worker_Sockets_Client_endConnection {
+	initiatorPid: number;
+}
 
 // Client sending packet
-export interface Runtime_Sockets_Client_sendPacket extends Worker_Sockets_Client_sendPacket {}
+export interface Runtime_Sockets_Client_sendPacket extends Worker_Sockets_Client_sendPacket {
+	initiatorPid: number;
+}
 
 // Server initialisation
 

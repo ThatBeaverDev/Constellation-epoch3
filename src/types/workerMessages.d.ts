@@ -12,14 +12,12 @@ export interface WorkerEnv_Exec {
 	args?: string[];
 	input?: Log[];
 
-	parentPid: number;
 	handoverDisplayPid?: number;
 
 	workingDirectory: string;
 }
 
 export interface WorkerEnv_Input {
-	pid: number;
 	message: string;
 	config: InputConfig_BoolOnPaste;
 }
@@ -38,7 +36,6 @@ export interface WorkerEnv_Network_Get {
 // sound types
 
 export interface WorkerEnv_PlaySound {
-	pid: number;
 	config: Sound;
 }
 
@@ -54,19 +51,16 @@ export interface WorkerEnv_SoundRemove {
 
 // Client connecting
 export interface Worker_Sockets_Client_newConnection {
-	initiatorPid: number;
 	socketDirectory: string;
 }
 
 // Client disconnecting
 export interface Worker_Sockets_Client_endConnection {
-	initiatorPid: number;
 	socketId: number;
 }
 
 // Client sending packet
 export interface Worker_Sockets_Client_sendPacket {
-	initiatorPid: number;
 	socketId: number;
 	payload: unknown;
 }
@@ -74,19 +68,16 @@ export interface Worker_Sockets_Client_sendPacket {
 // Server initialisation
 
 export interface Worker_Sockets_Server_newServer {
-	initiatorPid: number;
 	socketDirectory: string;
 }
 
 // Server disconnecting
 export interface Worker_Sockets_Server_endServer {
-	initiatorPid: number;
 	socketId: number;
 }
 
 // Server sending packet
 export interface Worker_Sockets_Server_sendPacket {
-	initiatorPid: number;
 	socketId: number;
 	targetPid: number;
 	payload: unknown;
