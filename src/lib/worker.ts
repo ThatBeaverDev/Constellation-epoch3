@@ -1126,12 +1126,6 @@ export async function workerFunction(this: undefined) {
 						"kernel_version",
 						undefined
 					);
-				},
-
-				async workerStats() {
-					return await sendMessage<
-						{ id: number; processes: number; activeTime: number }[]
-					>("worker_stats", undefined);
 				}
 			},
 
