@@ -1,5 +1,6 @@
 import { Environment } from "../util/types/worker";
 import { formatTable } from "../util/lib/table";
+import { PackagesJson } from "../pkgs/packages/pkg/pkg";
 
 export default async function* getInfo(env: Environment) {
 	const username = "root";
@@ -10,7 +11,14 @@ export default async function* getInfo(env: Environment) {
 
 	const uptime = await env.systemStats.uptime();
 
-	const packages = 0;
+	const pkgdPackagesJson = await env.fs.readFile<PackagesJson>(
+		"/data/pkgs/packages.json",
+		"json"
+	);
+
+	const packages = pkgdPackagesJson
+		? Object.keys(pkgdPackagesJson.packages).length
+		: 0;
 
 	const shell = (await env.parent())?.directory;
 
