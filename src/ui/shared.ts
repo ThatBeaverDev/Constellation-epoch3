@@ -31,7 +31,12 @@ export function renderConsole(log: NormalizedLog = []) {
 			case "image":
 				text += `%c[Image from Location ${"url" in part ? part.url : part.dir}]`;
 				styles.push("color: #ffff00");
+				break;
 
+			case "liveCanvas":
+				// temp, might use `skia-canvas` in future.
+				text += `%c[liveCanvas#${part.id}]`;
+				styles.push("color: #ffff00");
 				break;
 
 			default:

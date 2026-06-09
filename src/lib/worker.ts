@@ -896,7 +896,7 @@ export async function workerFunction(this: undefined) {
 
 	setInterval(() => {
 		emit("keepAlive", undefined);
-	}, 100);
+	}, 1000);
 
 	/* =============== Worker Code  =============== */
 
@@ -947,15 +947,10 @@ export async function workerFunction(this: undefined) {
 				return logs.push(data);
 			},
 			async getLiveCanvas(width, height) {
-				const { canvas } = await sendMessage<
+				return await sendMessage<
 					Runtime_Env_Get_LiveCanvas,
 					Worker_Env_Get_LiveCanvas
 				>("env_get_liveCanvas", { width, height });
-
-				const ctx = canvas.getContext("2d");
-				if (!ctx) throw new Error("No Context given.");
-
-				return ctx;
 			},
 
 			input: async function (
@@ -1368,6 +1363,9 @@ export async function workerFunction(this: undefined) {
 
 				socketConnections: [],
 				socketServers: [],
+
+				liveCanvasIds: [],
+
 				onExit: []
 			};
 			store.env = newEnv(store, workingDirectory);
@@ -1411,6 +1409,10 @@ export async function workerFunction(this: undefined) {
 	}
 
 	function terminateProgram(program: WorkerProgramStore, data: Log) {
+		for (const liveCanvas of program.liveCanvasIds) {
+			emit("env_remove_liveCanvas", { id: liveCanvas });
+		}
+
 		for (const server of program.socketServers) {
 			server.server.exit();
 		}

@@ -81,35 +81,17 @@ export default async function* microsoftPaint(
 		drawingCtx.drawImage(bitmap, 0, 0, canvasWidth, canvasHeight);
 	}
 
-	const displayedCanvas = new OffscreenCanvas(
+	const { canvas: displayedCanvas, id: canvasId } = await env.getLiveCanvas(
 		canvasWidth + canvasIncrementX,
 		canvasWidth + canvasIncrementY
 	);
 	const displayCtx = displayedCanvas.getContext("2d");
 	if (!displayCtx) throw new Error("CTX not given.");
 
-	const URLs: string[] = [];
-	async function getCanvasURL(canvas: OffscreenCanvas) {
-		const blob = await canvas.convertToBlob();
-		const url = URL.createObjectURL(blob);
-
-		URLs.push(url);
-
-		// return the url, allow it to be manually expired.
-		return {
-			url,
-			expire() {
-				URLs.splice(URLs.indexOf(url), 1);
-				URL.revokeObjectURL(url);
-			}
-		};
-	}
-
 	let penDown: boolean = false;
 	let penX = 0;
 	let penY = 0;
 	let exit = false;
-	let expireLastCanvas: (() => void) | undefined = undefined;
 	let penColour = "red";
 
 	function penPosToCanvasPos(
@@ -202,9 +184,6 @@ export default async function* microsoftPaint(
 			);
 		}
 
-		env.clearLogs();
-		if (expireLastCanvas) expireLastCanvas();
-
 		/* ----- Ready display canvas to be displayed ----- */
 
 		displayCtx.clearRect(
@@ -267,21 +246,14 @@ export default async function* microsoftPaint(
 			canvasIncrementX,
 			canvasIncrementY
 		]);
-
-		const canvasData = await getCanvasURL(displayedCanvas);
-		expireLastCanvas = canvasData.expire;
-
-		env.print([
-			{
-				text: "Commands:\n\n- W: Move cursor up by one\n- A: Move cursor left by one\n- S: Move cursor down by one\n- D: Move cursor right by one\n\n- Q - Move Brush Down (start drawing)\n- E - Move Brush Up (stop drawing)\n- C - Set colour\n\n- X - Exit\n- R - Save image.\n"
-			},
-			{
-				type: "image",
-				url: canvasData.url,
-				width: 100
-			}
-		]);
 	});
+
+	env.print([
+		{
+			text: "Commands:\n\n- W: Move cursor up by one\n- A: Move cursor left by one\n- S: Move cursor down by one\n- D: Move cursor right by one\n\n- Q - Move Brush Down (start drawing)\n- E - Move Brush Up (stop drawing)\n- C - Set colour\n\n- X - Exit\n- R - Save image.\n"
+		},
+		{ type: "liveCanvas", id: canvasId, width: 50, height: 50 }
+	]);
 
 	env.triggerEvent("keydown", { alt: false, name: "e", shift: false });
 	while (true) {
@@ -290,6 +262,4 @@ export default async function* microsoftPaint(
 
 		yield;
 	}
-
-	// the URLs will just have to stay
 }

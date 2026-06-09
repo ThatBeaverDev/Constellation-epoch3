@@ -640,18 +640,34 @@ export default class Runtime {
 		handle(
 			"env_get_liveCanvas",
 			async ({ width, height }: Worker_Env_Get_LiveCanvas) => {
-				const offscreen = await this.#kernel.ui.getLiveCanvas?.(
+				const liveCanvas = await this.#kernel.ui.getLiveCanvas?.(
 					width,
 					height
 				);
 
-				if (!offscreen) {
-					throw new Error("UI did not provide a canvas element.");
+				if (!liveCanvas) {
+					throw new Error(
+						"UI did not provide a canvas element (or does not support liveCanvas)."
+					);
 				}
 
-				return withTransfer({ canvas: offscreen }, [offscreen]);
+				const program = getProgram();
+				program.liveCanvasIds.push(liveCanvas.id);
+
+				return withTransfer(liveCanvas, [liveCanvas.canvas]);
 			}
 		);
+
+		handle("env_remove_liveCanvas", (id: number) => {
+			const program = getProgram();
+
+			if (program.liveCanvasIds.includes(id)) {
+				// good to go
+				this.#kernel.ui.removeLiveCanvas?.(id);
+			} else {
+				throw new Error(`Program does not own liveCanvas#${id}`);
+			}
+		});
 
 		this.workers.push(workerStore);
 		this.#log(`New worker created. (#${workerID})`);

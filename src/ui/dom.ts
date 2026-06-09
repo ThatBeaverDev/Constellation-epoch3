@@ -57,10 +57,11 @@ export function consoleError(origin: string, message: Log) {
 
 const urlRegex = /https?:\/\/[^\s"'\\]+[^\s"']+/g;
 async function renderHtml(
+	ui: BrowserUI,
 	log: NormalizedLog = [],
 	readFile: FilesystemInterface["readFile"]
-) {
-	const partPromises = log.map(async (part) => {
+): Promise<HTMLElement[]> {
+	const partPromises: Promise<HTMLElement>[] = log.map(async (part) => {
 		switch (part.type) {
 			case undefined:
 			case "string": {
@@ -89,10 +90,14 @@ async function renderHtml(
 
 				segments.push(escapeHtml(raw.slice(lastIndex)));
 
-				return `<span style="color: ${escapeHtml(part.colour ?? "inherit")};">${segments.join("")}</span>`;
+				const span = document.createElement("span");
+				span.style.color = part.colour ?? "inherit";
+				span.innerHTML = segments.join("");
+
+				return span;
 			}
 
-			case "image":
+			case "image": {
 				let src =
 					"url" in part
 						? part.url
@@ -103,7 +108,11 @@ async function renderHtml(
 					part.height !== undefined &&
 					part.height !== "auto"
 				) {
-					return `<span style="color: #ff0000;">Image height must be number or "auto", was given ${escapeHtml(part.height)}</span>`;
+					const span = document.createElement("span");
+					span.style.color = "#ff0000";
+					span.innerText = `Image height must be number or "auto", was given ${part.height}`;
+
+					return span;
 				}
 
 				const width = linesToPx(Number(part.width));
@@ -113,17 +122,57 @@ async function renderHtml(
 						? "auto"
 						: `${linesToPx(part.height)}px`;
 
-				return `<img src="${escapeHtml(src)}" style="width: ${width}px; height: ${escapeHtml(height)}" />`;
+				const image = document.createElement("img");
+				image.src = src;
+				image.style.width = `${width}px`;
+				image.style.height = height == "auto" ? "auto" : `${height}px`;
 
-			default:
+				return image;
+			}
+
+			case "liveCanvas": {
+				const liveCanvas = ui.liveCanvases.find(
+					(item) => item.id == part.id
+				);
+
+				if (liveCanvas && "canvas" in liveCanvas) {
+					const canvas = liveCanvas.canvas;
+
+					canvas.style.width = `${linesToPx(part.width)}px`;
+					canvas.style.height = `${linesToPx(part.height)}px`;
+
+					return canvas;
+				} else if (liveCanvas && "image" in liveCanvas) {
+					const image = document.createElement("img");
+					image.src = liveCanvas.image;
+
+					image.style.width = `${linesToPx(part.width)}px`;
+					image.style.height = `${linesToPx(part.height)}px`;
+
+					return image;
+				}
+
+				const errorSpan = document.createElement("span");
+				errorSpan.style = `color: #ff0000;`;
+				errorSpan.innerText = `Error: Could not find liveCanvas[id:${part.id}]`;
+
+				return errorSpan;
+			}
+
+			default: {
+				const span = document.createElement("span");
+				span.style = `color: #ff0000;`;
 				// @ts-expect-error // trust
-				return `<span style="color: #ff0000;">Error parsing log request, unknown segment type ${escapeHtml(part.type)}</span>`;
+				span.innerText = `Error parsing log request, unknown segment type '${part.type}'`;
+
+				return span;
+			}
 		}
 	});
 
-	const parts = await Promise.all(partPromises);
+	const elements = await Promise.all(partPromises);
 
-	return parts.join("");
+	return elements;
 }
 
 function scrollContainer(container: HTMLElement | null): () => void {
@@ -153,6 +202,7 @@ export default class BrowserUI implements UiManager {
 	#focusInterval: number = 0;
 	#input?: HTMLInputElement;
 	cancelInput?(): void;
+	#currentClearToken: symbol = Symbol();
 
 	constructor(fs: FilesystemInterface) {
 		this.#fs = fs;
@@ -176,6 +226,7 @@ export default class BrowserUI implements UiManager {
 			}
 		});
 		window.addEventListener("keydown", this.#onKeyDown);
+		window.addEventListener("keyup", this.#onKeyUp);
 
 		document.body.innerHTML = "";
 		document.body.appendChild(this.#container);
@@ -185,6 +236,16 @@ export default class BrowserUI implements UiManager {
 		if (!this.controller) return;
 
 		triggerProgramEvent(this.controller, "keydown", {
+			name: event.key,
+
+			alt: event.altKey,
+			shift: event.shiftKey
+		});
+	};
+	#onKeyUp = (event: KeyboardEvent) => {
+		if (!this.controller) return;
+
+		triggerProgramEvent(this.controller, "keyup", {
 			name: event.key,
 
 			alt: event.altKey,
@@ -253,12 +314,20 @@ export default class BrowserUI implements UiManager {
 		const token = this.#nextRenderToken();
 		(p as any).__renderToken = token;
 
-		renderHtml(log, this.#fs.readFile.bind(this.#fs)).then((html) => {
+		// store token now
+		const activeClearToken = this.#currentClearToken;
+
+		renderHtml(this, log, this.#fs.readFile.bind(this.#fs)).then((html) => {
+			// stop if token changed
+			if (this.#currentClearToken !== activeClearToken) return;
 			if ((p as any).__renderToken !== token) return;
 
 			const scrollComplete = scrollContainer(this.#logbox);
 
-			p.innerHTML = html;
+			p.innerText = "";
+			for (const el of html) {
+				p.appendChild(el);
+			}
 
 			scrollComplete();
 		});
@@ -418,6 +487,9 @@ export default class BrowserUI implements UiManager {
 	}
 
 	clear() {
+		// reset clear token
+		this.#currentClearToken = Symbol();
+
 		this.#lines.forEach((line) => line.element.remove());
 		this.#lines = [];
 
@@ -520,11 +592,17 @@ export default class BrowserUI implements UiManager {
 	cancelSounds() {}
 
 	#nextLiveCanvasId: number = 0;
-	#liveCanvases: {
-		id: number;
-		canvas: HTMLCanvasElement;
-		remove(): void;
-	}[] = [];
+	liveCanvases: (
+		| {
+				id: number;
+				canvas: HTMLCanvasElement;
+				remove(): void;
+		  }
+		| {
+				id: number;
+				image: string;
+		  }
+	)[] = [];
 	getLiveCanvas(width: number, height: number, onRemoval?: () => void) {
 		const id = this.#nextLiveCanvasId++;
 
@@ -534,32 +612,37 @@ export default class BrowserUI implements UiManager {
 
 		const offscreen = htmlCanvas.transferControlToOffscreen();
 
-		this.#liveCanvases.push({
+		const entry = {
 			canvas: htmlCanvas,
 			id,
 			remove: () => {
 				onRemoval?.();
 
-				htmlCanvas.remove();
+				const image = htmlCanvas.toDataURL("image/png");
+				// @ts-expect-error
+				entry.image = image;
+				// @ts-expect-error
+				entry.canvas = undefined;
 
-				// remove from the live canvases list
-				this.#liveCanvases = this.#liveCanvases.filter(
-					(item) => item.id !== id
-				);
+				htmlCanvas.remove();
 			}
-		});
+		};
+
+		this.liveCanvases.push(entry);
 
 		return { canvas: offscreen, id };
 	}
 	removeLiveCanvas(id: number) {
-		const canvases = this.#liveCanvases.filter((item) => item.id == id);
+		const canvases = this.liveCanvases.filter((item) => item.id == id);
 
-		canvases.forEach((obj) => obj.remove());
+		canvases.forEach((obj) => {
+			if ("remove" in obj) obj.remove();
+		});
 	}
 
 	exit() {
-		for (const canvas of this.#liveCanvases) {
-			canvas.remove();
+		for (const canvas of this.liveCanvases) {
+			if ("remove" in canvas) canvas.remove();
 		}
 
 		this.cancelSounds();
