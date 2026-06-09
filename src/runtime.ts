@@ -741,14 +741,14 @@ export default class Runtime {
 		const now = Date.now();
 
 		for (const worker of this.workers) {
-			if (worker.lastKeepAlive + 1000 < now) {
+			if (worker.lastKeepAlive + 5000 < now) {
 				// uh
 				console.warn(
 					`${worker.name} is unresponsive. Panicking if no response within 5 further seconds.`
 				);
 
 				if (
-					worker.lastKeepAlive + 6000 < now &&
+					worker.lastKeepAlive + 10000 < now &&
 					(nodeJs || window?.document?.visibilityState == "visible")
 				) {
 					this.#panic(
