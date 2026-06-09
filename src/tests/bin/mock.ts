@@ -59,7 +59,9 @@ export function createMockEnv(): Environment {
 			setInterval,
 
 			clearInterval
-		}
+		},
+
+		exit: vi.fn()
 	};
 }
 

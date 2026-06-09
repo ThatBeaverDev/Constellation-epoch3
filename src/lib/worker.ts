@@ -804,6 +804,8 @@ export async function workerFunction(this: undefined) {
 	globalThis.XMLHttpRequest = undefined;
 	// @ts-expect-error
 	globalThis.Worker = undefined;
+	// @ts-expect-error
+	globalThis.globalThis = globalThis;
 
 	class WorkerFS implements EnvironmentFilesystem {
 		ready = true;
@@ -1292,6 +1294,10 @@ export async function workerFunction(this: undefined) {
 
 					clearInterval(interval);
 				}
+			},
+
+			exit() {
+				terminateProgram(program, "");
 			}
 		};
 
