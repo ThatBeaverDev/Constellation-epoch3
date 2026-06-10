@@ -81,6 +81,8 @@ export interface WorkerStore {
 	name: string;
 	lock: boolean;
 
+	program?: ProgramStore;
+
 	sendMessage<T = any, K = any>(intent: string, data: K): Promise<T>;
 	emit<T = any>(event: string, data: T): void;
 	exit(): void;
@@ -741,22 +743,20 @@ export default class Runtime {
 		const now = Date.now();
 
 		for (const worker of this.workers) {
-			if (worker.lastKeepAlive + 5000 < now) {
-				// uh
-				console.warn(
-					`${worker.name} is unresponsive. Panicking if no response within 5 further seconds.`
-				);
-
-				if (
-					worker.lastKeepAlive + 10000 < now &&
-					(nodeJs || window?.document?.visibilityState == "visible")
-				) {
-					this.#panic(
-						new Error(
-							`Worker ${worker.id} became unresponsive. Program states are not recoverable.`
-						)
-					);
+			if (
+				worker.lastKeepAlive + 10000 < now &&
+				(nodeJs || window?.document?.visibilityState == "visible")
+			) {
+				if (worker.program) {
+					worker.program.onLog("log", [
+						{
+							text: "WorkerCrash: Program worker became unresponsive, possibly due to bad worker implementation OR program breakage.",
+							colour: "#ff0000"
+						}
+					]);
+					this.#registerTermination(worker.program.pid);
 				}
+				continue;
 			}
 
 			if (worker.lock) continue;
@@ -937,6 +937,7 @@ export default class Runtime {
 			logs: [],
 			liveCanvasIds: []
 		};
+		worker.program = program;
 
 		let oldDisplayOwner: ProgramStore | undefined;
 
@@ -1003,6 +1004,9 @@ export default class Runtime {
 		if (program.parent) {
 			program.parent.children.delete(program);
 		}
+
+		// remove from worker
+		program.worker.program = undefined;
 
 		// remove from controller stack if present
 		if (this.#controllerStack.includes(program))
