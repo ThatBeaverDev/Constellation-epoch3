@@ -9,7 +9,7 @@
 		"path-browserify": "^1.0.1",
 		"prettier": "^3.8.4",
 		"readline-promise": "^1.0.5",
-		"rollup": "^4.61.1",
+		"rollup": "^4.62.0",
 		"typescript": "^6.0.3"
 	},
 	"devDependencies": {
