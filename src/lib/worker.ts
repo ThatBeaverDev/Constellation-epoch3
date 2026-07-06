@@ -38,6 +38,7 @@ import {
 import { type FileStats } from "../util/types/worker";
 import { writeTempFile } from "./tempFile.js";
 import { nodeJs } from "./config.js";
+import { blobToDataURL } from "../util/lib/dataUri.js";
 
 /// <reference path="@typescript/lib-webworker@npm:@types/webworker" />
 
@@ -896,7 +897,7 @@ export async function workerFunction(this: undefined) {
 
 	setInterval(() => {
 		emit("keepAlive", undefined);
-	}, 1000);
+	}, 2000);
 
 	/* =============== Worker Code  =============== */
 
@@ -1644,7 +1645,7 @@ export async function newWorker(fn: Function, name?: string, ...params: any[]) {
 
 	const reference = nodeJs
 		? await writeTempFile(code)
-		: URL.createObjectURL(
+		: await blobToDataURL(
 				new Blob([code], { type: "application/javascript" })
 			);
 

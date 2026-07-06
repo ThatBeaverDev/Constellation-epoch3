@@ -1,3 +1,14 @@
 /node_modules
 /build
 /dist
+
+rotur
+src/bin/anki.ts
+src/bin/o.ts
+src/bin/originchats.ts
+src/bin/r.ts
+src/bin/roturd.ts
+src/bin/p2pc.ts
+/src/bin/originchats
+/src/bin/roturd
+/src/pkgs/packages/node
