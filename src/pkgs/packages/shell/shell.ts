@@ -149,7 +149,16 @@ export function parseShellCommand(text: string): ShellCommand[] {
 	return commands;
 }
 
-export default async function* Shell(env: Environment) {
+export interface Shell_IO {
+	input: Environment["input"];
+	print: Environment["print"];
+	clearLogs: Environment["clearLogs"];
+}
+export async function shellImpl(
+	env: Environment,
+	io: Shell_IO,
+	displayHandover: boolean = false
+) {
 	const configDirectory = "/config/shell";
 	const welcomeMessage = env.path.resolve(configDirectory, "./welcome.txt");
 
@@ -163,7 +172,7 @@ export default async function* Shell(env: Environment) {
 	}
 
 	const welcome = await env.fs.readFile(welcomeMessage);
-	if (welcome) env.print(welcome);
+	if (welcome) io.print(welcome);
 
 	const executedCommandRequiresExitReturn = Symbol();
 	async function executeCommand(command: ShellCommand, input?: Log[]) {
@@ -196,7 +205,7 @@ export default async function* Shell(env: Environment) {
 				break;
 
 			case "clear":
-				env.clearLogs();
+				io.clearLogs();
 				break;
 
 			case "exit":
@@ -236,7 +245,7 @@ export default async function* Shell(env: Environment) {
 				const programExec = await env.execute(
 					logToString(programDirectory),
 					command.args,
-					{ handOverDisplay: true, input }
+					{ handOverDisplay: displayHandover, input }
 				);
 				const { return: programResult, logs: programLogs } =
 					await programExec.onExit;
@@ -266,19 +275,40 @@ export default async function* Shell(env: Environment) {
 		} else return result;
 	}
 
-	while (true) {
-		const input = await env.input(`${env.workingDirectory} $ `);
+	async function runCommand() {
+		const input = await io.input(`${env.workingDirectory} $ `);
 		const commands = parseShellCommand(input);
 
 		for (const command of commands) {
 			const logs = await executeCommand(command);
-			if (logs == executedCommandRequiresExitReturn) return; // exit
+			if (logs == executedCommandRequiresExitReturn) return true; // exit
 
 			if (logs) {
-				for (const log of logs) env.print(log);
+				for (const log of logs) io.print(log);
 			}
 		}
 
-		yield;
+		return false;
+	}
+
+	return { runCommand };
+}
+
+export default async function* Shell(env: Environment) {
+	const { runCommand } = await shellImpl(
+		env,
+		{
+			input: env.input,
+			print: env.print,
+			clearLogs: env.clearLogs
+		},
+		true
+	);
+
+	while (true) {
+		const exit = await runCommand();
+
+		if (exit) return;
+		else yield;
 	}
 }
