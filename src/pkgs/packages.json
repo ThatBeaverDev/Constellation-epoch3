@@ -33,7 +33,11 @@
 		"desktop": {
 			"author": "ThatBeaverDev",
 			"published": 0,
-			"dependencies": ["gui"]
+			"dependencies": ["gui"],
+			"directories": ["/bin/gui"],
+			"fileMap": {
+				"cli.js": "/bin/gui/terminal.js"
+			}
 		}
 	}
 }
