@@ -19,14 +19,17 @@ export function rect(
 	}
 }
 
+export const defaultFont = "monospace";
+export const defaultFontSize = 20;
+
 export function text(
 	ctx: OffscreenCanvasRenderingContext2D,
 	x: number,
 	y: number,
 	text: string,
 	colour: string = "white",
-	font: string = "monospace",
-	fontSize: number = 20
+	font: string = defaultFont,
+	fontSize: number = defaultFontSize
 ) {
 	ctx.font = `${fontSize}px ${font}`;
 	ctx.fillStyle = colour;
@@ -39,8 +42,8 @@ export function text(
 export function measureText(
 	ctx: OffscreenCanvasRenderingContext2D,
 	text: string,
-	font: string = "monospace",
-	fontSize: number = 10
+	font: string = defaultFont,
+	fontSize: number = defaultFontSize
 ) {
 	ctx.font = `${fontSize}px ${font}`;
 	ctx.textBaseline = "top";
