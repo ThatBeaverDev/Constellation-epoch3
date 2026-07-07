@@ -12,4 +12,15 @@ export interface GuiWindowCloseOutgoing {
 	windowID: number;
 }
 
-export type GuiOutgoing = GuiKeypressOutgoing | GuiWindowCloseOutgoing;
+export interface GuiTextboxCompleteOutgoing {
+	intent: "textboxComplete";
+	windowID: number;
+
+	reference: string;
+	contents: string;
+}
+
+export type GuiOutgoing =
+	| GuiKeypressOutgoing
+	| GuiWindowCloseOutgoing
+	| GuiTextboxCompleteOutgoing;

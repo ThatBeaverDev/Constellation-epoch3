@@ -1,6 +1,7 @@
 import { Environment, SocketServer } from "../../../util/types/worker";
 import { GuiIngoing } from "./gui.ingoing";
 import { GuiKeypressOutgoing, GuiOutgoing } from "./gui.outgoing";
+import { WindowContentItem } from "./windowContents";
 import WindowManager, { Window } from "./windows";
 
 export interface Client {
@@ -43,6 +44,20 @@ export default class SocketManager {
 		}
 	}
 
+	onTextboxCompletion(window: Window, reference: string, contents: string) {
+		const client = window.associatedClient;
+		const pid = client?.pid;
+
+		if (pid) {
+			this.socketServer.sendMessage(pid, {
+				intent: "textboxComplete",
+				windowID: client ? client.windows.indexOf(window) : 0,
+				reference,
+				contents
+			});
+		}
+	}
+
 	async init() {
 		await this.env.fs.mkdir("/data/gui");
 
@@ -81,6 +96,23 @@ export default class SocketManager {
 					const window = client.windows[msg.windowID ?? 0];
 
 					window.contents = msg.contents;
+					const interactableTypes = new Set<
+						WindowContentItem["type"]
+					>(["button", "textBox"]);
+
+					const interactables: number[] = [];
+
+					for (const i in msg.contents) {
+						const idx = Number(i);
+						const item = msg.contents[idx];
+
+						if (interactableTypes.has(item.type)) {
+							interactables.push(idx);
+						}
+					}
+
+					window.interactables = interactables;
+
 					break;
 				}
 
