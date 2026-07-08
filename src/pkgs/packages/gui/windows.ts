@@ -5,7 +5,7 @@ import SocketManager, { Client } from "./socket";
 import { measureText, rect, text } from "./util/rendering";
 import { WindowContentItem } from "./windowContents";
 
-interface WindowInfo {
+export interface WindowInfo {
 	window: Window;
 	x: number;
 	y: number;
@@ -13,22 +13,64 @@ interface WindowInfo {
 	height: number;
 }
 
+type PaletteIndex = { directory: string; name: string }[];
+
+const headerHeight = 50;
+
 export default class WindowManager {
-	windows: WindowInfo[] = [];
+	windows: (WindowInfo | undefined)[] = [];
 	socketManager?: SocketManager;
+
+	#showPalette: boolean = false;
+	get paletteVisible() {
+		return this.#showPalette;
+	}
 
 	windowID: number = 0;
 
-	get currentWindow(): WindowInfo | undefined {
+	#palette?: WindowInfo;
+	get palette() {
+		if (!this.#showPalette) return;
+
+		return this.#palette;
+	}
+
+	windowFocused(id: number) {
+		if (this.paletteVisible && id !== this.palette?.window?.id) {
+			return false;
+		}
+
+		const isFocused = this.#currentWindow == this.windows[id];
+
+		return isFocused;
+	}
+
+	get #currentWindow(): WindowInfo | undefined {
 		return this.windows[this.windowID];
 	}
 
 	constructor(public env: Environment) {
 		env.addEventListener("keydown", (e) => {
-			const total = this.windows.length;
-			const gridSides = Math.ceil(Math.sqrt(total));
+			if (this.paletteVisible) {
+				switch (e.name.trim()) {
+					case "Escape":
+						this.hidePalette();
+						break;
+
+					case "":
+						if (e.alt) {
+							this.hidePalette();
+						}
+						break;
+				}
+
+				return;
+			}
 
 			if (e.alt) {
+				const total = this.windows.length;
+				const gridSides = Math.ceil(Math.sqrt(total));
+
 				switch (e.name.trim().toLowerCase()) {
 					case "arrowup":
 						if (this.windowID - gridSides >= 0) {
@@ -60,18 +102,18 @@ export default class WindowManager {
 
 					case "w":
 					case "∑":
-						this.currentWindow?.window?.close?.();
+						this.#currentWindow?.window?.close?.();
 						break;
 
 					case "":
-						console.debug("search");
+						this.showPalette();
 						break;
 				}
 
 				return;
 			}
 
-			const cur = this.currentWindow;
+			const cur = this.#currentWindow;
 			const window = cur?.window;
 
 			if (window) {
@@ -159,6 +201,66 @@ export default class WindowManager {
 		});
 	}
 
+	showPalette() {
+		this.refreshPaletteIndex(["/bin/gui"]);
+
+		if (!this.#palette) {
+			const midWidth = WIDTH / 2;
+			const midHeight = HEIGHT / 2;
+
+			const paletteWidth = 500;
+			const paletteHeight = 750;
+
+			const paletteHalfWidth = paletteWidth / 2;
+			const paletteHalfHeight = paletteHeight / 2;
+
+			const paletteTitle = "Palette";
+
+			const window = new GuiWindow(this, undefined, -1, paletteTitle);
+			window.close = () => {
+				if (this.socketManager) this.socketManager.onWindowExit(window);
+
+				this.windows = this.windows.map((item) => {
+					const remove = item?.window !== window;
+
+					if (remove) {
+						return undefined;
+					} else {
+						return item;
+					}
+				});
+			};
+
+			const info = {
+				window,
+
+				x: midWidth - paletteHalfWidth,
+				y: midHeight - paletteHalfHeight,
+				width: paletteWidth,
+				height: paletteHeight
+			};
+
+			this.#palette = info;
+		}
+
+		this.#showPalette = true;
+	}
+
+	hidePalette() {
+		this.#showPalette = false;
+	}
+
+	refreshPalette() {
+		const palette = this.palette;
+
+		if (!palette) return;
+
+		const { window } = palette;
+		window.contents = [];
+
+		window.contents.push({ type: "text", text: "Search", x: 5, y: 5 });
+	}
+
 	reposition() {
 		const total = this.windows.length;
 		const gridSides = Math.ceil(Math.sqrt(total));
@@ -183,13 +285,21 @@ export default class WindowManager {
 	}
 
 	newWindow(client: Client | undefined, name: string) {
-		const window = new GuiWindow(this, client, name);
+		const id = this.windows.length;
+
+		const window = new GuiWindow(this, client, id, name);
 		window.close = () => {
 			if (this.socketManager) this.socketManager.onWindowExit(window);
 
-			this.windows = this.windows.filter(
-				(item) => item.window !== window
-			);
+			this.windows = this.windows.map((item) => {
+				const remove = item?.window !== window;
+
+				if (remove) {
+					return undefined;
+				} else {
+					return item;
+				}
+			});
 		};
 
 		const info = {
@@ -203,7 +313,34 @@ export default class WindowManager {
 
 		this.windows.push(info);
 
-		return window;
+		return { window, id };
+	}
+
+	#index: PaletteIndex = [];
+	async refreshPaletteIndex(directories: string[]) {
+		const index: PaletteIndex = [];
+
+		for (const directory of directories) {
+			const contents = await this.env.fs.readdir(directory);
+
+			for (const child of contents) {
+				if (!child.endsWith(".js")) continue;
+
+				const fullPath = this.env.path.join(directory, child);
+
+				const stats = await this.env.fs.stats(fullPath);
+				if (!stats) continue;
+
+				if (stats.type == "file") {
+					index.push({
+						directory: fullPath,
+						name: child.textBeforeLast(".js")
+					});
+				}
+			}
+		}
+
+		this.#index = index;
 	}
 }
 
@@ -218,6 +355,7 @@ export abstract class Window {
 	constructor(
 		public windowManager: WindowManager,
 		public associatedClient: Client | undefined,
+		public id: number,
 		public name: string,
 		public description?: string
 	) {}
@@ -253,7 +391,6 @@ export abstract class Window {
 		);
 
 		// Window header
-		const headerHeight = 50;
 		const headerDimensions = measureText(ctx, this.name, "monospace", 20);
 		const padding = (headerHeight - headerDimensions.height) / 2;
 
@@ -410,7 +547,7 @@ export abstract class Window {
 			x + padding,
 			y + padding,
 			this.name,
-			"white",
+			isFocused ? "rgb(255 255 255)" : "rgb(200 200 200)",
 			"monospace",
 			20
 		);
