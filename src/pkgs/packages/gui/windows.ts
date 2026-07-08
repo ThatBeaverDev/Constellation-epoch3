@@ -1,6 +1,7 @@
 import { logToString } from "../../../util/lib/logs";
-import { Environment } from "../../../util/types/worker";
+import { Environment, Process } from "../../../util/types/worker";
 import { HEIGHT, WIDTH } from "./gui";
+import PaletteHandler, { paletteHeight, paletteWidth } from "./palette/palette";
 import SocketManager, { Client } from "./socket";
 import { measureText, rect, text } from "./util/rendering";
 import { WindowContentItem } from "./windowContents";
@@ -13,13 +14,14 @@ export interface WindowInfo {
 	height: number;
 }
 
-type PaletteIndex = { directory: string; name: string }[];
+export type PaletteIndex = { directory: string; name: string }[];
 
 const headerHeight = 50;
 
 export default class WindowManager {
 	windows: (WindowInfo | undefined)[] = [];
 	socketManager?: SocketManager;
+	self?: Process;
 
 	#showPalette: boolean = false;
 	get paletteVisible() {
@@ -28,6 +30,7 @@ export default class WindowManager {
 
 	windowID: number = 0;
 
+	#paletteHandler: PaletteHandler;
 	#palette?: WindowInfo;
 	get palette() {
 		if (!this.#showPalette) return;
@@ -50,6 +53,8 @@ export default class WindowManager {
 	}
 
 	constructor(public env: Environment) {
+		this.#paletteHandler = new PaletteHandler(env, this);
+
 		env.addEventListener("keydown", (e) => {
 			if (this.paletteVisible) {
 				switch (e.name.trim()) {
@@ -201,47 +206,14 @@ export default class WindowManager {
 		});
 	}
 
+	async init() {
+		this.self = await this.env.self();
+
+		await this.#paletteHandler.init();
+	}
+
 	showPalette() {
 		this.refreshPaletteIndex(["/bin/gui"]);
-
-		if (!this.#palette) {
-			const midWidth = WIDTH / 2;
-			const midHeight = HEIGHT / 2;
-
-			const paletteWidth = 500;
-			const paletteHeight = 750;
-
-			const paletteHalfWidth = paletteWidth / 2;
-			const paletteHalfHeight = paletteHeight / 2;
-
-			const paletteTitle = "Palette";
-
-			const window = new GuiWindow(this, undefined, -1, paletteTitle);
-			window.close = () => {
-				if (this.socketManager) this.socketManager.onWindowExit(window);
-
-				this.windows = this.windows.map((item) => {
-					const remove = item?.window !== window;
-
-					if (remove) {
-						return undefined;
-					} else {
-						return item;
-					}
-				});
-			};
-
-			const info = {
-				window,
-
-				x: midWidth - paletteHalfWidth,
-				y: midHeight - paletteHalfHeight,
-				width: paletteWidth,
-				height: paletteHeight
-			};
-
-			this.#palette = info;
-		}
 
 		this.#showPalette = true;
 	}
@@ -251,14 +223,7 @@ export default class WindowManager {
 	}
 
 	refreshPalette() {
-		const palette = this.palette;
-
-		if (!palette) return;
-
-		const { window } = palette;
-		window.contents = [];
-
-		window.contents.push({ type: "text", text: "Search", x: 5, y: 5 });
+		this.#paletteHandler.update(this.#index);
 	}
 
 	reposition() {
@@ -302,16 +267,32 @@ export default class WindowManager {
 			});
 		};
 
+		const isPalette = client?.pid == this.self?.pid;
+		if (isPalette && this.#palette) {
+			throw new Error("2 Palette windows cannot exist at once.");
+		}
+
+		// for palette
+		const midWidth = WIDTH / 2;
+		const midHeight = HEIGHT / 2;
+
+		const paletteHalfWidth = paletteWidth / 2;
+		const paletteHalfHeight = paletteHeight / 2;
+
 		const info = {
 			window,
 
-			x: 0,
-			y: 0,
-			width: 200,
-			height: 120
+			x: midWidth - paletteHalfWidth,
+			y: midHeight - paletteHalfHeight,
+			width: isPalette ? paletteWidth : 0,
+			height: isPalette ? paletteHeight : 0
 		};
 
-		this.windows.push(info);
+		if (isPalette) {
+			this.#palette = info;
+		} else {
+			this.windows.push(info);
+		}
 
 		return { window, id };
 	}

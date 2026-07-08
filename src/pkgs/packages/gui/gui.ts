@@ -20,6 +20,7 @@ export default async function* GraphicalEnvironment(env: Environment) {
 	windowManager.socketManager = socketManager;
 
 	await socketManager.init();
+	await windowManager.init();
 
 	env.execute("/bin/files.js");
 
