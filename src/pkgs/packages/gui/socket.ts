@@ -82,7 +82,7 @@ export default class SocketManager {
 
 			switch (msg.intent) {
 				case "newWindow": {
-					const window = this.windowManager.newWindow(
+					const { window } = this.windowManager.newWindow(
 						client,
 						msg.name
 					);

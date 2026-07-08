@@ -1,6 +1,6 @@
 import { Environment } from "../../../util/types/worker";
 import SocketManager from "./socket";
-import WindowManager from "./windows";
+import WindowManager, { WindowInfo } from "./windows";
 
 export const WIDTH = 3200;
 export const HEIGHT = 1800;
@@ -29,10 +29,12 @@ export default async function* GraphicalEnvironment(env: Environment) {
 		ctx.fillStyle = "red";
 		ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
-		const current = windowManager.currentWindow;
-		for (const info of windowManager.windows) {
+		const drawWindow = (info: WindowInfo, focused?: boolean) => {
 			ctx.fillStyle = "black";
 			ctx.strokeStyle = "white";
+
+			const isFocused =
+				focused || windowManager.windowFocused(info.window.id);
 
 			info?.window?.render?.(
 				ctx,
@@ -40,8 +42,21 @@ export default async function* GraphicalEnvironment(env: Environment) {
 				info.y,
 				info.width,
 				info.height,
-				info.window == current?.window
+				isFocused
 			);
+		};
+
+		for (const info of windowManager.windows) {
+			if (info == undefined) continue;
+			if (windowManager.palette?.window?.id == info.window.id) continue; // rendered explicitly later
+
+			drawWindow(info);
+		}
+
+		if (windowManager.palette !== undefined) {
+			windowManager.refreshPalette();
+
+			drawWindow(windowManager.palette, true);
 		}
 
 		yield;
