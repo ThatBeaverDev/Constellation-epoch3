@@ -1,4 +1,5 @@
 import { Environment, SocketServer } from "../../../util/types/worker";
+import { GUI_SOCKET_PATH } from "./constants";
 import { GuiIngoing } from "./gui.ingoing";
 import { GuiKeypressOutgoing, GuiOutgoing } from "./gui.outgoing";
 import { WindowContentItem } from "./windowContents";
@@ -61,9 +62,8 @@ export default class SocketManager {
 	async init() {
 		await this.env.fs.mkdir("/data/gui");
 
-		this.socketServer = await this.env.sockets.createSocket(
-			"/data/gui/conn.sock"
-		);
+		this.socketServer =
+			await this.env.sockets.createSocket(GUI_SOCKET_PATH);
 
 		this.socketServer.onClientConnect = (client) => {
 			this.clients[client.pid] = { pid: client.pid, windows: [] };

@@ -1,4 +1,5 @@
 import { Environment, SocketConnection } from "../../../util/types/worker";
+import { GUI_SOCKET_PATH } from "./constants";
 import { GuiIngoing } from "./gui.ingoing";
 import { GuiOutgoing } from "./gui.outgoing";
 import { WindowContentItem } from "./windowContents";
@@ -16,7 +17,7 @@ export default class GraphicalUIManager {
 	constructor(public env: Environment) {}
 
 	async guiAvailable() {
-		const stats = await this.env.fs.stats("/data/gui/conn.sock");
+		const stats = await this.env.fs.stats(GUI_SOCKET_PATH);
 
 		return stats?.type == "socket";
 	}
@@ -24,12 +25,12 @@ export default class GraphicalUIManager {
 	async init(windowName: string) {
 		const isOk = await this.guiAvailable();
 		if (!isOk) {
+			console.warn("GUI not running.");
 			return;
 		}
 
-		this.#socketConnection = await this.env.sockets.connectToSocket(
-			"/data/gui/conn.sock"
-		);
+		this.#socketConnection =
+			await this.env.sockets.connectToSocket(GUI_SOCKET_PATH);
 
 		this.#socketConnection.onMessage = (msg) => {
 			switch (msg.intent) {
