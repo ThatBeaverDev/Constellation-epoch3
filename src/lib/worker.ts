@@ -798,6 +798,13 @@ export async function workerFunction(this: undefined) {
 	/* Secure some bases */
 
 	// @ts-expect-error
+	globalThis.indexedDB = undefined;
+	// @ts-expect-error
+	globalThis.localStorage = undefined;
+	// @ts-expect-error
+	globalThis.navigator = undefined;
+
+	// @ts-expect-error
 	globalThis.eval = undefined;
 	// @ts-expect-error
 	globalThis.fetch = undefined;
