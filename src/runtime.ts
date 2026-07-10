@@ -25,6 +25,7 @@ import {
 	WorkerEnv_SoundRemove
 } from "./types/workerMessages";
 import {
+	Runtime_Proxy_ClearLogs,
 	Runtime_Proxy_Input,
 	Runtime_Proxy_Log,
 	Runtime_Sockets_Server_sendPacket,
@@ -70,6 +71,7 @@ export interface ProgramStore {
 
 	onLog(type: "log" | "warning" | "error", data: Log): void;
 	onInput(message: string, config: InputConfig): Promise<string>;
+	onClear(): void;
 
 	liveCanvasIds: number[];
 }
@@ -483,11 +485,7 @@ export default class Runtime {
 		handle("env_clear_logs", () => {
 			const program = getProgram();
 
-			program.logs = [];
-
-			if (this.#kernel.ui.controller == program) {
-				this.#kernel.ui.clear();
-			}
+			return program.onClear();
 		});
 
 		handle("kernel_uptime", () => Date.now() - this.#kernel.start);
@@ -832,6 +830,8 @@ export default class Runtime {
 			? this.programByPid(config?.outputProxy)
 			: undefined;
 
+		const kernel = this.#kernel;
+
 		const program: ProgramStore = {
 			worker: worker,
 
@@ -907,6 +907,21 @@ export default class Runtime {
 							]);
 							break;
 					}
+				}
+			},
+
+			onClear() {
+				program.logs = [];
+
+				if (proxyOwner) {
+					proxyOwner.worker.emit<Runtime_Proxy_ClearLogs>(
+						"proxy_clear",
+						{ handlerPid: proxyOwner.pid, subjectPid: program.pid }
+					);
+				}
+
+				if (kernel.ui.controller == program) {
+					kernel.ui.clear();
 				}
 			},
 

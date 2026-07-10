@@ -75,3 +75,8 @@ export interface Runtime_Proxy_Input {
 	message: string;
 	config?: InputConfig;
 }
+
+export interface Runtime_Proxy_ClearLogs {
+	handlerPid: number;
+	subjectPid: number;
+}
