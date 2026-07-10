@@ -22,8 +22,6 @@ export default async function* GraphicalEnvironment(env: Environment) {
 	await socketManager.init();
 	await windowManager.init();
 
-	env.execute("/bin/files.js");
-
 	while (true) {
 		windowManager.reposition();
 
