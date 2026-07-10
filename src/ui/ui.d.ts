@@ -12,10 +12,7 @@ export interface UiManager {
 	input(
 		message: string,
 		config: InputConfig
-	): Promise<
-		| { response: string; displayText: string; finished: true }
-		| { finished: false }
-	>;
+	): Promise<{ response: string; finished: true } | { finished: false }>;
 
 	controller?: ProgramStore;
 

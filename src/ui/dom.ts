@@ -7,7 +7,6 @@ import { InputConfig, Log, NormalizedLog, Sound } from "../util/types/worker";
 import { UiManager } from "./ui";
 import { normalizeLog, withOrigin } from "./shared";
 import { renderConsole } from "./shared";
-import { nodeJs } from "../lib/config";
 
 const lineHeight = 15;
 function linesToPx(lines: number) {
@@ -402,52 +401,6 @@ export default class BrowserUI implements UiManager {
 			input.enterKeyHint = "Send";
 
 			input.value = config.initialText;
-
-			input.addEventListener("paste", (event) => {
-				if (nodeJs) return;
-
-				const clipboardData = event.clipboardData;
-				if (!clipboardData) return;
-
-				for (let i = 0; i < clipboardData.items.length; i++) {
-					const item = clipboardData.items[i];
-					const { type } = item;
-
-					if (type === "text/plain") {
-						item.getAsString((text) => {
-							config.onPaste({
-								type: "text",
-								data: text
-							});
-						});
-						return;
-					} else {
-						event.preventDefault();
-
-						const isSvg = type == "application/svg+xml";
-						const isImage = isSvg || type.startsWith("image/");
-
-						const file = item.getAsFile();
-						if (!file) continue;
-
-						const reader = new FileReader();
-						reader.onload = (e) => {
-							const result =
-								typeof e.target?.result === "string"
-									? e.target.result
-									: "";
-
-							config.onPaste({
-								type: isImage ? "image" : "file",
-								data: result
-							});
-						};
-
-						reader.readAsDataURL(file);
-						return;
-					}
-				}
-			});
 
 			const div = document.createElement("div");
 			div.classList.add("input");

@@ -1,4 +1,4 @@
-import { EventMap, EventName, Log, onPasteData } from "../util/types/worker";
+import { EventMap, EventName, InputConfig, Log } from "../util/types/worker";
 import {
 	Worker_Sockets_Client_endConnection,
 	Worker_Sockets_Client_newConnection,
@@ -17,12 +17,6 @@ export interface RuntimeExecuteProgram {
 	args?: string[];
 	workingDirectory: string;
 	input?: Log[];
-}
-
-export interface RuntimeProgramInputOnPaste {
-	pid: number;
-
-	data: onPasteData;
 }
 
 /* ========== Sockets ========== */
@@ -62,4 +56,22 @@ export interface Runtime_Events_Trigger<K extends EventName> {
 export interface Runtime_Env_Get_LiveCanvas {
 	canvas: OffscreenCanvas;
 	id: number;
+}
+
+export interface Runtime_Proxy_Log {
+	handlerPid: number;
+	subjectPid: number;
+
+	log: {
+		type: "log" | "warning" | "error";
+		data: Log;
+	};
+}
+
+export interface Runtime_Proxy_Input {
+	handlerPid: number;
+	subjectPid: number;
+
+	message: string;
+	config?: InputConfig;
 }

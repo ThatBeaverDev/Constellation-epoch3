@@ -69,10 +69,7 @@ export default class NodeUI implements UiManager {
 	input(
 		prompt: string,
 		config: InputConfig
-	): Promise<
-		| { response: string; displayText: string; finished: true }
-		| { finished: false }
-	> {
+	): Promise<{ response: string; finished: true } | { finished: false }> {
 		return new Promise((resolve) => {
 			const controller = new AbortController();
 			const signal = controller.signal;
@@ -95,8 +92,7 @@ export default class NodeUI implements UiManager {
 
 					resolve({
 						response: response,
-						finished: true,
-						displayText
+						finished: true
 					});
 				},
 				{ signal }

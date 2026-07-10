@@ -10,6 +10,8 @@ import {
 import { implementWorkerFS, mainThreadMessageHandler } from "./lib/workerUtils";
 import {
 	Worker_Env_Get_LiveCanvas,
+	Worker_Proxy_Input_Response,
+	Worker_Proxy_Trigger_Event,
 	Worker_Sockets_Client_endConnection,
 	Worker_Sockets_Client_newConnection,
 	Worker_Sockets_Client_sendPacket,
@@ -23,9 +25,10 @@ import {
 	WorkerEnv_SoundRemove
 } from "./types/workerMessages";
 import {
+	Runtime_Proxy_Input,
+	Runtime_Proxy_Log,
 	Runtime_Sockets_Server_sendPacket,
-	RuntimeExecuteProgram,
-	RuntimeProgramInputOnPaste
+	RuntimeExecuteProgram
 } from "./types/runtimeMessages";
 import {
 	consoleError,
@@ -38,6 +41,7 @@ import SocketManager from "./lib/sockets";
 import { nodeJs } from "./lib/config";
 import { blobToDataURL } from "./util/lib/dataUri";
 import { logToString } from "./util/lib/logs";
+import { triggerProgramEvent } from "./lib/triggerProgramEvent";
 
 export interface ProgramLog {
 	type: "log" | "warning" | "error";
@@ -264,14 +268,16 @@ export default class Runtime {
 				args,
 				handoverDisplayPid: executingProgramPid,
 				workingDirectory,
-				input
+				input,
+				outputProxy
 			}: WorkerEnv_Exec) => {
 				const parent = getProgram();
 
 				const program = await this.executeProgram(path, parent, args, {
 					displayHandover: { oldOwner: executingProgramPid },
 					workingDirectory,
-					input
+					input,
+					outputProxy: outputProxy ? parent.pid : undefined
 				});
 
 				return { pid: program.pid };
@@ -469,19 +475,7 @@ export default class Runtime {
 					hideTyping: config.hideTyping,
 					leaveInputOnCompletion: config.leaveInputOnCompletion,
 					inline: config.inline,
-					initialText: config.initialText,
-
-					onPaste(data) {
-						if (!config.onPasteFunctionPresent) return;
-
-						workerStore.emit<RuntimeProgramInputOnPaste>(
-							"program_input_onpaste",
-							{
-								pid,
-								data
-							}
-						);
-					}
+					initialText: config.initialText
 				});
 			}
 		);
@@ -671,6 +665,26 @@ export default class Runtime {
 			}
 		});
 
+		handle(
+			"proxy_trigger_event",
+			(msg: Worker_Proxy_Trigger_Event<any>) => {
+				switch (msg.eventName) {
+					case "keydown":
+					case "keyup": {
+						// allowed
+						const target = this.programByPid(msg.subjectPid);
+
+						triggerProgramEvent(target, msg.eventName, msg.data);
+
+						break;
+					}
+
+					default:
+					// not allowed to trigger
+				}
+			}
+		);
+
 		this.workers.push(workerStore);
 		this.#log(`New worker created. (#${workerID})`);
 
@@ -805,6 +819,7 @@ export default class Runtime {
 			displayHandover?: { oldOwner?: number };
 			workingDirectory: string;
 			input?: Log[];
+			outputProxy?: number;
 		}
 	) {
 		this.#log("Executing program from " + directory);
@@ -812,6 +827,10 @@ export default class Runtime {
 		const pid = this.#nextPID++;
 		const worker = await this.#createWorker(directory, pid);
 		const workerName = worker.name;
+
+		const proxyOwner = config?.outputProxy
+			? this.programByPid(config?.outputProxy)
+			: undefined;
 
 		const program: ProgramStore = {
 			worker: worker,
@@ -837,6 +856,15 @@ export default class Runtime {
 
 			onLog: (type, data) => {
 				program.logs.push({ type, data: data });
+
+				if (proxyOwner) {
+					proxyOwner.worker.emit<Runtime_Proxy_Log>("proxy_log", {
+						handlerPid: proxyOwner.pid,
+						subjectPid: program.pid,
+
+						log: { type, data }
+					});
+				}
 
 				const hasDisplay = this.#kernel.ui.controller == program;
 				if (hasDisplay) {
@@ -881,7 +909,8 @@ export default class Runtime {
 					}
 				}
 			},
-			onInput: async (message: string, config) => {
+
+			onInput: async (query: string, config) => {
 				let onResolve: (value: string) => void = () => {};
 				const promise = new Promise<string>(
 					(resolve) => (onResolve = resolve)
@@ -889,12 +918,13 @@ export default class Runtime {
 
 				const inputLog: ProgramInputLog = {
 					type: "input",
-					message: message,
+					message: query,
 					config: config,
 					callback: (result) => {
 						if (result.finished == false) return; // false alarm
 
-						const { response, displayText } = result;
+						const { response } = result;
+						const displayText = `${query}${response}`;
 
 						// remove input log, add resultant log
 						program.logs = program.logs.filter(
@@ -908,27 +938,52 @@ export default class Runtime {
 
 				program.logs.push(inputLog);
 
-				const fallbackInput = async () => {
+				const noInput = async () => {
 					// it'll get resolved at some point, when the UI switches again. just leave it.
 				};
 
-				const directInput = async () => {
-					const inputResponse = await this.#kernel.ui.input(
-						message,
-						config
-					);
+				const getProxyInput = async () => {
+					if (!proxyOwner) return;
 
-					if (inputResponse.finished == false) {
-						return fallbackInput();
+					const inputResponse = await proxyOwner.worker.sendMessage<
+						Worker_Proxy_Input_Response | undefined,
+						Runtime_Proxy_Input
+					>("proxy_input", {
+						handlerPid: proxyOwner.pid,
+						subjectPid: program.pid,
+
+						message: query,
+						config
+					});
+
+					if (!inputResponse) return noInput();
+
+					if (!inputResponse.finished) {
+						return noInput();
 					}
 
 					inputLog.callback(inputResponse);
 				};
 
-				if (this.#kernel.ui.controller !== program) {
-					fallbackInput();
+				const getUiInput = async () => {
+					const inputResponse = await this.#kernel.ui.input(
+						query,
+						config
+					);
+
+					if (inputResponse.finished == false) {
+						return noInput();
+					}
+
+					inputLog.callback(inputResponse);
+				};
+
+				if (proxyOwner) {
+					getProxyInput();
+				} else if (this.#kernel.ui.controller !== program) {
+					noInput();
 				} else {
-					directInput();
+					getUiInput();
 				}
 
 				return promise;
