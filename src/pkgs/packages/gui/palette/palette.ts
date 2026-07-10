@@ -54,6 +54,8 @@ export default class PaletteHandler {
 			if (!entry) return;
 
 			this.env.execute(entry.directory);
+
+			this.windowSystem.hidePalette();
 		};
 
 		this.#guiLib.onKeyPress = () => {};
@@ -78,7 +80,7 @@ export default class PaletteHandler {
 			y: 5
 		});
 
-		const lineHeight = 20;
+		const lineHeight = 25;
 		let y = 5;
 
 		const searcher = new Fuse(index, {
@@ -88,21 +90,23 @@ export default class PaletteHandler {
 		});
 
 		const results = searcher.search(this.#searchTerm);
-		this.#topResult = results[0].item;
+		this.#topResult = results[0]?.item;
 
-		items.push(
-			...results.map((result): WindowContentItem => {
-				y += lineHeight;
+		if (this.#searchTerm.trim().length > 2) {
+			items.push(
+				...results.map((result): WindowContentItem => {
+					y += lineHeight;
 
-				return {
-					type: "button",
-					text: result.item.name,
-					x: 5,
-					y: y,
-					identifier: result.item.directory
-				};
-			})
-		);
+					return {
+						type: "button",
+						text: result.item?.name,
+						x: 5,
+						y: y,
+						identifier: result.item?.directory
+					};
+				})
+			);
+		}
 
 		this.#guiLib.setContents(items);
 	}

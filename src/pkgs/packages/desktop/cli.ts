@@ -1,4 +1,4 @@
-import { logToArrayLog } from "../../../util/lib/logs";
+import { logToArrayLog, logToString } from "../../../util/lib/logs";
 import { ArrayLog, Environment, InputConfig } from "../../../util/types/worker";
 import GraphicalUIManager from "../gui/lib.gui";
 import { WindowText, WindowTextBox } from "../gui/types/windowContents";
@@ -13,30 +13,48 @@ export default async function* TerminalApp(env: Environment) {
 		| (Partial<InputConfig> & { message: string; backReference: string })
 		| undefined = undefined;
 
+	let updateScheduled: boolean = false;
 	function updateGUI() {
-		const yInterval = 20;
-		let y = -yInterval;
+		if (updateScheduled) return;
+		updateScheduled = true;
 
-		lib.setContents(
-			[
-				...logs.map((item): WindowText => {
-					y += yInterval;
-					return { type: "text", text: item, x: 5, y };
-				}),
+		requestAnimationFrame(() => {
+			const yInterval = 20;
+			let y = 0;
 
-				input !== undefined
-					? ({
-							type: "textBox",
-							message: input.message,
+			lib.setContents(
+				[
+					...logs.map((item): WindowText => {
+						const string = logToString(item);
+						const lines = string.split("\n").length;
 
-							identifier: input.backReference,
-
+						const result: WindowText = {
+							type: "text",
+							text: item,
 							x: 5,
-							y: y + yInterval
-						} as WindowTextBox)
-					: undefined
-			].filter((item) => item !== undefined)
-		);
+							y
+						};
+						y += yInterval * lines;
+
+						return result;
+					}),
+
+					input !== undefined
+						? ({
+								type: "textBox",
+								message: input.message,
+
+								identifier: input.backReference,
+
+								x: 5,
+								y
+							} as WindowTextBox)
+						: undefined
+				].filter((item) => item !== undefined)
+			);
+
+			updateScheduled = false;
+		});
 	}
 
 	let inputID = 0;
@@ -69,6 +87,8 @@ export default async function* TerminalApp(env: Environment) {
 
 		clearLogs() {
 			logs.splice(0, logs.length);
+
+			updateGUI();
 		},
 
 		setLogs(logs) {
