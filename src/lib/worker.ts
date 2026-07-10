@@ -15,8 +15,10 @@ import {
 } from "../util/types/worker.js";
 import {
 	Worker_Env_Get_LiveCanvas,
+	Worker_Env_ProcessInfo,
 	Worker_Proxy_Input_Response,
 	Worker_Proxy_Trigger_Event,
+	WorkerEnv_PlaySound,
 	type Worker_Sockets_Client_endConnection,
 	type Worker_Sockets_Client_newConnection,
 	type Worker_Sockets_Client_sendPacket,
@@ -29,9 +31,10 @@ import {
 } from "../types/workerMessages.js";
 import {
 	Runtime_Env_Get_LiveCanvas,
-	Runtime_Proxy_ClearLogs,
 	Runtime_Proxy_Input,
 	Runtime_Proxy_Log,
+	Runtime_Proxy_Set_Logs,
+	Runtime_Sound_Stopped_ID,
 	type Runtime_Events_Trigger,
 	type Runtime_Sockets_Client_endConnection,
 	type Runtime_Sockets_Client_newConnection,
@@ -731,10 +734,10 @@ export async function workerFunction(this: undefined) {
 			globalThis.onmessage = (event) => onRecievedMessage(event.data);
 		}
 
-		function sendMessage<T = any, K = any>(
+		function sendMessage<Outgoing, Incoming>(
 			intent: string,
-			data: K
-		): Promise<T> {
+			data: Outgoing
+		): Promise<Incoming> {
 			const id = nextMessageID++;
 
 			return new Promise((resolve, reject) => {
@@ -749,7 +752,7 @@ export async function workerFunction(this: undefined) {
 			});
 		}
 
-		function emit<T = any>(event: string, data: T) {
+		function emit<Outgoing>(event: string, data: Outgoing) {
 			postMessage({
 				kind: "event",
 				event,
@@ -757,7 +760,10 @@ export async function workerFunction(this: undefined) {
 			});
 		}
 
-		function handle<T = any>(event: string, handler: RequestHandler<T>) {
+		function handle<Outgoing>(
+			event: string,
+			handler: RequestHandler<Outgoing>
+		) {
 			requestHandlers.set(event, handler);
 		}
 
@@ -957,8 +963,8 @@ export async function workerFunction(this: undefined) {
 			},
 			async getLiveCanvas(width, height) {
 				return await sendMessage<
-					Runtime_Env_Get_LiveCanvas,
-					Worker_Env_Get_LiveCanvas
+					Worker_Env_Get_LiveCanvas,
+					Runtime_Env_Get_LiveCanvas
 				>("env_get_liveCanvas", { width, height });
 			},
 
@@ -973,7 +979,7 @@ export async function workerFunction(this: undefined) {
 
 				program.inputRequest = {};
 
-				const text = await sendMessage<string, WorkerEnv_Input>(
+				const text = await sendMessage<WorkerEnv_Input, string>(
 					"env_input",
 					{
 						message,
@@ -993,9 +999,12 @@ export async function workerFunction(this: undefined) {
 			},
 
 			clearLogs() {
-				emit("env_clear_logs", { pid });
+				env.setLogs();
+			},
+			setLogs(newLogs) {
+				emit("env_set_logs", { pid, logs: newLogs });
 
-				logs.splice(0, Infinity);
+				logs = newLogs ?? [];
 			},
 
 			fs,
@@ -1034,7 +1043,10 @@ export async function workerFunction(this: undefined) {
 					outputProxy?: WorkerOutputProxy;
 				}
 			) {
-				const data: WorkerEnv_Exec = {
+				const { pid: executedPID } = await sendMessage<
+					WorkerEnv_Exec,
+					{ pid: number }
+				>("env_exec", {
 					path,
 					args,
 					handoverDisplayPid: config?.handOverDisplay
@@ -1043,12 +1055,7 @@ export async function workerFunction(this: undefined) {
 					workingDirectory: this.workingDirectory,
 					input: config?.input,
 					outputProxy: config?.outputProxy !== undefined
-				};
-
-				const { pid: executedPID } = await sendMessage<{ pid: number }>(
-					"env_exec",
-					data
-				);
+				});
 
 				if (config?.outputProxy) {
 					program.outputProxyHandlers[executedPID] =
@@ -1105,15 +1112,24 @@ export async function workerFunction(this: undefined) {
 				} as any; // trust, it's trying to complain about the lack of `outputProxy` key.
 			},
 			async processes() {
-				return await sendMessage<Process[]>("env_processes", undefined);
+				return await sendMessage<undefined, Process[]>(
+					"env_processes",
+					undefined
+				);
 			},
 			async self() {
-				return await sendMessage<Process>("env_selfProcess", { pid });
+				return await sendMessage<Worker_Env_ProcessInfo, Process>(
+					"env_selfProcess",
+					{ pid }
+				);
 			},
 			async parent() {
-				return await sendMessage<Process>("env_parent_process", {
-					pid
-				});
+				return await sendMessage<Worker_Env_ProcessInfo, Process>(
+					"env_parent_process",
+					{
+						pid
+					}
+				);
 			},
 
 			network: {
@@ -1126,8 +1142,8 @@ export async function workerFunction(this: undefined) {
 					options?: WorkerEnv_Network_Get["options"]
 				) => {
 					const result = await sendMessage<
-						NetworkDataResponse,
-						WorkerEnv_Network_Get
+						WorkerEnv_Network_Get,
+						NetworkDataResponse
 					>("env_network_get", {
 						type,
 						url,
@@ -1143,14 +1159,14 @@ export async function workerFunction(this: undefined) {
 
 			systemStats: {
 				async uptime() {
-					return await sendMessage<number>(
+					return await sendMessage<undefined, number>(
 						"kernel_uptime",
 						undefined
 					);
 				},
 
 				async kernelVersion() {
-					return await sendMessage<number>(
+					return await sendMessage<undefined, number>(
 						"kernel_version",
 						undefined
 					);
@@ -1159,18 +1175,24 @@ export async function workerFunction(this: undefined) {
 
 			sound: {
 				play: async (config: Sound) => {
-					const { id, duration } = await sendMessage<{
-						id: number;
-						duration: number;
-					}>("env_sound_play", {
+					const { id, duration } = await sendMessage<
+						WorkerEnv_PlaySound,
+						{
+							id: number;
+							duration: number;
+						}
+					>("env_sound_play", {
 						pid,
 						config
 					});
 
 					const onStop = new Promise<number>((resolve) => {
-						handle(`sound_stopped_${id}`, ({ time }) => {
-							resolve(time);
-						});
+						handle<Runtime_Sound_Stopped_ID>(
+							`sound_stopped_${id}`,
+							({ time }) => {
+								resolve(time);
+							}
+						);
 					});
 
 					return {
@@ -1202,8 +1224,8 @@ export async function workerFunction(this: undefined) {
 			sockets: {
 				async connectToSocket(directory: string) {
 					const socketId = await sendMessage<
-						number,
-						Worker_Sockets_Client_newConnection
+						Worker_Sockets_Client_newConnection,
+						number
 					>("Sockets/Client/newConnection", {
 						socketDirectory: directory
 					});
@@ -1252,8 +1274,8 @@ export async function workerFunction(this: undefined) {
 
 				async createSocket(directory: string) {
 					const socketId = await sendMessage<
-						number,
-						Worker_Sockets_Server_newServer
+						Worker_Sockets_Server_newServer,
+						number
 					>("Sockets/Server/newServer", {
 						socketDirectory: directory
 					});
@@ -1695,13 +1717,13 @@ export async function workerFunction(this: undefined) {
 		}
 	);
 
-	handle("proxy_clear", (packet: Runtime_Proxy_ClearLogs) => {
+	handle("proxy_set_logs", (packet: Runtime_Proxy_Set_Logs) => {
 		const program = programByPid(packet.handlerPid);
 
 		const handler = program.outputProxyHandlers[packet.subjectPid];
 		if (!handler) return;
 
-		handler.onClear();
+		handler.onSetLogs(packet.logs);
 	});
 
 	console.log("Initialisation Complete.");

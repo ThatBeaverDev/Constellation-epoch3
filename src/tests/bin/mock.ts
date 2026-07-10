@@ -6,7 +6,10 @@ export function createMockEnv(): Environment {
 		print: vi.fn(),
 		warn: vi.fn(),
 		error: vi.fn(),
+
 		clearLogs: vi.fn(),
+		setLogs: vi.fn(),
+
 		getLiveCanvas: vi.fn(),
 
 		input: vi.fn(),
