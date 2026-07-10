@@ -10,10 +10,13 @@ import {
 	type InputConfig,
 	type Log,
 	type Sound,
-	NetworkDataResponse
+	NetworkDataResponse,
+	WorkerOutputProxy
 } from "../util/types/worker.js";
 import {
 	Worker_Env_Get_LiveCanvas,
+	Worker_Proxy_Input_Response,
+	Worker_Proxy_Trigger_Event,
 	type Worker_Sockets_Client_endConnection,
 	type Worker_Sockets_Client_newConnection,
 	type Worker_Sockets_Client_sendPacket,
@@ -26,14 +29,15 @@ import {
 } from "../types/workerMessages.js";
 import {
 	Runtime_Env_Get_LiveCanvas,
+	Runtime_Proxy_Input,
+	Runtime_Proxy_Log,
 	type Runtime_Events_Trigger,
 	type Runtime_Sockets_Client_endConnection,
 	type Runtime_Sockets_Client_newConnection,
 	type Runtime_Sockets_Client_sendPacket,
 	type Runtime_Sockets_Server_endServer,
 	type Runtime_Sockets_Server_sendPacket,
-	type RuntimeExecuteProgram,
-	type RuntimeProgramInputOnPaste
+	type RuntimeExecuteProgram
 } from "../types/runtimeMessages.js";
 import { type FileStats } from "../util/types/worker";
 import { writeTempFile } from "./tempFile.js";
@@ -798,11 +802,7 @@ export async function workerFunction(this: undefined) {
 	/* Secure some bases */
 
 	// @ts-expect-error
-	globalThis.indexedDB = undefined;
-	// @ts-expect-error
 	globalThis.localStorage = undefined;
-	// @ts-expect-error
-	globalThis.navigator = undefined;
 
 	// @ts-expect-error
 	globalThis.eval = undefined;
@@ -970,9 +970,7 @@ export async function workerFunction(this: undefined) {
 				}
 				handlingInput = true;
 
-				program.inputRequest = {
-					onPaste: config?.onPaste
-				};
+				program.inputRequest = {};
 
 				const text = await sendMessage<string, WorkerEnv_Input>(
 					"env_input",
@@ -984,10 +982,7 @@ export async function workerFunction(this: undefined) {
 							leaveInputOnCompletion:
 								config?.leaveInputOnCompletion ?? true,
 							inline: config?.inline ?? false,
-							initialText: config?.initialText ?? "",
-
-							onPasteFunctionPresent:
-								config?.onPaste !== undefined
+							initialText: config?.initialText ?? ""
 						}
 					}
 				);
@@ -1035,8 +1030,9 @@ export async function workerFunction(this: undefined) {
 				config?: {
 					handOverDisplay?: boolean;
 					input?: Log[];
+					outputProxy?: WorkerOutputProxy;
 				}
-			): Promise<{ onExit: Promise<{ return: Log; logs: Log[] }> }> {
+			) {
 				const data: WorkerEnv_Exec = {
 					path,
 					args,
@@ -1044,7 +1040,8 @@ export async function workerFunction(this: undefined) {
 						? pid
 						: undefined,
 					workingDirectory: this.workingDirectory,
-					input: config?.input
+					input: config?.input,
+					outputProxy: config?.outputProxy !== undefined
 				};
 
 				const { pid: executedPID } = await sendMessage<{ pid: number }>(
@@ -1052,9 +1049,14 @@ export async function workerFunction(this: undefined) {
 					data
 				);
 
+				if (config?.outputProxy) {
+					program.outputProxyHandlers[executedPID] =
+						config.outputProxy;
+				}
+
 				const obj: Partial<
 					(typeof activePrograms)[keyof typeof activePrograms]
-				> = {};
+				> = {}; // store for waiting for a program to exit (for awaiting the `onExit` key)
 
 				obj.promise = new Promise<{ return: Log; logs: Log[] }>(
 					(resolve) => {
@@ -1065,11 +1067,41 @@ export async function workerFunction(this: undefined) {
 				// @ts-expect-error
 				activePrograms[executedPID] = obj;
 
-				const result = {
-					onExit: obj.promise
-				};
+				if (config?.outputProxy) {
+					return {
+						onExit: obj.promise,
 
-				return result;
+						triggerProxyEvent: (eventName, data) => {
+							switch (eventName) {
+								case "keydown":
+								case "keyup": {
+									// allowed
+
+									emit<
+										Worker_Proxy_Trigger_Event<
+											typeof eventName
+										>
+									>("proxy_trigger_event", {
+										handlerPid: program.pid,
+										subjectPid: executedPID,
+
+										eventName,
+										data: data
+									});
+
+									break;
+								}
+
+								default:
+								// not allowed to trigger
+							}
+						}
+					};
+				}
+
+				return {
+					onExit: obj.promise
+				} as any; // trust, it's trying to complain about the lack of `outputProxy` key.
 			},
 			async processes() {
 				return await sendMessage<Process[]>("env_processes", undefined);
@@ -1374,6 +1406,8 @@ export async function workerFunction(this: undefined) {
 
 				liveCanvasIds: [],
 
+				outputProxyHandlers: {},
+
 				onExit: []
 			};
 			store.env = newEnv(store, workingDirectory);
@@ -1528,15 +1562,6 @@ export async function workerFunction(this: undefined) {
 		}
 	);
 
-	// input stuff
-	handle("program_input_onpaste", (msg: RuntimeProgramInputOnPaste) => {
-		const program = programByPid(msg.pid);
-
-		if (program.inputRequest?.onPaste) {
-			program.inputRequest.onPaste(msg.data);
-		}
-	});
-
 	// sockets
 
 	function socketServerBySocketId(
@@ -1638,6 +1663,34 @@ export async function workerFunction(this: undefined) {
 
 		program.env.triggerEvent(packet.name, packet.data);
 	});
+
+	// output proxies
+	handle("proxy_log", (packet: Runtime_Proxy_Log) => {
+		const program = programByPid(packet.handlerPid);
+
+		const handler = program.outputProxyHandlers[packet.subjectPid];
+		if (!handler) return;
+
+		handler.onLog(packet.log.type, packet.log.data);
+	});
+	handle(
+		"proxy_input",
+		async (
+			packet: Runtime_Proxy_Input
+		): Promise<Worker_Proxy_Input_Response> => {
+			const program = programByPid(packet.handlerPid);
+
+			const handler = program.outputProxyHandlers[packet.subjectPid];
+			if (!handler) return { finished: false };
+
+			console.debug(program, handler);
+
+			return {
+				finished: true,
+				response: await handler.onInput(packet.message, packet.config)
+			};
+		}
+	);
 
 	console.log("Initialisation Complete.");
 }

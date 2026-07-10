@@ -1,7 +1,9 @@
 // Types for messages sent by workers.
 
 import {
-	InputConfig_BoolOnPaste,
+	EventMap,
+	EventName,
+	InputConfig,
 	Log,
 	NetworkRequestType,
 	Sound
@@ -13,13 +15,14 @@ export interface WorkerEnv_Exec {
 	input?: Log[];
 
 	handoverDisplayPid?: number;
+	outputProxy: boolean;
 
 	workingDirectory: string;
 }
 
 export interface WorkerEnv_Input {
 	message: string;
-	config: InputConfig_BoolOnPaste;
+	config: InputConfig;
 }
 
 export interface WorkerEnv_Network_Get {
@@ -86,4 +89,27 @@ export interface Worker_Sockets_Server_sendPacket {
 export interface Worker_Env_Get_LiveCanvas {
 	width: number;
 	height: number;
+}
+
+export type Worker_Proxy_Input_Response =
+	| {
+			response: string;
+			finished: true;
+	  }
+	| {
+			finished: false;
+	  };
+
+export interface Worker_Proxy_Trigger_Event<K extends EventName> {
+	/**
+	 * In this case, the dispatcher
+	 */
+	handlerPid: number;
+	/**
+	 * In this case, the program that the proxy is attached to
+	 */
+	subjectPid: number;
+
+	eventName: K;
+	data: EventMap[K];
 }
