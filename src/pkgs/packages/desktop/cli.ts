@@ -69,10 +69,16 @@ export default async function* TerminalApp(env: Environment) {
 
 		clearLogs() {
 			logs.splice(0, logs.length);
+		},
+
+		setLogs(logs) {
+			io.clearLogs();
+
+			for (const log of logs) io.print(log);
 		}
 	};
 
-	const { runCommand } = await shellImpl(env, io, false);
+	const { runCommand } = await shellImpl(env, io);
 
 	while (true) {
 		await runCommand();

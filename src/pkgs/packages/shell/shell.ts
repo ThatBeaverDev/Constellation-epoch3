@@ -1,4 +1,9 @@
-import { Environment, Log } from "../../../util/types/worker";
+import {
+	Environment,
+	EventMap,
+	EventName,
+	Log
+} from "../../../util/types/worker";
 import { logsToString, logToString } from "../../../util/lib/logs";
 
 export interface ShellCommand {
@@ -153,12 +158,9 @@ export interface Shell_IO {
 	input: Environment["input"];
 	print: Environment["print"];
 	clearLogs: Environment["clearLogs"];
+	setLogs: (logs: Log[]) => void;
 }
-export async function shellImpl(
-	env: Environment,
-	io: Shell_IO,
-	displayHandover: boolean = false
-) {
+export async function shellImpl(env: Environment, io: Shell_IO) {
 	const configDirectory = "/config/shell";
 	const welcomeMessage = env.path.resolve(configDirectory, "./welcome.txt");
 
@@ -171,12 +173,41 @@ export async function shellImpl(
 		);
 	}
 
+	const executionIdOrder: number[] = [];
+	let nextExecutionID: number = 0;
+
+	const logsMap: Record<number, Log[]> = {};
+
+	function redisplayLogs() {
+		const logs: Log[] = [];
+
+		for (const id of executionIdOrder) {
+			logs.push(...logsMap[id]);
+		}
+
+		io.setLogs(logs);
+	}
+
+	function newLogSection() {
+		const execID = nextExecutionID++;
+		executionIdOrder.push(execID);
+
+		const logs: Log[] = [];
+		logsMap[execID] = logs;
+
+		return logs;
+	}
+
 	const welcome = await env.fs.readFile(welcomeMessage);
-	if (welcome) io.print(welcome);
+	if (welcome) newLogSection().push(welcome);
+
+	redisplayLogs();
 
 	const executedCommandRequiresExitReturn = Symbol();
 	async function executeCommand(command: ShellCommand, input?: Log[]) {
 		const result: Log[] = [];
+
+		const logs = newLogSection();
 
 		switch (command.name) {
 			case "":
@@ -205,7 +236,14 @@ export async function shellImpl(
 				break;
 
 			case "clear":
-				io.clearLogs();
+				for (const id of executionIdOrder) {
+					delete logsMap[id];
+				}
+				nextExecutionID = 0;
+				executionIdOrder.splice(0, Infinity);
+
+				redisplayLogs();
+
 				break;
 
 			case "exit":
@@ -245,14 +283,63 @@ export async function shellImpl(
 				const programExec = await env.execute(
 					logToString(programDirectory),
 					command.args,
-					{ handOverDisplay: displayHandover, input }
+					{
+						input,
+						outputProxy: {
+							onLog(_, log) {
+								logs.push(log);
+
+								io.print(log);
+							},
+							async onInput(message, config) {
+								const result = await io.input(message, config);
+
+								if (config?.leaveInputOnCompletion ?? true) {
+									logs.push(`${message}${result}`);
+								}
+
+								return result;
+							},
+
+							onSetLogs(newLogs) {
+								logs.splice(0, Infinity, ...newLogs);
+
+								redisplayLogs();
+							}
+						}
+					}
 				);
-				const { return: programResult, logs: programLogs } =
-					await programExec.onExit;
+
+				const eventHandlers: Partial<
+					Record<EventName, (data: EventMap[EventName]) => void>
+				> = {};
+
+				function passEvent(eventName: EventName) {
+					const fn = (data: EventMap[EventName]) =>
+						programExec.triggerProxyEvent(eventName, data);
+
+					env.addEventListener(eventName, fn);
+					eventHandlers[eventName] = fn;
+				}
+
+				passEvent("keydown");
+				passEvent("keyup");
+
+				// logs were already added live
+				const { return: programResult } = await programExec.onExit;
+
+				for (const name in eventHandlers) {
+					// @ts-expect-error
+					const eventName: EventName = name;
+
+					const fn = eventHandlers[eventName];
+					if (!fn) continue;
+
+					env.removeEventListener(eventName, fn);
+				}
 
 				const returnLogs = programResult;
 
-				for (const log of programLogs) result.push(log);
 				if (returnLogs) result.push(returnLogs);
 		}
 
@@ -276,8 +363,12 @@ export async function shellImpl(
 	}
 
 	async function runCommand() {
-		const input = await io.input(`${env.workingDirectory} $ `);
-		const commands = parseShellCommand(input);
+		const query = `${env.workingDirectory} $ `;
+		const response = await io.input(query);
+
+		newLogSection().push(`${query}${response}`);
+
+		const commands = parseShellCommand(response);
 
 		for (const command of commands) {
 			const logs = await executeCommand(command);
@@ -295,15 +386,12 @@ export async function shellImpl(
 }
 
 export default async function* Shell(env: Environment) {
-	const { runCommand } = await shellImpl(
-		env,
-		{
-			input: env.input,
-			print: env.print,
-			clearLogs: env.clearLogs
-		},
-		true
-	);
+	const { runCommand } = await shellImpl(env, {
+		input: env.input,
+		print: env.print,
+		clearLogs: env.clearLogs,
+		setLogs: env.setLogs
+	});
 
 	while (true) {
 		const exit = await runCommand();
