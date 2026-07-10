@@ -13,15 +13,24 @@
 		"typescript": "^7.0.2"
 	},
 	"devDependencies": {
+		"@babel/core": "^8.0.1",
+		"@babel/preset-env": "^8.0.2",
+		"@rollup/plugin-babel": "^7.1.0",
 		"@rollup/plugin-commonjs": "^29.0.3",
 		"@rollup/plugin-node-resolve": "^16.0.3",
 		"@types/node": "^26.1.1",
 		"@types/webworker": "^0.0.78",
 		"@typescript/lib-webworker": "npm:@types/webworker@^0.0.72",
+		"core-js": "^3.49.0",
 		"fake-indexeddb": "^6.2.5",
 		"jsdom": "^29.1.1",
 		"rollup-plugin-import-css": "^4.2.1",
 		"rollup-plugin-string": "^3.0.0",
 		"vitest": "^4.1.10"
+	},
+	"overrides": {
+		"@rollup/plugin-babel": {
+			"@babel/core": "^8.0.0"
+		}
 	}
 }

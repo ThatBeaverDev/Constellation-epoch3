@@ -40,7 +40,7 @@ import {
 import { UiManager } from "./ui/ui";
 import SocketManager from "./lib/sockets";
 import { nodeJs } from "./lib/config";
-import { blobToDataURL } from "./util/lib/dataUri";
+import { blobToDataURL } from "./util/lib/uri";
 import { logToString } from "./util/lib/logs";
 import { triggerProgramEvent } from "./lib/triggerProgramEvent";
 

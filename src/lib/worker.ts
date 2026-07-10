@@ -43,7 +43,7 @@ import {
 import { type FileStats } from "../util/types/worker";
 import { writeTempFile } from "./tempFile.js";
 import { nodeJs } from "./config.js";
-import { blobToDataURL } from "../util/lib/dataUri.js";
+import { blobToUrl } from "../util/lib/uri.js";
 
 /// <reference path="@typescript/lib-webworker@npm:@types/webworker" />
 
@@ -1360,21 +1360,15 @@ export async function workerFunction(this: undefined) {
 			workingDirectory,
 			input
 		}: RuntimeExecuteProgram) => {
-			// from src/util/lib/dataUri.ts
-			async function blobToDataURL(blob: Blob) {
-				const buffer = await blob.arrayBuffer();
-				const bytes = new Uint8Array(buffer);
+			// from src/util/lib/uri.ts
+			async function blobToUrl(blob: Blob) {
+				const url = URL.createObjectURL(blob);
 
-				const chunkSize = 0x8000;
-				let binary = "";
+				setTimeout(() => {
+					URL.revokeObjectURL(url);
+				}, 5000);
 
-				for (let i = 0; i < bytes.length; i += chunkSize) {
-					const chunk = bytes.subarray(i, i + chunkSize);
-					// @ts-expect-error
-					binary += String.fromCharCode.apply(null, chunk);
-				}
-
-				return `data:${blob.type};base64,${btoa(binary)}`;
+				return url;
 			}
 
 			if (!directory) throw new Error("Directory is required!");
@@ -1387,7 +1381,7 @@ export async function workerFunction(this: undefined) {
 				);
 
 			const blob = new Blob([contents], { type: "text/javascript" });
-			const url = await blobToDataURL(blob);
+			const url = await blobToUrl(blob);
 
 			const exports = await import(url);
 			const program = exports.default as ConstellationProgram;
@@ -1717,9 +1711,7 @@ export async function newWorker(fn: Function, name?: string, ...params: any[]) {
 
 	const reference = nodeJs
 		? await writeTempFile(code)
-		: await blobToDataURL(
-				new Blob([code], { type: "application/javascript" })
-			);
+		: blobToUrl(new Blob([code], { type: "application/javascript" }));
 
 	return new Worker(reference, { name, type: "module" });
 }

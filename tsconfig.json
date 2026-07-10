@@ -5,7 +5,7 @@
 
 		"strict": true,
 
-		"target": "esnext",
+		"target": "es2022",
 		"lib": ["esnext", "DOM", "DOM.Iterable", "DOM.AsyncIterable"],
 
 		"module": "esnext",

@@ -1,6 +1,6 @@
 import { clamp } from "../util/lib/maths";
 import { Environment } from "../util/types/worker";
-import { blobToDataURL, dataURItoBlob } from "../util/lib/dataUri";
+import { blobToDataURL, dataURItoBlob } from "../util/lib/uri";
 import { sleep } from "../util/lib/time";
 
 function line(
