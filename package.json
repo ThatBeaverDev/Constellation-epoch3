@@ -16,7 +16,7 @@
 		"@rollup/plugin-commonjs": "^29.0.3",
 		"@rollup/plugin-node-resolve": "^16.0.3",
 		"@types/node": "^26.1.1",
-		"@types/webworker": "^0.0.76",
+		"@types/webworker": "^0.0.78",
 		"@typescript/lib-webworker": "npm:@types/webworker@^0.0.72",
 		"fake-indexeddb": "^6.2.5",
 		"jsdom": "^29.1.1",
