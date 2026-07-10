@@ -10,6 +10,7 @@ import {
 import { implementWorkerFS, mainThreadMessageHandler } from "./lib/workerUtils";
 import {
 	Worker_Env_Get_LiveCanvas,
+	Worker_Env_Set_Logs,
 	Worker_Proxy_Input_Response,
 	Worker_Proxy_Trigger_Event,
 	Worker_Sockets_Client_endConnection,
@@ -25,11 +26,12 @@ import {
 	WorkerEnv_SoundRemove
 } from "./types/workerMessages";
 import {
-	Runtime_Proxy_ClearLogs,
 	Runtime_Proxy_Input,
 	Runtime_Proxy_Log,
 	Runtime_Sockets_Server_sendPacket,
-	RuntimeExecuteProgram
+	RuntimeExecuteProgram,
+	Runtime_Sound_Stopped_ID,
+	Runtime_Proxy_Set_Logs
 } from "./types/runtimeMessages";
 import {
 	consoleError,
@@ -71,7 +73,7 @@ export interface ProgramStore {
 
 	onLog(type: "log" | "warning" | "error", data: Log): void;
 	onInput(message: string, config: InputConfig): Promise<string>;
-	onClear(): void;
+	onSetLogs(logs?: Log[]): void;
 
 	liveCanvasIds: number[];
 }
@@ -482,10 +484,10 @@ export default class Runtime {
 			}
 		);
 
-		handle("env_clear_logs", () => {
+		handle("env_set_logs", ({ logs }: Worker_Env_Set_Logs) => {
 			const program = getProgram();
 
-			return program.onClear();
+			return program.onSetLogs(logs);
 		});
 
 		handle("kernel_uptime", () => Date.now() - this.#kernel.start);
@@ -530,9 +532,12 @@ export default class Runtime {
 			this.#sounds.set(id, { info: sound, program });
 
 			sound.onStop.then((time) => {
-				workerStore.emit(`sound_stopped_${id}`, {
-					time
-				});
+				workerStore.emit<Runtime_Sound_Stopped_ID>(
+					`sound_stopped_${id}`,
+					{
+						time
+					}
+				);
 
 				this.#sounds.delete(id);
 			});
@@ -830,8 +835,6 @@ export default class Runtime {
 			? this.programByPid(config?.outputProxy)
 			: undefined;
 
-		const kernel = this.#kernel;
-
 		const program: ProgramStore = {
 			worker: worker,
 
@@ -910,18 +913,28 @@ export default class Runtime {
 				}
 			},
 
-			onClear() {
-				program.logs = [];
+			onSetLogs: (logs) => {
+				if (!logs) logs = [];
+				program.logs = logs.map((item) => {
+					return { type: "log", data: item };
+				});
 
 				if (proxyOwner) {
-					proxyOwner.worker.emit<Runtime_Proxy_ClearLogs>(
-						"proxy_clear",
-						{ handlerPid: proxyOwner.pid, subjectPid: program.pid }
+					proxyOwner.worker.emit<Runtime_Proxy_Set_Logs>(
+						"proxy_set_logs",
+						{
+							handlerPid: proxyOwner.pid,
+							subjectPid: program.pid,
+							logs
+						}
 					);
 				}
 
-				if (kernel.ui.controller == program) {
-					kernel.ui.clear();
+				if (this.#kernel.ui.controller == program) {
+					this.#kernel.ui.clear();
+					for (const log of logs) {
+						this.#workerLog(workerName, log);
+					}
 				}
 			},
 

@@ -76,7 +76,13 @@ export interface Runtime_Proxy_Input {
 	config?: InputConfig;
 }
 
-export interface Runtime_Proxy_ClearLogs {
+export interface Runtime_Proxy_Set_Logs {
 	handlerPid: number;
 	subjectPid: number;
+
+	logs: Log[];
+}
+
+export interface Runtime_Sound_Stopped_ID {
+	time: number;
 }

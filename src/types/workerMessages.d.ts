@@ -39,6 +39,7 @@ export interface WorkerEnv_Network_Get {
 // sound types
 
 export interface WorkerEnv_PlaySound {
+	pid: number;
 	config: Sound;
 }
 
@@ -112,4 +113,14 @@ export interface Worker_Proxy_Trigger_Event<K extends EventName> {
 
 	eventName: K;
 	data: EventMap[K];
+}
+
+export interface Worker_Env_Set_Logs {
+	pid: number;
+
+	logs: Log[];
+}
+
+export interface Worker_Env_ProcessInfo {
+	pid: number;
 }
