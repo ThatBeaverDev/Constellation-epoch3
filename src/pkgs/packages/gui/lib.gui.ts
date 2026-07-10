@@ -1,8 +1,8 @@
 import { Environment, SocketConnection } from "../../../util/types/worker";
 import { GUI_SOCKET_PATH } from "./constants";
-import { GuiIngoing } from "./gui.ingoing";
-import { GuiOutgoing } from "./gui.outgoing";
-import { WindowContentItem } from "./windowContents";
+import { GuiIngoing } from "./types/gui.ingoing";
+import { GuiOutgoing } from "./types/gui.outgoing";
+import { WindowContentItem } from "./types/windowContents";
 
 export default class GraphicalUIManager {
 	#socketConnection?: SocketConnection<GuiIngoing, GuiOutgoing>;

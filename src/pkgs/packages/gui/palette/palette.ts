@@ -1,6 +1,6 @@
 import { Environment } from "../../../../util/types/worker";
 import GraphicalUIManager from "../lib.gui";
-import { WindowContentItem } from "../windowContents";
+import { WindowContentItem } from "../types/windowContents";
 import WindowManager, { PaletteIndex } from "../windows";
 
 export const paletteWidth = 500;
