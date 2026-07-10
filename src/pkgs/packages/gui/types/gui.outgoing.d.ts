@@ -20,7 +20,24 @@ export interface GuiTextboxCompleteOutgoing {
 	contents: string;
 }
 
+export interface GuiTextboxValueChangeOutgoing {
+	intent: "textboxValueChange";
+	windowID: number;
+
+	reference: string;
+	contents: string;
+}
+
+export interface GuiButtonPressOutgoing {
+	intent: "onButtonPress";
+	windowID: number;
+
+	reference: string;
+}
+
 export type GuiOutgoing =
 	| GuiKeypressOutgoing
 	| GuiWindowCloseOutgoing
-	| GuiTextboxCompleteOutgoing;
+	| GuiTextboxCompleteOutgoing
+	| GuiTextboxValueChangeOutgoing
+	| GuiButtonPressOutgoing;

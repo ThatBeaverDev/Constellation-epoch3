@@ -5,6 +5,7 @@
 		"test": "tsc && vitest run src"
 	},
 	"dependencies": {
+		"fuse.js": "^7.4.2",
 		"glob": "^13.0.6",
 		"path-browserify": "^1.0.1",
 		"prettier": "^3.9.5",
