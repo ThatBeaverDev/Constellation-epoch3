@@ -29,6 +29,7 @@ import {
 } from "../types/workerMessages.js";
 import {
 	Runtime_Env_Get_LiveCanvas,
+	Runtime_Proxy_ClearLogs,
 	Runtime_Proxy_Input,
 	Runtime_Proxy_Log,
 	type Runtime_Events_Trigger,
@@ -1380,7 +1381,10 @@ export async function workerFunction(this: undefined) {
 			if (!pid) throw new Error("PID is required!");
 
 			const contents = await fs.readFile(directory);
-			if (!contents) throw new Error("File does not exist!");
+			if (!contents)
+				throw new Error(
+					`File '${directory}' to execute does not exist!`
+				);
 
 			const blob = new Blob([contents], { type: "text/javascript" });
 			const url = await blobToDataURL(blob);
@@ -1673,6 +1677,7 @@ export async function workerFunction(this: undefined) {
 
 		handler.onLog(packet.log.type, packet.log.data);
 	});
+
 	handle(
 		"proxy_input",
 		async (
@@ -1683,14 +1688,21 @@ export async function workerFunction(this: undefined) {
 			const handler = program.outputProxyHandlers[packet.subjectPid];
 			if (!handler) return { finished: false };
 
-			console.debug(program, handler);
-
 			return {
 				finished: true,
 				response: await handler.onInput(packet.message, packet.config)
 			};
 		}
 	);
+
+	handle("proxy_clear", (packet: Runtime_Proxy_ClearLogs) => {
+		const program = programByPid(packet.handlerPid);
+
+		const handler = program.outputProxyHandlers[packet.subjectPid];
+		if (!handler) return;
+
+		handler.onClear();
+	});
 
 	console.log("Initialisation Complete.");
 }
