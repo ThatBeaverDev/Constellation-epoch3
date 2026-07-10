@@ -1,8 +1,8 @@
 import { Environment, SocketServer } from "../../../util/types/worker";
 import { GUI_SOCKET_PATH } from "./constants";
-import { GuiIngoing } from "./gui.ingoing";
-import { GuiKeypressOutgoing, GuiOutgoing } from "./gui.outgoing";
-import { WindowContentItem } from "./windowContents";
+import { GuiIngoing } from "./types/gui.ingoing";
+import { GuiKeypressOutgoing, GuiOutgoing } from "./types/gui.outgoing";
+import { WindowContentItem } from "./types/windowContents";
 import WindowManager, { Window } from "./windows";
 
 export interface Client {

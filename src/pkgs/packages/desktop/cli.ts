@@ -1,7 +1,7 @@
 import { logToArrayLog } from "../../../util/lib/logs";
 import { ArrayLog, Environment, InputConfig } from "../../../util/types/worker";
 import GraphicalUIManager from "../gui/lib.gui";
-import { WindowText, WindowTextBox } from "../gui/windowContents";
+import { WindowText, WindowTextBox } from "../gui/types/windowContents";
 import { Shell_IO, shellImpl } from "../shell/shell";
 
 export default async function* TerminalApp(env: Environment) {

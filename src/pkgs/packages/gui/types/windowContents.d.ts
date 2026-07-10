@@ -1,4 +1,4 @@
-import { ArrayLog } from "../../../util/types/worker";
+import { ArrayLog } from "../../../../util/types/worker";
 
 export interface WindowBaseItem {
 	x: number;

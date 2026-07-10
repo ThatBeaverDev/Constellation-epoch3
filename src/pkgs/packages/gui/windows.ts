@@ -4,7 +4,7 @@ import { HEIGHT, WIDTH } from "./gui";
 import PaletteHandler, { paletteHeight, paletteWidth } from "./palette/palette";
 import SocketManager, { Client } from "./socket";
 import { measureText, rect, text } from "./util/rendering";
-import { WindowContentItem } from "./windowContents";
+import { WindowContentItem } from "./types/windowContents";
 
 export interface WindowInfo {
 	window: Window;
