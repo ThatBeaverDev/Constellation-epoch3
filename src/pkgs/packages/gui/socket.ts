@@ -59,6 +59,33 @@ export default class SocketManager {
 		}
 	}
 
+	onTextboxValueChange(window: Window, reference: string, contents: string) {
+		const client = window.associatedClient;
+		const pid = client?.pid;
+
+		if (pid) {
+			this.socketServer.sendMessage(pid, {
+				intent: "textboxValueChange",
+				windowID: client ? client.windows.indexOf(window) : 0,
+				reference,
+				contents
+			});
+		}
+	}
+
+	onButtonPress(window: Window, reference: string) {
+		const client = window.associatedClient;
+		const pid = client?.pid;
+
+		if (pid) {
+			this.socketServer.sendMessage(pid, {
+				intent: "onButtonPress",
+				windowID: client ? client.windows.indexOf(window) : 0,
+				reference
+			});
+		}
+	}
+
 	async init() {
 		await this.env.fs.mkdir("/data/gui");
 

@@ -14,6 +14,11 @@ export default class GraphicalUIManager {
 		>
 	> = {};
 
+	onTextboxCompletion?: (contents: string, reference: string) => any;
+	onTextboxValueChange?: (contents: string, reference: string) => any;
+	onButtonPress?: (reference: string) => any;
+	onKeyPress?: (event: { name: string; alt: boolean; shift: boolean }) => any;
+
 	constructor(public env: Environment) {}
 
 	async guiAvailable() {
@@ -35,7 +40,7 @@ export default class GraphicalUIManager {
 		this.#socketConnection.onMessage = (msg) => {
 			switch (msg.intent) {
 				case "keypress":
-					// TODO: Handle Keypresses
+					this.onKeyPress?.(msg.data);
 					break;
 
 				case "windowClose":
@@ -47,6 +52,16 @@ export default class GraphicalUIManager {
 					if (store) {
 						store.resolve(msg.contents);
 					}
+
+					this.onTextboxCompletion?.(msg.contents, msg.reference);
+					break;
+
+				case "textboxValueChange":
+					this.onTextboxValueChange?.(msg.contents, msg.reference);
+					break;
+
+				case "onButtonPress":
+					this.onButtonPress?.(msg.reference);
 					break;
 			}
 		};

@@ -39,7 +39,7 @@ export default class WindowManager {
 	}
 
 	windowFocused(id: number) {
-		if (this.paletteVisible && id !== this.palette?.window?.id) {
+		if (this.palette !== undefined && id !== this.palette?.window?.id) {
 			return false;
 		}
 
@@ -49,6 +49,8 @@ export default class WindowManager {
 	}
 
 	get #currentWindow(): WindowInfo | undefined {
+		if (this.#showPalette) return this.#palette;
+
 		return this.windows[this.windowID];
 	}
 
@@ -60,16 +62,17 @@ export default class WindowManager {
 				switch (e.name.trim()) {
 					case "Escape":
 						this.hidePalette();
-						break;
+						return;
 
 					case "":
 						if (e.alt) {
 							this.hidePalette();
+							return;
 						}
 						break;
 				}
 
-				return;
+				// let it flow on
 			}
 
 			if (e.alt) {
@@ -124,6 +127,8 @@ export default class WindowManager {
 			if (window) {
 				const keyName = e.name.trim().toLowerCase();
 
+				this.socketManager?.onKeyPress(window, e);
+
 				switch (keyName) {
 					case "arrowup":
 						if (window.scrollItem - 1 >= 0) {
@@ -150,7 +155,10 @@ export default class WindowManager {
 					case "button": {
 						if (keyName == "") {
 							// space key
-							// TODO: Trigger it
+							this.socketManager?.onButtonPress?.(
+								window,
+								item.identifier
+							);
 							return;
 						}
 						break;
@@ -162,6 +170,15 @@ export default class WindowManager {
 						}
 
 						const store: string = window.typing[item.identifier]!;
+
+						const registerChange = () => {
+							this.socketManager?.onTextboxValueChange(
+								window,
+								item.identifier,
+								// @ts-expect-error
+								window.typing[item.identifier]
+							);
+						};
 
 						switch (keyName) {
 							case "control":
@@ -182,10 +199,12 @@ export default class WindowManager {
 									0,
 									store.length - 1
 								);
+								registerChange();
 								break;
 
 							case "":
 								window.typing[item.identifier] += " ";
+								registerChange();
 								break;
 
 							case "enter":
@@ -194,6 +213,7 @@ export default class WindowManager {
 
 							default:
 								window.typing[item.identifier] += e.name;
+								registerChange();
 						}
 					}
 				}
@@ -213,7 +233,11 @@ export default class WindowManager {
 	}
 
 	showPalette() {
-		this.refreshPaletteIndex(["/bin/gui"]);
+		this.refreshPaletteIndex(["/bin/gui"]).then(() =>
+			this.refreshPalette()
+		);
+
+		this.refreshPalette();
 
 		this.#showPalette = true;
 	}
@@ -472,7 +496,7 @@ export abstract class Window {
 						);
 					}
 
-					const displayText = `${item.message} ${this.typing[item.identifier] ?? ""}`;
+					const displayText = `${item.message ? `${item.message} ` : ""}${this.typing[item.identifier] || (item.backText ?? "")}`;
 
 					if (isFocused && itemFocused) {
 						const measurements = measureText(

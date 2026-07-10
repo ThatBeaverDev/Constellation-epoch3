@@ -36,6 +36,7 @@ export interface WindowButton extends WindowBaseItem {
 export interface WindowTextBox extends WindowBaseItem {
 	type: "textBox";
 	message: string;
+	backText?: string;
 
 	font?: string;
 	fontSize?: number;

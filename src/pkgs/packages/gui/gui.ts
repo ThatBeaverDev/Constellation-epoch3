@@ -47,14 +47,11 @@ export default async function* GraphicalEnvironment(env: Environment) {
 
 		for (const info of windowManager.windows) {
 			if (info == undefined) continue;
-			if (windowManager.palette?.window?.id == info.window.id) continue; // rendered explicitly later
 
 			drawWindow(info);
 		}
 
 		if (windowManager.palette !== undefined) {
-			windowManager.refreshPalette();
-
 			drawWindow(windowManager.palette, true);
 		}
 
