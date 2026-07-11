@@ -1,10 +1,10 @@
 import { logToString } from "../../../util/lib/logs";
 import { Environment, Process } from "../../../util/types/worker";
-import { HEIGHT, WIDTH } from "./gui";
 import PaletteHandler, { paletteHeight, paletteWidth } from "./palette/palette";
 import SocketManager, { Client } from "./socket";
-import { measureText, rect, text } from "./util/rendering";
+import { drawLog, measureText, rect, text } from "./util/rendering";
 import { WindowContentItem } from "./types/windowContents";
+import { GuiState } from "./gui";
 
 export interface WindowInfo {
 	window: Window;
@@ -54,7 +54,10 @@ export default class WindowManager {
 		return this.windows[this.windowID];
 	}
 
-	constructor(public env: Environment) {
+	constructor(
+		public env: Environment,
+		public state: GuiState
+	) {
 		this.#paletteHandler = new PaletteHandler(env, this);
 
 		env.addEventListener("keydown", (e) => {
@@ -75,11 +78,13 @@ export default class WindowManager {
 				// let it flow on
 			}
 
+			const keyName = e.name.trim().toLowerCase();
+
 			if (e.alt) {
 				const total = this.windows.length;
 				const gridSides = Math.ceil(Math.sqrt(total));
 
-				switch (e.name.trim().toLowerCase()) {
+				switch (keyName) {
 					case "arrowup":
 						if (this.windowID - gridSides >= 0) {
 							// allow it
@@ -118,15 +123,13 @@ export default class WindowManager {
 						break;
 				}
 
-				return;
+				if (keyName !== "return") return;
 			}
 
 			const cur = this.#currentWindow;
 			const window = cur?.window;
 
 			if (window) {
-				const keyName = e.name.trim().toLowerCase();
-
 				this.socketManager?.onKeyPress(window, e);
 
 				switch (keyName) {
@@ -153,7 +156,7 @@ export default class WindowManager {
 
 				switch (item.type) {
 					case "button": {
-						if (keyName == "") {
+						if (keyName == "" || keyName == "enter") {
 							// space key
 							this.socketManager?.onButtonPress?.(
 								window,
@@ -254,8 +257,8 @@ export default class WindowManager {
 		const total = this.windows.length;
 		const gridSides = Math.ceil(Math.sqrt(total));
 
-		const columnWidth = WIDTH / gridSides;
-		const rowHeight = HEIGHT / gridSides;
+		const columnWidth = this.state.width / gridSides;
+		const rowHeight = this.state.height / gridSides;
 
 		let windowID = 0;
 
@@ -270,6 +273,20 @@ export default class WindowManager {
 				info.width = columnWidth;
 				info.height = rowHeight;
 			}
+		}
+
+		if (this.#palette) {
+			// for palette
+			const midWidth = this.state.width / 2;
+			const midHeight = this.state.height / 2;
+
+			const paletteHalfWidth = paletteWidth / 2;
+			const paletteHalfHeight = paletteHeight / 2;
+
+			this.#palette.x = midWidth - paletteHalfWidth;
+			this.#palette.y = midHeight - paletteHalfHeight;
+			this.#palette.width = paletteWidth;
+			this.#palette.height = paletteHeight;
 		}
 	}
 
@@ -297,8 +314,8 @@ export default class WindowManager {
 		}
 
 		// for palette
-		const midWidth = WIDTH / 2;
-		const midHeight = HEIGHT / 2;
+		const midWidth = this.state.width / 2;
+		const midHeight = this.state.height / 2;
 
 		const paletteHalfWidth = paletteWidth / 2;
 		const paletteHalfHeight = paletteHeight / 2;
@@ -339,7 +356,7 @@ export default class WindowManager {
 				if (stats.type == "file") {
 					index.push({
 						directory: fullPath,
-						name: child.textBeforeLast(".js")
+						name: child.substring(0, child.length - 3)
 					});
 				}
 			}
@@ -430,59 +447,14 @@ export abstract class Window {
 						);
 					}
 
-					if (typeof item.text == "string") {
-						text(
-							ctx,
-							x + item.x,
-							y + headerHeight + item.y,
-							item.text,
-							"white",
-							item.font,
-							item.fontSize
-						);
-					} else {
-						let xPos = x + item.x;
-						let yPos = y + headerHeight + item.y;
-
-						for (const segment of item.text) {
-							switch (segment.type) {
-								case undefined:
-								case "string": {
-									text(
-										ctx,
-										xPos,
-										yPos,
-										segment.text,
-										segment.colour,
-										item.font,
-										item.fontSize
-									);
-
-									const measurements = measureText(
-										ctx,
-										segment.text,
-										item.font,
-										item.fontSize
-									);
-
-									xPos += measurements.width;
-
-									break;
-								}
-
-								case "image": {
-									const txt = `[Image]`;
-									text(ctx, xPos, yPos, txt, "white");
-
-									const measurements = measureText(ctx, txt);
-
-									xPos += measurements.width;
-
-									break;
-								}
-							}
-						}
-					}
+					drawLog(
+						ctx,
+						item.text,
+						x + item.x,
+						y + headerHeight + item.y,
+						item.font,
+						item.fontSize
+					);
 
 					break;
 				}
@@ -522,6 +494,37 @@ export abstract class Window {
 						x + item.x,
 						y + headerHeight + item.y,
 						displayText
+					);
+
+					break;
+				}
+
+				case "button": {
+					const string = logToString(item.text);
+
+					const measurements = measureText(
+						ctx,
+						string,
+						item.font,
+						item.fontSize
+					);
+
+					rect(
+						ctx,
+						x + item.x - 3,
+						y + headerHeight + item.y - 3,
+						measurements.width + 6,
+						measurements.height + 6,
+						itemFocused ? "rgb(100 100 100)" : "rgb(75 75 75)"
+					);
+
+					drawLog(
+						ctx,
+						item.text,
+						x + item.x,
+						y + headerHeight + item.y,
+						item.font,
+						item.fontSize
 					);
 
 					break;

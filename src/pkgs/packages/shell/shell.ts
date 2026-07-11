@@ -324,6 +324,7 @@ export async function shellImpl(env: Environment, io: Shell_IO) {
 
 				passEvent("keydown");
 				passEvent("keyup");
+				passEvent("resize");
 
 				// logs were already added live
 				const { return: programResult } = await programExec.onExit;

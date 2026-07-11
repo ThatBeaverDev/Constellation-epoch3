@@ -46,7 +46,7 @@ import {
 import { type FileStats } from "../util/types/worker";
 import { writeTempFile } from "./tempFile.js";
 import { nodeJs } from "./config.js";
-import { blobToDataURL } from "../util/lib/dataUri.js";
+import { blobToUrl } from "../util/lib/uri.js";
 
 /// <reference path="@typescript/lib-webworker@npm:@types/webworker" />
 
@@ -130,9 +130,9 @@ export async function workerFunction(this: undefined) {
 
 		for (let i = 0; i <= path.length; ++i) {
 			if (i < path.length) code = path.charCodeAt(i);
-			else if (code === 47 /*/*/) break;
-			else code = 47 /*/*/;
-			if (code === 47 /*/*/) {
+			else if (code === 47) break;
+			else code = 47;
+			if (code === 47) {
 				if (lastSlash === i - 1 || dots === 1) {
 					// NOOP
 				} else if (lastSlash !== i - 1 && dots === 2) {
@@ -218,7 +218,7 @@ export async function workerFunction(this: undefined) {
 				}
 
 				resolvedPath = path + "/" + resolvedPath;
-				resolvedAbsolute = path.charCodeAt(0) === 47 /*/*/;
+				resolvedAbsolute = path.charCodeAt(0) === 47;
 			}
 
 			// At this point the path should be resolved to a full absolute path, but
@@ -248,9 +248,8 @@ export async function workerFunction(this: undefined) {
 
 			if (path.length === 0) return ".";
 
-			let isAbsolute = path.charCodeAt(0) === 47; /*/*/
-			const trailingSeparator =
-				path.charCodeAt(path.length - 1) === 47; /*/*/
+			let isAbsolute = path.charCodeAt(0) === 47;
+			const trailingSeparator = path.charCodeAt(path.length - 1) === 47;
 
 			// Normalize the path
 			path = normalizeStringPosix(path, !isAbsolute);
@@ -264,7 +263,7 @@ export async function workerFunction(this: undefined) {
 
 		isAbsolute(path: string) {
 			assertPath(path);
-			return path.length > 0 && path.charCodeAt(0) === 47 /*/*/;
+			return path.length > 0 && path.charCodeAt(0) === 47;
 		},
 
 		join(...args: string[]) {
@@ -296,7 +295,7 @@ export async function workerFunction(this: undefined) {
 			// Trim any leading backslashes
 			let fromStart = 1;
 			for (; fromStart < from.length; ++fromStart) {
-				if (from.charCodeAt(fromStart) !== 47 /*/*/) break;
+				if (from.charCodeAt(fromStart) !== 47) break;
 			}
 			const fromEnd = from.length;
 			const fromLen = fromEnd - fromStart;
@@ -304,7 +303,7 @@ export async function workerFunction(this: undefined) {
 			// Trim any leading backslashes
 			let toStart = 1;
 			for (; toStart < to.length; ++toStart) {
-				if (to.charCodeAt(toStart) !== 47 /*/*/) break;
+				if (to.charCodeAt(toStart) !== 47) break;
 			}
 			const toEnd = to.length;
 			const toLen = toEnd - toStart;
@@ -316,7 +315,7 @@ export async function workerFunction(this: undefined) {
 			for (; i <= length; ++i) {
 				if (i === length) {
 					if (toLen > length) {
-						if (to.charCodeAt(toStart + i) === 47 /*/*/) {
+						if (to.charCodeAt(toStart + i) === 47) {
 							// We get here if `from` is the exact base path for `to`.
 							// For example: from='/foo/bar'; to='/foo/bar/baz'
 							return to.slice(toStart + i + 1);
@@ -326,7 +325,7 @@ export async function workerFunction(this: undefined) {
 							return to.slice(toStart + i);
 						}
 					} else if (fromLen > length) {
-						if (from.charCodeAt(fromStart + i) === 47 /*/*/) {
+						if (from.charCodeAt(fromStart + i) === 47) {
 							// We get here if `to` is the exact base path for `from`.
 							// For example: from='/foo/bar/baz'; to='/foo/bar'
 							lastCommonSep = i;
@@ -341,14 +340,14 @@ export async function workerFunction(this: undefined) {
 				const fromCode = from.charCodeAt(fromStart + i);
 				const toCode = to.charCodeAt(toStart + i);
 				if (fromCode !== toCode) break;
-				else if (fromCode === 47 /*/*/) lastCommonSep = i;
+				else if (fromCode === 47) lastCommonSep = i;
 			}
 
 			let out = "";
 			// Generate the relative path based on the path difference between `to`
 			// and `from`
 			for (i = fromStart + lastCommonSep + 1; i <= fromEnd; ++i) {
-				if (i === fromEnd || from.charCodeAt(i) === 47 /*/*/) {
+				if (i === fromEnd || from.charCodeAt(i) === 47) {
 					if (out.length === 0) {
 						out += "..";
 					} else {
@@ -362,7 +361,7 @@ export async function workerFunction(this: undefined) {
 			if (out.length > 0) return out + to.slice(toStart + lastCommonSep);
 			else {
 				toStart += lastCommonSep;
-				if (to.charCodeAt(toStart) === 47 /*/*/) ++toStart;
+				if (to.charCodeAt(toStart) === 47) ++toStart;
 				return to.slice(toStart);
 			}
 		},
@@ -375,13 +374,13 @@ export async function workerFunction(this: undefined) {
 			assertPath(path);
 			if (path.length === 0) return ".";
 			let code = path.charCodeAt(0);
-			const hasRoot = code === 47; /*/*/
+			const hasRoot = code === 47;
 			let end = -1;
 			let matchedSlash = true;
 
 			for (let i = path.length - 1; i >= 1; --i) {
 				code = path.charCodeAt(i);
-				if (code === 47 /*/*/) {
+				if (code === 47) {
 					if (!matchedSlash) {
 						end = i;
 						break;
@@ -419,7 +418,7 @@ export async function workerFunction(this: undefined) {
 
 				for (i = path.length - 1; i >= 0; --i) {
 					const code = path.charCodeAt(i);
-					if (code === 47 /*/*/) {
+					if (code === 47) {
 						// If we reached a path separator that was not part of a set of path
 						// separators at the end of the string, stop now
 						if (!matchedSlash) {
@@ -456,7 +455,7 @@ export async function workerFunction(this: undefined) {
 				return path.slice(start, end);
 			} else {
 				for (i = path.length - 1; i >= 0; --i) {
-					if (path.charCodeAt(i) === 47 /*/*/) {
+					if (path.charCodeAt(i) === 47) {
 						// If we reached a path separator that was not part of a set of path
 						// separators at the end of the string, stop now
 						if (!matchedSlash) {
@@ -489,7 +488,7 @@ export async function workerFunction(this: undefined) {
 
 			for (let i = path.length - 1; i >= 0; --i) {
 				const code = path.charCodeAt(i);
-				if (code === 47 /*/*/) {
+				if (code === 47) {
 					// If we reached a path separator that was not part of a set of path
 					// separators at the end of the string, stop now
 					if (!matchedSlash) {
@@ -553,7 +552,7 @@ export async function workerFunction(this: undefined) {
 			if (path.length === 0) return ret;
 			let code = path.charCodeAt(0);
 
-			let isAbsolute = code === 47; /*/*/
+			let isAbsolute = code === 47;
 
 			const start = isAbsolute ? 1 : 0;
 			if (isAbsolute) ret.root = "/";
@@ -571,7 +570,7 @@ export async function workerFunction(this: undefined) {
 			// Get non-dir info
 			for (; i >= start; --i) {
 				code = path.charCodeAt(i);
-				if (code === 47 /*/*/) {
+				if (code === 47) {
 					// If we reached a path separator that was not part of a set of path
 					// separators at the end of the string, stop now
 					if (!matchedSlash) {
@@ -1007,6 +1006,13 @@ export async function workerFunction(this: undefined) {
 				logs = newLogs ?? [];
 			},
 
+			terminalWidth() {
+				return sendMessage<undefined, number>(
+					"env_terminal_width",
+					undefined
+				);
+			},
+
 			fs,
 			path,
 
@@ -1081,6 +1087,7 @@ export async function workerFunction(this: undefined) {
 
 						triggerProxyEvent: (eventName, data) => {
 							switch (eventName) {
+								case "resize":
 								case "keydown":
 								case "keyup": {
 									// allowed
@@ -1382,21 +1389,15 @@ export async function workerFunction(this: undefined) {
 			workingDirectory,
 			input
 		}: RuntimeExecuteProgram) => {
-			// from src/util/lib/dataUri.ts
-			async function blobToDataURL(blob: Blob) {
-				const buffer = await blob.arrayBuffer();
-				const bytes = new Uint8Array(buffer);
+			// from src/util/lib/uri.ts
+			async function blobToUrl(blob: Blob) {
+				const url = URL.createObjectURL(blob);
 
-				const chunkSize = 0x8000;
-				let binary = "";
+				setTimeout(() => {
+					URL.revokeObjectURL(url);
+				}, 5000);
 
-				for (let i = 0; i < bytes.length; i += chunkSize) {
-					const chunk = bytes.subarray(i, i + chunkSize);
-					// @ts-expect-error
-					binary += String.fromCharCode.apply(null, chunk);
-				}
-
-				return `data:${blob.type};base64,${btoa(binary)}`;
+				return url;
 			}
 
 			if (!directory) throw new Error("Directory is required!");
@@ -1409,7 +1410,7 @@ export async function workerFunction(this: undefined) {
 				);
 
 			const blob = new Blob([contents], { type: "text/javascript" });
-			const url = await blobToDataURL(blob);
+			const url = await blobToUrl(blob);
 
 			const exports = await import(url);
 			const program = exports.default as ConstellationProgram;
@@ -1739,9 +1740,7 @@ export async function newWorker(fn: Function, name?: string, ...params: any[]) {
 
 	const reference = nodeJs
 		? await writeTempFile(code)
-		: await blobToDataURL(
-				new Blob([code], { type: "application/javascript" })
-			);
+		: blobToUrl(new Blob([code], { type: "application/javascript" }));
 
 	return new Worker(reference, { name, type: "module" });
 }

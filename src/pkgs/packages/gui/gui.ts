@@ -2,19 +2,52 @@ import { Environment } from "../../../util/types/worker";
 import SocketManager from "./socket";
 import WindowManager, { WindowInfo } from "./windows";
 
-export const WIDTH = 3200;
-export const HEIGHT = 1800;
+const lineGap = 15;
+
+export interface GuiState {
+	ctx: OffscreenCanvasRenderingContext2D;
+	width: number;
+	height: number;
+}
 
 export default async function* GraphicalEnvironment(env: Environment) {
-	const { canvas, id: liveCanvasId } = await env.getLiveCanvas(WIDTH, HEIGHT);
+	async function renderCanvas(widthPx: number): Promise<GuiState> {
+		const lineWidth = widthPx / lineGap;
 
-	env.print([
-		{ type: "liveCanvas", id: liveCanvasId, width: 160, height: 90 }
-	]);
+		const width = widthPx;
+		const height = width / 1.777777777777777;
 
-	const ctx = canvas.getContext("2d")!;
+		const { canvas, id: liveCanvasId } = await env.getLiveCanvas(
+			width,
+			height
+		);
 
-	const windowManager = new WindowManager(env);
+		env.clearLogs();
+		env.print([
+			{
+				type: "liveCanvas",
+				id: liveCanvasId,
+				width: lineWidth,
+				height: lineWidth / 1.777777777777777
+			}
+		]);
+
+		const ctx = canvas.getContext("2d")!;
+
+		return { ctx, width, height };
+	}
+
+	let state = await renderCanvas(await env.terminalWidth());
+
+	env.addEventListener("resize", async ({ width }) => {
+		const result = await renderCanvas(width);
+
+		state.ctx = result.ctx;
+		state.width = result.width;
+		state.height = result.height;
+	});
+
+	const windowManager = new WindowManager(env, state);
 
 	const socketManager = new SocketManager(env, windowManager);
 	windowManager.socketManager = socketManager;
@@ -25,18 +58,18 @@ export default async function* GraphicalEnvironment(env: Environment) {
 	while (true) {
 		windowManager.reposition();
 
-		ctx.fillStyle = "red";
-		ctx.fillRect(0, 0, WIDTH, HEIGHT);
+		state.ctx.fillStyle = "red";
+		state.ctx.fillRect(0, 0, state.width, state.height);
 
 		const drawWindow = (info: WindowInfo, focused?: boolean) => {
-			ctx.fillStyle = "black";
-			ctx.strokeStyle = "white";
+			state.ctx.fillStyle = "black";
+			state.ctx.strokeStyle = "white";
 
 			const isFocused =
 				focused || windowManager.windowFocused(info.window.id);
 
 			info?.window?.render?.(
-				ctx,
+				state.ctx,
 				info.x,
 				info.y,
 				info.width,

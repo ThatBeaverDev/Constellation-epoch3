@@ -70,7 +70,7 @@ export default class Constellation {
 	}
 
 	panic = (subsystem: "fs" | "ui" | "init" | "runtime", error: Error) => {
-		console.error(error);
+		console.error(error.stack);
 
 		this.ui.error(
 			"kernel",

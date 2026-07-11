@@ -42,7 +42,7 @@ import {
 import { UiManager } from "./ui/ui";
 import SocketManager from "./lib/sockets";
 import { nodeJs } from "./lib/config";
-import { blobToDataURL } from "./util/lib/dataUri";
+import { blobToDataURL } from "./util/lib/uri";
 import { logToString } from "./util/lib/logs";
 import { triggerProgramEvent } from "./lib/triggerProgramEvent";
 
@@ -74,6 +74,7 @@ export interface ProgramStore {
 	onLog(type: "log" | "warning" | "error", data: Log): void;
 	onInput(message: string, config: InputConfig): Promise<string>;
 	onSetLogs(logs?: Log[]): void;
+	getTerminalWidth(): Promise<number>;
 
 	liveCanvasIds: number[];
 }
@@ -490,6 +491,12 @@ export default class Runtime {
 			return program.onSetLogs(logs);
 		});
 
+		handle("env_terminal_width", () => {
+			const program = getProgram();
+
+			return program.getTerminalWidth();
+		});
+
 		handle("kernel_uptime", () => Date.now() - this.#kernel.start);
 		handle("kernel_version", () => this.#kernel.version);
 
@@ -672,6 +679,7 @@ export default class Runtime {
 			"proxy_trigger_event",
 			(msg: Worker_Proxy_Trigger_Event<any>) => {
 				switch (msg.eventName) {
+					case "resize":
 					case "keydown":
 					case "keyup": {
 						// allowed
@@ -1015,6 +1023,29 @@ export default class Runtime {
 				}
 
 				return promise;
+			},
+
+			getTerminalWidth: async () => {
+				const getProxyWidth = () => {
+					if (!proxyOwner) return 100;
+
+					return proxyOwner.worker.sendMessage<number, undefined>(
+						"proxy_get_width",
+						undefined
+					);
+				};
+
+				const getDisplayWidth = () => {
+					return window.innerWidth;
+				};
+
+				if (proxyOwner) {
+					return getProxyWidth();
+				} else if (this.#kernel.ui.controller !== program) {
+					return 100;
+				} else {
+					return getDisplayWidth();
+				}
 			},
 
 			logs: [],
