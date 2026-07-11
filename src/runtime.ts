@@ -31,7 +31,8 @@ import {
 	Runtime_Sockets_Server_sendPacket,
 	RuntimeExecuteProgram,
 	Runtime_Sound_Stopped_ID,
-	Runtime_Proxy_Set_Logs
+	Runtime_Proxy_Set_Logs,
+	Runtime_Proxy_Get_Dimensions
 } from "./types/runtimeMessages";
 import {
 	consoleError,
@@ -74,7 +75,7 @@ export interface ProgramStore {
 	onLog(type: "log" | "warning" | "error", data: Log): void;
 	onInput(message: string, config: InputConfig): Promise<string>;
 	onSetLogs(logs?: Log[]): void;
-	getTerminalWidth(): Promise<number>;
+	getTerminalDimensions(): Promise<{ width: number; height: number }>;
 
 	liveCanvasIds: number[];
 }
@@ -491,10 +492,10 @@ export default class Runtime {
 			return program.onSetLogs(logs);
 		});
 
-		handle("env_terminal_width", () => {
+		handle("env_terminal_dimensions", () => {
 			const program = getProgram();
 
-			return program.getTerminalWidth();
+			return program.getTerminalDimensions();
 		});
 
 		handle("kernel_uptime", () => Date.now() - this.#kernel.start);
@@ -1025,26 +1026,40 @@ export default class Runtime {
 				return promise;
 			},
 
-			getTerminalWidth: async () => {
-				const getProxyWidth = () => {
-					if (!proxyOwner) return 100;
+			getTerminalDimensions: async (): Promise<{
+				width: number;
+				height: number;
+			}> => {
+				const fallback = { width: 100, height: 100 };
 
-					return proxyOwner.worker.sendMessage<number, undefined>(
-						"proxy_get_width",
-						undefined
-					);
+				const getProxyDimensions = async () => {
+					if (!proxyOwner) return fallback;
+
+					return await proxyOwner.worker.sendMessage<
+						{
+							width: number;
+							height: number;
+						},
+						Runtime_Proxy_Get_Dimensions
+					>("proxy_get_dimensions", {
+						handlerPid: proxyOwner.pid,
+						subjectPid: program.pid
+					});
 				};
 
-				const getDisplayWidth = () => {
-					return window.innerWidth;
+				const getDisplayDimensions = () => {
+					return {
+						width: window.innerWidth,
+						height: window.innerHeight
+					};
 				};
 
 				if (proxyOwner) {
-					return getProxyWidth();
+					return getProxyDimensions();
 				} else if (this.#kernel.ui.controller !== program) {
-					return 100;
+					return fallback;
 				} else {
-					return getDisplayWidth();
+					return getDisplayDimensions();
 				}
 			},
 

@@ -78,23 +78,28 @@ export default async function* TerminalApp(env: Environment) {
 			return result;
 		},
 
-		print(data) {
+		print: (data) => {
 			const string = logToArrayLog(data);
 			logs.push(string);
 
 			updateGUI();
 		},
 
-		clearLogs() {
+		clearLogs: () => {
 			logs.splice(0, logs.length);
 
 			updateGUI();
 		},
 
-		setLogs(logs) {
+		setLogs: (logs) => {
 			io.clearLogs();
 
 			for (const log of logs) io.print(log);
+		},
+
+		terminalDimensions: async () => {
+			return { width: 100, height: 100 };
+			//return lib.windowDimensions();
 		}
 	};
 

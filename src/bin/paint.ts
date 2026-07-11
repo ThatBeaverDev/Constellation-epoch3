@@ -255,7 +255,13 @@ export default async function* microsoftPaint(
 		{ type: "liveCanvas", id: canvasId, width: 50, height: 50 }
 	]);
 
-	env.triggerEvent("keydown", { alt: false, name: "e", shift: false });
+	env.triggerEvent("keydown", {
+		name: "e",
+		alt: false,
+		shift: false,
+		ctrl: false,
+		super: false
+	});
 	while (true) {
 		// @ts-expect-error
 		if (exit == true) break;

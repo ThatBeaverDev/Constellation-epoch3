@@ -159,6 +159,7 @@ export interface Shell_IO {
 	print: Environment["print"];
 	clearLogs: Environment["clearLogs"];
 	setLogs: (logs: Log[]) => void;
+	terminalDimensions: Environment["terminalDimensions"];
 }
 export async function shellImpl(env: Environment, io: Shell_IO) {
 	const configDirectory = "/config/shell";
@@ -305,6 +306,10 @@ export async function shellImpl(env: Environment, io: Shell_IO) {
 								logs.splice(0, Infinity, ...newLogs);
 
 								redisplayLogs();
+							},
+
+							getDimensions() {
+								return io.terminalDimensions();
 							}
 						}
 					}
@@ -391,7 +396,8 @@ export default async function* Shell(env: Environment) {
 		input: env.input,
 		print: env.print,
 		clearLogs: env.clearLogs,
-		setLogs: env.setLogs
+		setLogs: env.setLogs,
+		terminalDimensions: env.terminalDimensions
 	});
 
 	while (true) {

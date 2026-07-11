@@ -86,3 +86,8 @@ export interface Runtime_Proxy_Set_Logs {
 export interface Runtime_Sound_Stopped_ID {
 	time: number;
 }
+
+export interface Runtime_Proxy_Get_Dimensions {
+	handlerPid: number;
+	subjectPid: number;
+}

@@ -123,7 +123,7 @@ export default class WindowManager {
 						break;
 				}
 
-				if (keyName !== "return") return;
+				if (keyName == "return") return;
 			}
 
 			const cur = this.#currentWindow;
@@ -198,10 +198,19 @@ export default class WindowManager {
 								break;
 
 							case "backspace":
-								window.typing[item.identifier] = store?.slice(
-									0,
-									store.length - 1
-								);
+								const backspace = () => {
+									window.typing[item.identifier] =
+										store?.slice(0, store.length - 1);
+								};
+
+								if (e.alt) {
+									const lastWordLength = 2;
+									for (let i = 0; i > lastWordLength; i++)
+										backspace();
+								} else {
+									backspace();
+								}
+
 								registerChange();
 								break;
 

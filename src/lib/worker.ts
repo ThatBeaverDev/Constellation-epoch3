@@ -31,6 +31,7 @@ import {
 } from "../types/workerMessages.js";
 import {
 	Runtime_Env_Get_LiveCanvas,
+	Runtime_Proxy_Get_Dimensions,
 	Runtime_Proxy_Input,
 	Runtime_Proxy_Log,
 	Runtime_Proxy_Set_Logs,
@@ -1006,11 +1007,11 @@ export async function workerFunction(this: undefined) {
 				logs = newLogs ?? [];
 			},
 
-			terminalWidth() {
-				return sendMessage<undefined, number>(
-					"env_terminal_width",
-					undefined
-				);
+			terminalDimensions() {
+				return sendMessage<
+					undefined,
+					{ width: number; height: number }
+				>("env_terminal_dimensions", undefined);
 			},
 
 			fs,
@@ -1725,6 +1726,15 @@ export async function workerFunction(this: undefined) {
 		if (!handler) return;
 
 		handler.onSetLogs(packet.logs);
+	});
+
+	handle("proxy_get_dimensions", (packet: Runtime_Proxy_Get_Dimensions) => {
+		const program = programByPid(packet.handlerPid);
+
+		const handler = program.outputProxyHandlers[packet.subjectPid];
+		if (!handler) return;
+
+		return handler.getDimensions();
 	});
 
 	console.log("Initialisation Complete.");

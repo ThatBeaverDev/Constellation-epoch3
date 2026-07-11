@@ -37,7 +37,7 @@ export default async function* GraphicalEnvironment(env: Environment) {
 		return { ctx, width, height };
 	}
 
-	let state = await renderCanvas(await env.terminalWidth());
+	let state = await renderCanvas((await env.terminalDimensions()).width);
 
 	env.addEventListener("resize", async ({ width }) => {
 		const result = await renderCanvas(width);

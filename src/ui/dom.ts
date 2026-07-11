@@ -242,7 +242,9 @@ export default class BrowserUI implements UiManager {
 			name: event.key,
 
 			alt: event.altKey,
-			shift: event.shiftKey
+			shift: event.shiftKey,
+			ctrl: event.ctrlKey,
+			super: event.metaKey
 		});
 	};
 	#onKeyUp = (event: KeyboardEvent) => {
@@ -252,14 +254,17 @@ export default class BrowserUI implements UiManager {
 			name: event.key,
 
 			alt: event.altKey,
-			shift: event.shiftKey
+			shift: event.shiftKey,
+			ctrl: event.ctrlKey,
+			super: event.metaKey
 		});
 	};
 	#onResize = () => {
 		if (!this.controller) return;
 
 		triggerProgramEvent(this.controller, "resize", {
-			width: window.innerWidth
+			width: window.innerWidth,
+			height: window.innerHeight
 		});
 	};
 
