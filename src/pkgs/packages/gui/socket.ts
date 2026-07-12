@@ -99,9 +99,13 @@ export default class SocketManager {
 		this.socketServer.onClientDisconnect = ({ pid }) => {
 			const client = this.clients[pid];
 
+			console.debug("Disconnect:", client);
+
 			for (const window of client.windows) {
 				window.close();
 			}
+
+			delete this.clients[pid];
 		};
 
 		this.socketServer.onMessage = ({ pid }, msg) => {

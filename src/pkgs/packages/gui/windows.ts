@@ -19,7 +19,13 @@ export type PaletteIndex = { directory: string; name: string }[];
 const headerHeight = 50;
 
 export default class WindowManager {
-	windows: (WindowInfo | undefined)[] = [];
+	windows: Record<number, WindowInfo | undefined> = {};
+	windowIDs: number[] = [];
+
+	refreshWindowIDs() {
+		this.windowIDs = Object.keys(this.windows).map((item) => Number(item));
+	}
+
 	socketManager?: SocketManager;
 	self?: Process;
 
@@ -81,7 +87,7 @@ export default class WindowManager {
 			const keyName = e.name.trim().toLowerCase();
 
 			if (e.alt) {
-				const total = this.windows.length;
+				const total = this.windowIDs.length;
 				const gridSides = Math.ceil(Math.sqrt(total));
 
 				switch (keyName) {
@@ -281,7 +287,7 @@ export default class WindowManager {
 	}
 
 	reposition() {
-		const total = this.windows.length;
+		const total = this.windowIDs.length;
 		const gridSides = Math.ceil(Math.sqrt(total));
 
 		const columnWidth = this.state.width / gridSides;
@@ -318,21 +324,16 @@ export default class WindowManager {
 	}
 
 	newWindow(client: Client | undefined, name: string) {
-		const id = this.windows.length;
+		const id = this.windowIDs.length;
 
 		const window = new GuiWindow(this, client, id, name);
 		window.close = () => {
-			if (this.socketManager) this.socketManager.onWindowExit(window);
+			this.windows[window.id] = undefined;
+			this.refreshWindowIDs();
 
-			this.windows = this.windows.map((item) => {
-				const remove = item?.window !== window;
-
-				if (remove) {
-					return undefined;
-				} else {
-					return item;
-				}
-			});
+			try {
+				if (this.socketManager) this.socketManager.onWindowExit(window);
+			} catch {}
 		};
 
 		const isPalette = client?.pid == this.self?.pid;
@@ -359,7 +360,8 @@ export default class WindowManager {
 		if (isPalette) {
 			this.#palette = info;
 		} else {
-			this.windows.push(info);
+			this.windows[window.id] = info;
+			this.refreshWindowIDs();
 		}
 
 		return { window, id };

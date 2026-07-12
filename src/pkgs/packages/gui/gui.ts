@@ -78,7 +78,8 @@ export default async function* GraphicalEnvironment(env: Environment) {
 			);
 		};
 
-		for (const info of windowManager.windows) {
+		for (const id in windowManager.windows) {
+			const info = windowManager.windows[id];
 			if (info == undefined) continue;
 
 			drawWindow(info);
