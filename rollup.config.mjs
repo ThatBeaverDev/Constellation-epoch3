@@ -35,7 +35,7 @@ const programConfigs = globSync("./build/bin/*.js").map((file) => {
 
 	return {
 		input: file,
-		context: "window",
+		context: "self",
 		output: {
 			file: `./dist/bin/${name}.js`,
 			format: "es"
