@@ -210,6 +210,12 @@ export default class WindowManager {
 									break;
 
 								case "backspace":
+									if (
+										window.typing[item.identifier]
+											?.length == 0
+									)
+										break;
+
 									const backspace = () => {
 										window.typing[item.identifier] =
 											store?.slice(0, store.length - 1);
