@@ -127,6 +127,8 @@ export interface KeyPressData {
 
 	alt: boolean;
 	shift: boolean;
+	ctrl: boolean;
+	super: boolean;
 }
 
 interface EventDataTypes {
@@ -165,7 +167,11 @@ export interface WorkerOutputProxy {
 		config?: Runtime_Proxy_Input["config"]
 	) => string | Promise<string>;
 
-	onClear: () => void;
+	onSetLogs: (logs: Log[]) => void;
+
+	getDimensions: () =>
+		| Promise<{ width: number; height: number }>
+		| { width: number; height: number };
 }
 
 export interface Environment {
@@ -205,6 +211,14 @@ export interface Environment {
 	 * Clear the display terminal. Requires input access.
 	 */
 	clearLogs(): void;
+
+	/**
+	 * Set the logs to a list, clearing old logs.
+	 * @param logs Logs to set content to.
+	 */
+	setLogs(logs?: Log[]): void;
+
+	terminalDimensions(): Promise<{ width: number; height: number }>;
 
 	/**
 	 * Access to the system's filesystem

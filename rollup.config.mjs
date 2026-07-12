@@ -3,33 +3,31 @@ import path from "path";
 import commonjs from "@rollup/plugin-commonjs";
 import { nodeResolve } from "@rollup/plugin-node-resolve";
 import { string } from "rollup-plugin-string";
-import babel from "@rollup/plugin-babel";
 
 const plugins = [
 	nodeResolve({
 		browser: true,
 		preferBuiltins: false
 	}),
-	commonjs(),
 	string({
-		include: ["**/*"],
-		exclude: ["**/*.js"]
+		include: ["**/*.css"]
 	}),
-	babel({
-		babelHelpers: "bundled",
-		presets: [
-			[
-				"@babel/preset-env",
-				{
-					targets: {
-						safari: "15"
-					},
-					corejs: 3
-				}
-			]
-		],
-		extensions: [".js", ".js"]
-	})
+	commonjs()
+	//	babel({
+	//		babelHelpers: "bundled",
+	//		presets: [
+	//			[
+	//				"@babel/preset-env",
+	//				{
+	//					targets: {
+	//						safari: "15"
+	//					},
+	//					corejs: 3
+	//				}
+	//			]
+	//		],
+	//		extensions: [".js"]
+	//	})
 ];
 
 const programConfigs = globSync("./build/bin/*.js").map((file) => {
@@ -37,7 +35,7 @@ const programConfigs = globSync("./build/bin/*.js").map((file) => {
 
 	return {
 		input: file,
-		context: "window",
+		context: "self",
 		output: {
 			file: `./dist/bin/${name}.js`,
 			format: "es"

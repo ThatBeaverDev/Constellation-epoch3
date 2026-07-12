@@ -4,7 +4,7 @@ export default async function* display(
 	env: Environment,
 	[file]: [string | undefined]
 ) {
-	if (!file) return "File does not exist!";
+	if (!file) return `File '${file}' to display does not exist!`;
 
 	const realpath = env.path.resolve(env.workingDirectory, file);
 	env.print([{ type: "image", dir: realpath, width: 30 }]);

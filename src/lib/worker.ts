@@ -15,7 +15,6 @@ import {
 	WorkerMessageDataTypes,
 	WorkerMessageIntent,
 	WorkerMessageMap,
-	type WorkerEnv_Exec,
 	type WorkerEnv_Network_Get
 } from "../types/workerMessages.js";
 import {
@@ -227,9 +226,8 @@ export async function workerFunction(this: undefined) {
 
 			if (path.length === 0) return ".";
 
-			let isAbsolute = path.charCodeAt(0) === 47; /*/*/
-			const trailingSeparator =
-				path.charCodeAt(path.length - 1) === 47; /*/*/
+			let isAbsolute = path.charCodeAt(0) === 47;
+			const trailingSeparator = path.charCodeAt(path.length - 1) === 47;
 
 			// Normalize the path
 			path = normalizeStringPosix(path, !isAbsolute);
@@ -275,7 +273,7 @@ export async function workerFunction(this: undefined) {
 			// Trim any leading backslashes
 			let fromStart = 1;
 			for (; fromStart < from.length; ++fromStart) {
-				if (from.charCodeAt(fromStart) !== 47 /*/*/) break;
+				if (from.charCodeAt(fromStart) !== 47) break;
 			}
 			const fromEnd = from.length;
 			const fromLen = fromEnd - fromStart;
@@ -283,7 +281,7 @@ export async function workerFunction(this: undefined) {
 			// Trim any leading backslashes
 			let toStart = 1;
 			for (; toStart < to.length; ++toStart) {
-				if (to.charCodeAt(toStart) !== 47 /*/*/) break;
+				if (to.charCodeAt(toStart) !== 47) break;
 			}
 			const toEnd = to.length;
 			const toLen = toEnd - toStart;
@@ -295,7 +293,7 @@ export async function workerFunction(this: undefined) {
 			for (; i <= length; ++i) {
 				if (i === length) {
 					if (toLen > length) {
-						if (to.charCodeAt(toStart + i) === 47 /*/*/) {
+						if (to.charCodeAt(toStart + i) === 47) {
 							// We get here if `from` is the exact base path for `to`.
 							// For example: from='/foo/bar'; to='/foo/bar/baz'
 							return to.slice(toStart + i + 1);
@@ -305,7 +303,7 @@ export async function workerFunction(this: undefined) {
 							return to.slice(toStart + i);
 						}
 					} else if (fromLen > length) {
-						if (from.charCodeAt(fromStart + i) === 47 /*/*/) {
+						if (from.charCodeAt(fromStart + i) === 47) {
 							// We get here if `to` is the exact base path for `from`.
 							// For example: from='/foo/bar/baz'; to='/foo/bar'
 							lastCommonSep = i;
@@ -320,14 +318,14 @@ export async function workerFunction(this: undefined) {
 				const fromCode = from.charCodeAt(fromStart + i);
 				const toCode = to.charCodeAt(toStart + i);
 				if (fromCode !== toCode) break;
-				else if (fromCode === 47 /*/*/) lastCommonSep = i;
+				else if (fromCode === 47) lastCommonSep = i;
 			}
 
 			let out = "";
 			// Generate the relative path based on the path difference between `to`
 			// and `from`
 			for (i = fromStart + lastCommonSep + 1; i <= fromEnd; ++i) {
-				if (i === fromEnd || from.charCodeAt(i) === 47 /*/*/) {
+				if (i === fromEnd || from.charCodeAt(i) === 47) {
 					if (out.length === 0) {
 						out += "..";
 					} else {
@@ -341,7 +339,7 @@ export async function workerFunction(this: undefined) {
 			if (out.length > 0) return out + to.slice(toStart + lastCommonSep);
 			else {
 				toStart += lastCommonSep;
-				if (to.charCodeAt(toStart) === 47 /*/*/) ++toStart;
+				if (to.charCodeAt(toStart) === 47) ++toStart;
 				return to.slice(toStart);
 			}
 		},
@@ -354,13 +352,13 @@ export async function workerFunction(this: undefined) {
 			assertPath(path);
 			if (path.length === 0) return ".";
 			let code = path.charCodeAt(0);
-			const hasRoot = code === 47; /*/*/
+			const hasRoot = code === 47;
 			let end = -1;
 			let matchedSlash = true;
 
 			for (let i = path.length - 1; i >= 1; --i) {
 				code = path.charCodeAt(i);
-				if (code === 47 /*/*/) {
+				if (code === 47) {
 					if (!matchedSlash) {
 						end = i;
 						break;
@@ -398,7 +396,7 @@ export async function workerFunction(this: undefined) {
 
 				for (i = path.length - 1; i >= 0; --i) {
 					const code = path.charCodeAt(i);
-					if (code === 47 /*/*/) {
+					if (code === 47) {
 						// If we reached a path separator that was not part of a set of path
 						// separators at the end of the string, stop now
 						if (!matchedSlash) {
@@ -435,7 +433,7 @@ export async function workerFunction(this: undefined) {
 				return path.slice(start, end);
 			} else {
 				for (i = path.length - 1; i >= 0; --i) {
-					if (path.charCodeAt(i) === 47 /*/*/) {
+					if (path.charCodeAt(i) === 47) {
 						// If we reached a path separator that was not part of a set of path
 						// separators at the end of the string, stop now
 						if (!matchedSlash) {
@@ -468,7 +466,7 @@ export async function workerFunction(this: undefined) {
 
 			for (let i = path.length - 1; i >= 0; --i) {
 				const code = path.charCodeAt(i);
-				if (code === 47 /*/*/) {
+				if (code === 47) {
 					// If we reached a path separator that was not part of a set of path
 					// separators at the end of the string, stop now
 					if (!matchedSlash) {
@@ -532,7 +530,7 @@ export async function workerFunction(this: undefined) {
 			if (path.length === 0) return ret;
 			let code = path.charCodeAt(0);
 
-			let isAbsolute = code === 47; /*/*/
+			let isAbsolute = code === 47;
 
 			const start = isAbsolute ? 1 : 0;
 			if (isAbsolute) ret.root = "/";
@@ -550,7 +548,7 @@ export async function workerFunction(this: undefined) {
 			// Get non-dir info
 			for (; i >= start; --i) {
 				code = path.charCodeAt(i);
-				if (code === 47 /*/*/) {
+				if (code === 47) {
 					// If we reached a path separator that was not part of a set of path
 					// separators at the end of the string, stop now
 					if (!matchedSlash) {
@@ -989,9 +987,17 @@ export async function workerFunction(this: undefined) {
 			},
 
 			clearLogs() {
-				emit("env_clear_logs", undefined);
+				this.setLogs();
+			},
 
-				logs.splice(0, Infinity);
+			setLogs(newLogs?: Log[]) {
+				emit("env_set_logs", { logs: newLogs });
+
+				logs = newLogs ?? [];
+			},
+
+			terminalDimensions() {
+				return sendMessage("env_terminal_dimensions", undefined);
 			},
 
 			fs,
@@ -1030,7 +1036,7 @@ export async function workerFunction(this: undefined) {
 					outputProxy?: WorkerOutputProxy;
 				}
 			) {
-				const data: WorkerEnv_Exec = {
+				const { pid: executedPID } = await sendMessage("env_exec", {
 					path,
 					args,
 					handoverDisplayPid: config?.handOverDisplay
@@ -1039,12 +1045,7 @@ export async function workerFunction(this: undefined) {
 					workingDirectory: this.workingDirectory,
 					input: config?.input,
 					outputProxy: config?.outputProxy !== undefined
-				};
-
-				const { pid: executedPID } = await sendMessage(
-					"env_exec",
-					data
-				);
+				});
 
 				if (config?.outputProxy) {
 					program.outputProxyHandlers[executedPID] =
@@ -1070,6 +1071,7 @@ export async function workerFunction(this: undefined) {
 
 						triggerProxyEvent: (eventName, data) => {
 							switch (eventName) {
+								case "resize":
 								case "keydown":
 								case "keyup": {
 									// allowed
@@ -1638,13 +1640,22 @@ export async function workerFunction(this: undefined) {
 		};
 	});
 
-	handle("proxy_clear", (packet) => {
+	handle("proxy_set_logs", (packet) => {
 		const program = programByPid(packet.handlerPid);
 
 		const handler = program.outputProxyHandlers[packet.subjectPid];
 		if (!handler) return;
 
-		handler.onClear();
+		handler.onSetLogs(packet.logs);
+	});
+
+	handle("proxy_get_dimensions", (packet) => {
+		const program = programByPid(packet.handlerPid);
+
+		const handler = program.outputProxyHandlers[packet.subjectPid];
+		if (!handler) return;
+
+		return handler.getDimensions();
 	});
 
 	console.log("Initialisation Complete.");
