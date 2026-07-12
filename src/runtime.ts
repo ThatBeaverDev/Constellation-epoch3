@@ -47,7 +47,8 @@ export interface ProgramStore {
 
 	onLog(type: "log" | "warning" | "error", data: Log): void;
 	onInput(message: string, config: InputConfig): Promise<string>;
-	onClear(): void;
+	onSetLogs(logs?: Log[]): void;
+	getTerminalDimensions(): Promise<{ width: number; height: number }>;
 
 	liveCanvasIds: number[];
 }
@@ -454,10 +455,16 @@ export default class Runtime {
 			}
 		);
 
-		handle("env_clear_logs", () => {
+		handle("env_set_logs", ({ logs }) => {
 			const program = getProgram();
 
-			return program.onClear();
+			return program.onSetLogs(logs);
+		});
+
+		handle("env_terminal_dimensions", () => {
+			const program = getProgram();
+
+			return program.getTerminalDimensions();
 		});
 
 		handle("kernel_uptime", () => Date.now() - this.#kernel.start);
@@ -740,8 +747,6 @@ export default class Runtime {
 			? this.programByPid(config?.outputProxy)
 			: undefined;
 
-		const kernel = this.#kernel;
-
 		const program: ProgramStore = {
 			worker: worker,
 
@@ -820,18 +825,25 @@ export default class Runtime {
 				}
 			},
 
-			onClear() {
-				program.logs = [];
+			onSetLogs: (logs) => {
+				if (!logs) logs = [];
+				program.logs = logs.map((item) => {
+					return { type: "log", data: item };
+				});
 
 				if (proxyOwner) {
-					proxyOwner.worker.emit("proxy_clear", {
+					proxyOwner.worker.emit("proxy_set_logs", {
 						handlerPid: proxyOwner.pid,
-						subjectPid: program.pid
+						subjectPid: program.pid,
+						logs
 					});
 				}
 
-				if (kernel.ui.controller == program) {
-					kernel.ui.clear();
+				if (this.#kernel.ui.controller == program) {
+					this.#kernel.ui.clear();
+					for (const log of logs) {
+						this.#workerLog(workerName, log);
+					}
 				}
 			},
 
@@ -912,6 +924,40 @@ export default class Runtime {
 				}
 
 				return promise;
+			},
+
+			getTerminalDimensions: async (): Promise<{
+				width: number;
+				height: number;
+			}> => {
+				const fallback = { width: 100, height: 100 };
+
+				const getProxyDimensions = async () => {
+					if (!proxyOwner) return fallback;
+
+					return await proxyOwner.worker.sendMessage(
+						"proxy_get_dimensions",
+						{
+							handlerPid: proxyOwner.pid,
+							subjectPid: program.pid
+						}
+					);
+				};
+
+				const getDisplayDimensions = () => {
+					return {
+						width: window.innerWidth,
+						height: window.innerHeight
+					};
+				};
+
+				if (proxyOwner) {
+					return (await getProxyDimensions()) ?? fallback;
+				} else if (this.#kernel.ui.controller !== program) {
+					return fallback;
+				} else {
+					return getDisplayDimensions();
+				}
 			},
 
 			logs: [],

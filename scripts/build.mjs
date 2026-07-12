@@ -35,7 +35,16 @@ async function main() {
 	const file = await walkDirectory("./dist/bin", "bin");
 	await walkDirectory("./src/config", "config", file);
 
-	file.packages = ["pkg", "find", "installd", "env", "init", "shell"];
+	file.packages = [
+		"pkg",
+		"find",
+		"installd",
+		"env",
+		"init",
+		"shell",
+		"gui",
+		"desktop"
+	];
 
 	const json = JSON.stringify(file, null, 4);
 

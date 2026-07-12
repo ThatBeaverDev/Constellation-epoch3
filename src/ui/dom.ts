@@ -10,7 +10,7 @@ import { renderConsole } from "./shared";
 
 const lineHeight = 15;
 function linesToPx(lines: number) {
-	return lineHeight * lines;
+	return lineHeight * Math.round(lines);
 }
 
 export interface PlaySoundResponse {
@@ -137,8 +137,11 @@ async function renderHtml(
 				if (liveCanvas && "canvas" in liveCanvas) {
 					const canvas = liveCanvas.canvas;
 
-					canvas.style.width = `${linesToPx(part.width)}px`;
-					canvas.style.height = `${linesToPx(part.height)}px`;
+					const width = linesToPx(part.width);
+					const height = linesToPx(part.height);
+
+					canvas.style.width = `${width}px`;
+					canvas.style.height = `${height}px`;
 
 					return canvas;
 				} else if (liveCanvas && "image" in liveCanvas) {
@@ -226,6 +229,7 @@ export default class BrowserUI implements UiManager {
 		});
 		window.addEventListener("keydown", this.#onKeyDown);
 		window.addEventListener("keyup", this.#onKeyUp);
+		window.addEventListener("resize", this.#onResize);
 
 		document.body.innerHTML = "";
 		document.body.appendChild(this.#container);
@@ -238,7 +242,9 @@ export default class BrowserUI implements UiManager {
 			name: event.key,
 
 			alt: event.altKey,
-			shift: event.shiftKey
+			shift: event.shiftKey,
+			ctrl: event.ctrlKey,
+			super: event.metaKey
 		});
 	};
 	#onKeyUp = (event: KeyboardEvent) => {
@@ -248,7 +254,17 @@ export default class BrowserUI implements UiManager {
 			name: event.key,
 
 			alt: event.altKey,
-			shift: event.shiftKey
+			shift: event.shiftKey,
+			ctrl: event.ctrlKey,
+			super: event.metaKey
+		});
+	};
+	#onResize = () => {
+		if (!this.controller) return;
+
+		triggerProgramEvent(this.controller, "resize", {
+			width: window.innerWidth,
+			height: window.innerHeight
 		});
 	};
 

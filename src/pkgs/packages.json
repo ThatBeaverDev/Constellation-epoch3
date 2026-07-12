@@ -25,6 +25,19 @@
 			"author": "ThatBeaverDev",
 			"published": 1780401763208,
 			"dependencies": ["env"]
+		},
+		"gui": {
+			"author": "ThatBeaverDev",
+			"published": 0
+		},
+		"desktop": {
+			"author": "ThatBeaverDev",
+			"published": 0,
+			"dependencies": ["gui"],
+			"directories": ["/bin/gui"],
+			"fileMap": {
+				"cli.js": "/bin/gui/terminal.js"
+			}
 		}
 	}
 }

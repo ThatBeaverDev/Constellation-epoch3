@@ -73,7 +73,7 @@ export default async function* microsoftPaint(
 	const filepath = env.path.resolve(env.workingDirectory, file);
 	if (!filepath.endsWith(".__non_entered")) {
 		const filecontents = await env.fs.readFile(filepath);
-		if (!filecontents) return "File does not exist!";
+		if (!filecontents) return `File '${file}' to load does not exist!`;
 
 		const blob = dataURItoBlob(filecontents);
 		const bitmap = await createImageBitmap(blob);
@@ -255,7 +255,13 @@ export default async function* microsoftPaint(
 		{ type: "liveCanvas", id: canvasId, width: 50, height: 50 }
 	]);
 
-	env.triggerEvent("keydown", { alt: false, name: "e", shift: false });
+	env.triggerEvent("keydown", {
+		name: "e",
+		alt: false,
+		shift: false,
+		ctrl: false,
+		super: false
+	});
 	while (true) {
 		// @ts-expect-error
 		if (exit == true) break;

@@ -52,7 +52,14 @@ interface WorkerMessageDataTypes {
 		data: WorkerEnv_Input;
 		return: string;
 	};
-	env_clear_logs: { data: void; return: void };
+	env_set_logs: {
+		data: Worker_Env_Set_Logs;
+		return: void;
+	};
+	env_terminal_dimensions: {
+		data: undefined;
+		return: { width: number; height: number };
+	};
 	kernel_uptime: {
 		data: void;
 		return: number;
@@ -279,4 +286,12 @@ export interface Worker_Proxy_Trigger_Event<K extends EventName> {
 
 	eventName: K;
 	data: EventMap[K];
+}
+
+export interface Worker_Env_Set_Logs {
+	logs?: Log[];
+}
+
+export interface Worker_Env_ProcessInfo {
+	pid: number;
 }

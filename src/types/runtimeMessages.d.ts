@@ -69,9 +69,13 @@ interface RuntimeMessageDataTypes {
 		data: Runtime_Proxy_Input;
 		return: Worker_Proxy_Input_Response;
 	};
-	proxy_clear: {
-		data: Runtime_Proxy_ClearLogs;
+	proxy_set_logs: {
+		data: Runtime_Proxy_Set_Logs;
 		return: void;
+	};
+	proxy_get_dimensions: {
+		data: Runtime_Proxy_Get_Dimensions;
+		return?: { width: number; height: number };
 	};
 }
 
@@ -153,7 +157,18 @@ export interface Runtime_Proxy_Input {
 	config?: InputConfig;
 }
 
-export interface Runtime_Proxy_ClearLogs {
+export interface Runtime_Proxy_Set_Logs {
+	handlerPid: number;
+	subjectPid: number;
+
+	logs: Log[];
+}
+
+export interface Runtime_Sound_Stopped_ID {
+	time: number;
+}
+
+export interface Runtime_Proxy_Get_Dimensions {
 	handlerPid: number;
 	subjectPid: number;
 }
