@@ -106,7 +106,8 @@ export default async function* TerminalApp(env: Environment) {
 	const { runCommand } = await shellImpl(env, io);
 
 	while (true) {
-		await runCommand();
+		const exit = await runCommand();
+		if (exit) return;
 
 		yield;
 	}
