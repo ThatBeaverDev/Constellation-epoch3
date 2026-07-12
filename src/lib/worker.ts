@@ -991,7 +991,7 @@ export async function workerFunction(this: undefined) {
 			},
 
 			setLogs(newLogs?: Log[]) {
-				emit("env_clear_logs", undefined);
+				emit("env_set_logs", { logs: newLogs });
 
 				logs = newLogs ?? [];
 			},

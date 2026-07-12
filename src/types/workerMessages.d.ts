@@ -52,7 +52,14 @@ interface WorkerMessageDataTypes {
 		data: WorkerEnv_Input;
 		return: string;
 	};
-	env_clear_logs: { data: void; return: void };
+	env_set_logs: {
+		data: Worker_Env_Set_Logs;
+		return: void;
+	};
+	env_terminal_dimensions: {
+		data: undefined;
+		return: { width: number; height: number };
+	};
 	kernel_uptime: {
 		data: void;
 		return: number;
@@ -206,7 +213,6 @@ export interface WorkerEnv_Network_Get {
 // sound types
 
 export interface WorkerEnv_PlaySound {
-	pid: number;
 	config: Sound;
 }
 
@@ -283,9 +289,7 @@ export interface Worker_Proxy_Trigger_Event<K extends EventName> {
 }
 
 export interface Worker_Env_Set_Logs {
-	pid: number;
-
-	logs: Log[];
+	logs?: Log[];
 }
 
 export interface Worker_Env_ProcessInfo {
