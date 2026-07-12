@@ -15,7 +15,6 @@ import {
 } from "../util/types/worker.js";
 import {
 	Worker_Env_Get_LiveCanvas,
-	Worker_Proxy_Input_Response,
 	Worker_Proxy_Trigger_Event,
 	type Worker_Sockets_Client_endConnection,
 	type Worker_Sockets_Client_newConnection,
@@ -28,17 +27,9 @@ import {
 	type WorkerEnv_Network_Get
 } from "../types/workerMessages.js";
 import {
-	Runtime_Env_Get_LiveCanvas,
-	Runtime_Proxy_ClearLogs,
-	Runtime_Proxy_Input,
-	Runtime_Proxy_Log,
-	type Runtime_Events_Trigger,
-	type Runtime_Sockets_Client_endConnection,
-	type Runtime_Sockets_Client_newConnection,
-	type Runtime_Sockets_Client_sendPacket,
-	type Runtime_Sockets_Server_endServer,
-	type Runtime_Sockets_Server_sendPacket,
-	type RuntimeExecuteProgram
+	RuntimeMessageIntent,
+	RuntimeMessageMap,
+	Runtime_Env_Get_LiveCanvas
 } from "../types/runtimeMessages.js";
 import { type FileStats } from "../util/types/worker";
 import { writeTempFile } from "./tempFile.js";
@@ -76,7 +67,7 @@ type Pending = {
 	resolve: (v: any) => void;
 	reject: (e: any) => void;
 };
-type RequestHandler<T = any> = (data: T) => Promise<any> | any;
+type RequestHandler<T = any, K = any> = (data: T) => Promise<K> | K;
 
 export async function workerFunction(this: undefined) {
 	/* ===== PATH-BROWSERIFY, SLIGHTLY MODIFIED ===== */
@@ -128,7 +119,7 @@ export async function workerFunction(this: undefined) {
 		for (let i = 0; i <= path.length; ++i) {
 			if (i < path.length) code = path.charCodeAt(i);
 			else if (code === 47 /*/*/) break;
-			else code = 47 /*/*/;
+			else code = 47; /*/*/
 			if (code === 47 /*/*/) {
 				if (lastSlash === i - 1 || dots === 1) {
 					// NOOP
@@ -215,7 +206,7 @@ export async function workerFunction(this: undefined) {
 				}
 
 				resolvedPath = path + "/" + resolvedPath;
-				resolvedAbsolute = path.charCodeAt(0) === 47 /*/*/;
+				resolvedAbsolute = path.charCodeAt(0) === 47; /*/*/
 			}
 
 			// At this point the path should be resolved to a full absolute path, but
@@ -261,7 +252,7 @@ export async function workerFunction(this: undefined) {
 
 		isAbsolute(path: string) {
 			assertPath(path);
-			return path.length > 0 && path.charCodeAt(0) === 47 /*/*/;
+			return path.length > 0 && path.charCodeAt(0) === 47; /*/*/
 		},
 
 		join(...args: string[]) {
@@ -757,7 +748,13 @@ export async function workerFunction(this: undefined) {
 			});
 		}
 
-		function handle<T = any>(event: string, handler: RequestHandler<T>) {
+		function handle<Intent extends RuntimeMessageIntent>(
+			event: Intent,
+			handler: RequestHandler<
+				RuntimeMessageMap[Intent]["data"],
+				RuntimeMessageMap[Intent]["return"]
+			>
+		) {
 			requestHandlers.set(event, handler);
 		}
 
@@ -1168,6 +1165,7 @@ export async function workerFunction(this: undefined) {
 					});
 
 					const onStop = new Promise<number>((resolve) => {
+						// @ts-expect-error
 						handle(`sound_stopped_${id}`, ({ time }) => {
 							resolve(time);
 						});
@@ -1359,7 +1357,7 @@ export async function workerFunction(this: undefined) {
 			args,
 			workingDirectory,
 			input
-		}: RuntimeExecuteProgram) => {
+		}) => {
 			// from src/util/lib/uri.ts
 			async function blobToUrl(blob: Blob) {
 				const url = URL.createObjectURL(blob);
@@ -1549,16 +1547,13 @@ export async function workerFunction(this: undefined) {
 		return result;
 	});
 
-	handle(
-		"program_exit",
-		({ pid, data, logs }: { pid: number; data?: any; logs: string[] }) => {
-			const program = activePrograms[pid];
-			if (program) {
-				program.resolve({ return: data, logs: logs });
-				delete activePrograms[pid];
-			}
+	handle("program_exit", ({ pid, data, logs }) => {
+		const program = activePrograms[pid];
+		if (program) {
+			program.resolve({ return: data, logs: logs });
+			delete activePrograms[pid];
 		}
-	);
+	});
 
 	// sockets
 
@@ -1593,77 +1588,62 @@ export async function workerFunction(this: undefined) {
 		return connections;
 	}
 
-	handle(
-		"Sockets/Client/newConnection",
-		(packet: Runtime_Sockets_Client_newConnection) => {
-			const server = socketServerBySocketId(packet.socketId);
+	handle("Sockets/Client/newConnection", (packet) => {
+		const server = socketServerBySocketId(packet.socketId);
 
-			server?.server?.onClientConnect?.({ pid: packet.initiatorPid });
-		}
-	);
-	handle(
-		"Sockets/Client/endConnection",
-		(packet: Runtime_Sockets_Client_endConnection) => {
-			const server = socketServerBySocketId(packet.socketId);
+		server?.server?.onClientConnect?.({ pid: packet.initiatorPid });
+	});
+	handle("Sockets/Client/endConnection", (packet) => {
+		const server = socketServerBySocketId(packet.socketId);
 
-			server?.server?.onClientDisconnect?.({ pid: packet.initiatorPid });
-		}
-	);
-	handle(
-		"Sockets/Client/sendPacket",
-		(packet: Runtime_Sockets_Client_sendPacket) => {
-			const server = socketServerBySocketId(packet.socketId);
+		server?.server?.onClientDisconnect?.({ pid: packet.initiatorPid });
+	});
+	handle("Sockets/Client/sendPacket", (packet) => {
+		const server = socketServerBySocketId(packet.socketId);
 
-			server?.server?.onMessage?.(
-				{ pid: packet.initiatorPid },
-				packet.payload
-			);
-		}
-	);
+		server?.server?.onMessage?.(
+			{ pid: packet.initiatorPid },
+			packet.payload
+		);
+	});
 
 	// shouldnt fire
 	handle("Sockets/Server/newServer", () => {});
-	handle(
-		"Sockets/Server/endServer",
-		(packet: Runtime_Sockets_Server_endServer) => {
-			// a server has terminated, so we need to disconnect clients.
-			const connections = clientConnectionsBySocketId(packet.socketId);
+	handle("Sockets/Server/endServer", (packet) => {
+		// a server has terminated, so we need to disconnect clients.
+		const connections = clientConnectionsBySocketId(packet.socketId);
 
-			for (const connection of connections) {
-				// need onClose()
-				connection.connection.onClose?.();
-				connection.connection.exit();
-			}
+		for (const connection of connections) {
+			// need onClose()
+			connection.connection.onClose?.();
+			connection.connection.exit();
 		}
-	);
-	handle(
-		"Sockets/Server/sendPacket",
-		(packet: Runtime_Sockets_Server_sendPacket) => {
-			// recieve server packet
-			const recipient = programByPid(packet.targetPid);
+	});
+	handle("Sockets/Server/sendPacket", (packet) => {
+		// recieve server packet
+		const recipient = programByPid(packet.targetPid);
 
-			const ids = recipient.socketConnections.map(
-				(connection) => connection.socketId
-			);
-			const index = ids.indexOf(packet.socketId);
+		const ids = recipient.socketConnections.map(
+			(connection) => connection.socketId
+		);
+		const index = ids.indexOf(packet.socketId);
 
-			if (index == -1) return; // not connected
+		if (index == -1) return; // not connected
 
-			const { connection } = recipient.socketConnections[index];
+		const { connection } = recipient.socketConnections[index];
 
-			connection.onMessage?.(packet.payload);
-		}
-	);
+		connection.onMessage?.(packet.payload);
+	});
 
 	// events
-	handle("event_trigger", (packet: Runtime_Events_Trigger<any>) => {
+	handle("event_trigger", (packet) => {
 		const program = programByPid(packet.pid);
 
 		program.env.triggerEvent(packet.name, packet.data);
 	});
 
 	// output proxies
-	handle("proxy_log", (packet: Runtime_Proxy_Log) => {
+	handle("proxy_log", (packet) => {
 		const program = programByPid(packet.handlerPid);
 
 		const handler = program.outputProxyHandlers[packet.subjectPid];
@@ -1672,24 +1652,19 @@ export async function workerFunction(this: undefined) {
 		handler.onLog(packet.log.type, packet.log.data);
 	});
 
-	handle(
-		"proxy_input",
-		async (
-			packet: Runtime_Proxy_Input
-		): Promise<Worker_Proxy_Input_Response> => {
-			const program = programByPid(packet.handlerPid);
+	handle("proxy_input", async (packet) => {
+		const program = programByPid(packet.handlerPid);
 
-			const handler = program.outputProxyHandlers[packet.subjectPid];
-			if (!handler) return { finished: false };
+		const handler = program.outputProxyHandlers[packet.subjectPid];
+		if (!handler) return { finished: false };
 
-			return {
-				finished: true,
-				response: await handler.onInput(packet.message, packet.config)
-			};
-		}
-	);
+		return {
+			finished: true,
+			response: await handler.onInput(packet.message, packet.config)
+		};
+	});
 
-	handle("proxy_clear", (packet: Runtime_Proxy_ClearLogs) => {
+	handle("proxy_clear", (packet) => {
 		const program = programByPid(packet.handlerPid);
 
 		const handler = program.outputProxyHandlers[packet.subjectPid];

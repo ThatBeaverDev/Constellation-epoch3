@@ -1,4 +1,8 @@
 import { WorkerStore } from "../runtime";
+import {
+	RuntimeMessageIntent,
+	RuntimeMessageMap
+} from "../types/runtimeMessages";
 import { nodeJs } from "./config";
 import { FilesystemInterface } from "./fs";
 
@@ -126,22 +130,30 @@ export async function mainThreadMessageHandler(
 		worker.onmessage = (event) => onMessage(event.data);
 	}
 
-	function sendMessage(intent: string, data: any): Promise<any> {
+	function sendMessage<Intent extends RuntimeMessageIntent>(
+		intent: Intent,
+		data: RuntimeMessageMap[Intent]["data"]
+	): Promise<RuntimeMessageMap[Intent]["return"]> {
 		const id = nextMessageID++;
 
-		return new Promise((resolve, reject) => {
-			pendingMessages.set(id, { resolve, reject });
+		return new Promise<RuntimeMessageMap[Intent]["return"]>(
+			(resolve, reject) => {
+				pendingMessages.set(id, { resolve, reject });
 
-			worker.postMessage({
-				kind: "request",
-				id,
-				intent,
-				data
-			});
-		});
+				worker.postMessage({
+					kind: "request",
+					id,
+					intent: intent,
+					data
+				});
+			}
+		);
 	}
 
-	function emit(event: string, data: any) {
+	function emit<Intent extends RuntimeMessageIntent>(
+		event: Intent,
+		data: RuntimeMessageMap[Intent]["data"]
+	) {
 		worker.postMessage({
 			kind: "event",
 			event,

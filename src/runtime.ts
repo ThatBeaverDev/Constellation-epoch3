@@ -10,7 +10,6 @@ import {
 import { implementWorkerFS, mainThreadMessageHandler } from "./lib/workerUtils";
 import {
 	Worker_Env_Get_LiveCanvas,
-	Worker_Proxy_Input_Response,
 	Worker_Proxy_Trigger_Event,
 	Worker_Sockets_Client_endConnection,
 	Worker_Sockets_Client_newConnection,
@@ -25,11 +24,9 @@ import {
 	WorkerEnv_SoundRemove
 } from "./types/workerMessages";
 import {
-	Runtime_Proxy_ClearLogs,
-	Runtime_Proxy_Input,
-	Runtime_Proxy_Log,
-	Runtime_Sockets_Server_sendPacket,
-	RuntimeExecuteProgram
+	RuntimeMessageIntent,
+	RuntimeMessageMap,
+	Runtime_Sockets_Server_sendPacket
 } from "./types/runtimeMessages";
 import {
 	consoleError,
@@ -89,8 +86,14 @@ export interface WorkerStore {
 
 	program?: ProgramStore;
 
-	sendMessage<T = any, K = any>(intent: string, data: K): Promise<T>;
-	emit<T = any>(event: string, data: T): void;
+	sendMessage: <Intent extends RuntimeMessageIntent>(
+		intent: Intent,
+		data: RuntimeMessageMap[Intent]["data"]
+	) => Promise<RuntimeMessageMap[Intent]["return"]>;
+	emit: <Intent extends RuntimeMessageIntent>(
+		event: Intent,
+		data: RuntimeMessageMap[Intent]["data"]
+	) => void;
 	exit(): void;
 }
 
@@ -530,6 +533,7 @@ export default class Runtime {
 			this.#sounds.set(id, { info: sound, program });
 
 			sound.onStop.then((time) => {
+				// @ts-expect-error
 				workerStore.emit(`sound_stopped_${id}`, {
 					time
 				});
@@ -774,17 +778,8 @@ export default class Runtime {
 			if (worker.lock) continue;
 			worker.lock = true;
 
-			interface execLoopResponse {
-				programs: {
-					pid: number;
-					directory: string;
-				}[];
-				completePrograms: { pid: number }[];
-				computePercentage: number;
-			}
-
 			worker
-				.sendMessage<execLoopResponse>("execLoop", undefined)
+				.sendMessage("execLoop", undefined)
 				.then(({ programs, completePrograms, computePercentage }) => {
 					worker.totalPrograms -= completePrograms.length;
 					worker.computePercentage = computePercentage;
@@ -858,7 +853,7 @@ export default class Runtime {
 				program.logs.push({ type, data: data });
 
 				if (proxyOwner) {
-					proxyOwner.worker.emit<Runtime_Proxy_Log>("proxy_log", {
+					proxyOwner.worker.emit("proxy_log", {
 						handlerPid: proxyOwner.pid,
 						subjectPid: program.pid,
 
@@ -914,10 +909,10 @@ export default class Runtime {
 				program.logs = [];
 
 				if (proxyOwner) {
-					proxyOwner.worker.emit<Runtime_Proxy_ClearLogs>(
-						"proxy_clear",
-						{ handlerPid: proxyOwner.pid, subjectPid: program.pid }
-					);
+					proxyOwner.worker.emit("proxy_clear", {
+						handlerPid: proxyOwner.pid,
+						subjectPid: program.pid
+					});
 				}
 
 				if (kernel.ui.controller == program) {
@@ -960,16 +955,16 @@ export default class Runtime {
 				const getProxyInput = async () => {
 					if (!proxyOwner) return;
 
-					const inputResponse = await proxyOwner.worker.sendMessage<
-						Worker_Proxy_Input_Response | undefined,
-						Runtime_Proxy_Input
-					>("proxy_input", {
-						handlerPid: proxyOwner.pid,
-						subjectPid: program.pid,
+					const inputResponse = await proxyOwner.worker.sendMessage(
+						"proxy_input",
+						{
+							handlerPid: proxyOwner.pid,
+							subjectPid: program.pid,
 
-						message: query,
-						config
-					});
+							message: query,
+							config
+						}
+					);
 
 					if (!inputResponse) return noInput();
 
@@ -1026,17 +1021,14 @@ export default class Runtime {
 		if (parent) parent.children.add(program);
 		this.programs.push(program);
 
-		const ok = await worker.sendMessage<boolean, RuntimeExecuteProgram>(
-			"executeProgram",
-			{
-				directory,
-				pid,
+		const ok = await worker.sendMessage("executeProgram", {
+			directory,
+			pid,
 
-				args,
-				workingDirectory: config?.workingDirectory ?? "/",
-				input: config?.input
-			}
-		);
+			args,
+			workingDirectory: config?.workingDirectory ?? "/",
+			input: config?.input
+		});
 		if (!ok) {
 			// not great, let's exit properly.
 
