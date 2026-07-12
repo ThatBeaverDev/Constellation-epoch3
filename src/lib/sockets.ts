@@ -1,11 +1,5 @@
 import Runtime, { ProgramStore, WorkerStore } from "../runtime";
 import {
-	Runtime_Sockets_Client_endConnection,
-	Runtime_Sockets_Client_newConnection,
-	Runtime_Sockets_Client_sendPacket,
-	Runtime_Sockets_Server_sendPacket
-} from "../types/runtimeMessages";
-import {
 	Worker_Sockets_Client_endConnection,
 	Worker_Sockets_Client_newConnection,
 	Worker_Sockets_Client_sendPacket,
@@ -80,10 +74,11 @@ export default class SocketManager {
 		socket.clients.add(client);
 
 		// inform the server
-		socket.server.worker.emit<Runtime_Sockets_Client_newConnection>(
-			"Sockets/Client/newConnection",
-			{ ...packet, socketId: socket.id, initiatorPid: client.pid }
-		);
+		socket.server.worker.emit("Sockets/Client/newConnection", {
+			...packet,
+			socketId: socket.id,
+			initiatorPid: client.pid
+		});
 
 		return socket.id;
 	}
@@ -100,10 +95,10 @@ export default class SocketManager {
 		socket.clients.delete(disconnectingClient);
 
 		// inform the server
-		server.worker.emit<Runtime_Sockets_Client_endConnection>(
-			"Sockets/Client/endConnection",
-			{ ...packet, initiatorPid: disconnectingClient.pid }
-		);
+		server.worker.emit("Sockets/Client/endConnection", {
+			...packet,
+			initiatorPid: disconnectingClient.pid
+		});
 	}
 
 	clientSendMessage(
@@ -116,10 +111,10 @@ export default class SocketManager {
 		if (!socket.clients.has(client))
 			throw new Error("Not connected to this websocket."); // not connected. it must connect first.
 
-		socket.server.worker.emit<Runtime_Sockets_Client_sendPacket>(
-			"Sockets/Client/sendPacket",
-			{ ...packet, initiatorPid: client.pid }
-		);
+		socket.server.worker.emit("Sockets/Client/sendPacket", {
+			...packet,
+			initiatorPid: client.pid
+		});
 	}
 	serverSendMessage(
 		packetServer: ProgramStore,
@@ -134,10 +129,7 @@ export default class SocketManager {
 		if (!socket.clients.has(target))
 			throw new Error("Target not connected to socket"); // not connected. this PID must connect first.
 
-		target.worker.emit<Runtime_Sockets_Server_sendPacket>(
-			"Sockets/Server/sendPacket",
-			packet
-		);
+		target.worker.emit("Sockets/Server/sendPacket", packet);
 	}
 
 	newServerInstance(
@@ -195,10 +187,7 @@ export default class SocketManager {
 
 			messagedWorkers.push(client.worker);
 
-			client.worker.emit<Worker_Sockets_Server_endServer>(
-				"Sockets/Server/endServer",
-				packet
-			);
+			client.worker.emit("Sockets/Server/endServer", packet);
 		}
 
 		this.#socketsById.delete(packet.socketId);

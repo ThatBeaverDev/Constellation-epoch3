@@ -2,7 +2,6 @@ import {
 	type ConstellationProgram,
 	type EnvironmentFilesystem,
 	type NetworkRequestType,
-	type Process,
 	type SocketConnection,
 	type SocketServer,
 	type WorkerProgramStore,
@@ -10,35 +9,18 @@ import {
 	type InputConfig,
 	type Log,
 	type Sound,
-	NetworkDataResponse,
 	WorkerOutputProxy
 } from "../util/types/worker.js";
 import {
-	Worker_Env_Get_LiveCanvas,
-	Worker_Proxy_Input_Response,
-	Worker_Proxy_Trigger_Event,
-	type Worker_Sockets_Client_endConnection,
-	type Worker_Sockets_Client_newConnection,
-	type Worker_Sockets_Client_sendPacket,
-	type Worker_Sockets_Server_endServer,
-	type Worker_Sockets_Server_newServer,
-	type Worker_Sockets_Server_sendPacket,
+	WorkerMessageDataTypes,
+	WorkerMessageIntent,
+	WorkerMessageMap,
 	type WorkerEnv_Exec,
-	type WorkerEnv_Input,
 	type WorkerEnv_Network_Get
 } from "../types/workerMessages.js";
 import {
-	Runtime_Env_Get_LiveCanvas,
-	Runtime_Proxy_ClearLogs,
-	Runtime_Proxy_Input,
-	Runtime_Proxy_Log,
-	type Runtime_Events_Trigger,
-	type Runtime_Sockets_Client_endConnection,
-	type Runtime_Sockets_Client_newConnection,
-	type Runtime_Sockets_Client_sendPacket,
-	type Runtime_Sockets_Server_endServer,
-	type Runtime_Sockets_Server_sendPacket,
-	type RuntimeExecuteProgram
+	RuntimeMessageIntent,
+	RuntimeMessageMap
 } from "../types/runtimeMessages.js";
 import { type FileStats } from "../util/types/worker";
 import { writeTempFile } from "./tempFile.js";
@@ -76,7 +58,7 @@ type Pending = {
 	resolve: (v: any) => void;
 	reject: (e: any) => void;
 };
-type RequestHandler<T = any> = (data: T) => Promise<any> | any;
+type RequestHandler<T = any, K = any> = (data: T) => Promise<K> | K;
 
 export async function workerFunction(this: undefined) {
 	/* ===== PATH-BROWSERIFY, SLIGHTLY MODIFIED ===== */
@@ -128,7 +110,7 @@ export async function workerFunction(this: undefined) {
 		for (let i = 0; i <= path.length; ++i) {
 			if (i < path.length) code = path.charCodeAt(i);
 			else if (code === 47 /*/*/) break;
-			else code = 47 /*/*/;
+			else code = 47; /*/*/
 			if (code === 47 /*/*/) {
 				if (lastSlash === i - 1 || dots === 1) {
 					// NOOP
@@ -215,7 +197,7 @@ export async function workerFunction(this: undefined) {
 				}
 
 				resolvedPath = path + "/" + resolvedPath;
-				resolvedAbsolute = path.charCodeAt(0) === 47 /*/*/;
+				resolvedAbsolute = path.charCodeAt(0) === 47; /*/*/
 			}
 
 			// At this point the path should be resolved to a full absolute path, but
@@ -261,7 +243,7 @@ export async function workerFunction(this: undefined) {
 
 		isAbsolute(path: string) {
 			assertPath(path);
-			return path.length > 0 && path.charCodeAt(0) === 47 /*/*/;
+			return path.length > 0 && path.charCodeAt(0) === 47; /*/*/
 		},
 
 		join(...args: string[]) {
@@ -731,10 +713,10 @@ export async function workerFunction(this: undefined) {
 			globalThis.onmessage = (event) => onRecievedMessage(event.data);
 		}
 
-		function sendMessage<T = any, K = any>(
-			intent: string,
-			data: K
-		): Promise<T> {
+		function sendMessage<Intent extends WorkerMessageIntent>(
+			intent: Intent,
+			data: WorkerMessageMap[Intent]["data"]
+		): Promise<WorkerMessageMap[Intent]["return"]> {
 			const id = nextMessageID++;
 
 			return new Promise((resolve, reject) => {
@@ -749,7 +731,10 @@ export async function workerFunction(this: undefined) {
 			});
 		}
 
-		function emit<T = any>(event: string, data: T) {
+		function emit<Intent extends WorkerMessageIntent>(
+			event: Intent,
+			data: WorkerMessageMap[Intent]["data"]
+		) {
 			postMessage({
 				kind: "event",
 				event,
@@ -757,7 +742,13 @@ export async function workerFunction(this: undefined) {
 			});
 		}
 
-		function handle<T = any>(event: string, handler: RequestHandler<T>) {
+		function handle<Intent extends RuntimeMessageIntent>(
+			event: Intent,
+			handler: RequestHandler<
+				RuntimeMessageMap[Intent]["data"],
+				RuntimeMessageMap[Intent]["return"]
+			>
+		) {
 			requestHandlers.set(event, handler);
 		}
 
@@ -821,9 +812,17 @@ export async function workerFunction(this: undefined) {
 		waitForReady(): Promise<void> {
 			return new Promise((resolve) => resolve());
 		}
-		#sendMessage: (intent: string, data: any) => Promise<any>;
+		#sendMessage: <Intent extends keyof WorkerMessageDataTypes>(
+			intent: Intent,
+			data: WorkerMessageMap[Intent]["data"]
+		) => Promise<WorkerMessageMap[Intent]["return"]>;
 
-		constructor(sendMessage: (intent: string, data: any) => Promise<any>) {
+		constructor(
+			sendMessage: <Intent extends keyof WorkerMessageDataTypes>(
+				intent: Intent,
+				data: WorkerMessageMap[Intent]["data"]
+			) => Promise<WorkerMessageMap[Intent]["return"]>
+		) {
 			this.#sendMessage = sendMessage;
 		}
 
@@ -939,27 +938,27 @@ export async function workerFunction(this: undefined) {
 
 		const env: Environment = {
 			print(data: Log) {
-				emit("program_log", { pid, data });
+				emit("program_log", { data });
 
 				return logs.push(data);
 			},
 
 			warn(data: Log) {
-				emit("program_warn", { pid, data });
+				emit("program_warn", { data });
 
 				return logs.push(data);
 			},
 
 			error(data: Log) {
-				emit("program_error", { pid, data });
+				emit("program_error", { data });
 
 				return logs.push(data);
 			},
 			async getLiveCanvas(width, height) {
-				return await sendMessage<
-					Runtime_Env_Get_LiveCanvas,
-					Worker_Env_Get_LiveCanvas
-				>("env_get_liveCanvas", { width, height });
+				return await sendMessage("env_get_liveCanvas", {
+					width,
+					height
+				});
 			},
 
 			input: async function (
@@ -973,27 +972,24 @@ export async function workerFunction(this: undefined) {
 
 				program.inputRequest = {};
 
-				const text = await sendMessage<string, WorkerEnv_Input>(
-					"env_input",
-					{
-						message,
+				const text = await sendMessage("env_input", {
+					message,
 
-						config: {
-							hideTyping: config?.hideTyping ?? false,
-							leaveInputOnCompletion:
-								config?.leaveInputOnCompletion ?? true,
-							inline: config?.inline ?? false,
-							initialText: config?.initialText ?? ""
-						}
+					config: {
+						hideTyping: config?.hideTyping ?? false,
+						leaveInputOnCompletion:
+							config?.leaveInputOnCompletion ?? true,
+						inline: config?.inline ?? false,
+						initialText: config?.initialText ?? ""
 					}
-				);
+				});
 
 				handlingInput = false;
 				return text;
 			},
 
 			clearLogs() {
-				emit("env_clear_logs", { pid });
+				emit("env_clear_logs", undefined);
 
 				logs.splice(0, Infinity);
 			},
@@ -1045,7 +1041,7 @@ export async function workerFunction(this: undefined) {
 					outputProxy: config?.outputProxy !== undefined
 				};
 
-				const { pid: executedPID } = await sendMessage<{ pid: number }>(
+				const { pid: executedPID } = await sendMessage(
 					"env_exec",
 					data
 				);
@@ -1078,11 +1074,7 @@ export async function workerFunction(this: undefined) {
 								case "keyup": {
 									// allowed
 
-									emit<
-										Worker_Proxy_Trigger_Event<
-											typeof eventName
-										>
-									>("proxy_trigger_event", {
+									emit("proxy_trigger_event", {
 										handlerPid: program.pid,
 										subjectPid: executedPID,
 
@@ -1105,15 +1097,13 @@ export async function workerFunction(this: undefined) {
 				} as any; // trust, it's trying to complain about the lack of `outputProxy` key.
 			},
 			async processes() {
-				return await sendMessage<Process[]>("env_processes", undefined);
+				return await sendMessage("env_processes", undefined);
 			},
 			async self() {
-				return await sendMessage<Process>("env_selfProcess", { pid });
+				return await sendMessage("env_selfProcess", undefined);
 			},
 			async parent() {
-				return await sendMessage<Process>("env_parent_process", {
-					pid
-				});
+				return await sendMessage("env_parent_process", undefined);
 			},
 
 			network: {
@@ -1125,10 +1115,7 @@ export async function workerFunction(this: undefined) {
 					headers?: Record<string, string>,
 					options?: WorkerEnv_Network_Get["options"]
 				) => {
-					const result = await sendMessage<
-						NetworkDataResponse,
-						WorkerEnv_Network_Get
-					>("env_network_get", {
+					const result = await sendMessage("env_network_get", {
 						type,
 						url,
 						format,
@@ -1143,31 +1130,25 @@ export async function workerFunction(this: undefined) {
 
 			systemStats: {
 				async uptime() {
-					return await sendMessage<number>(
-						"kernel_uptime",
-						undefined
-					);
+					return await sendMessage("kernel_uptime", undefined);
 				},
 
 				async kernelVersion() {
-					return await sendMessage<number>(
-						"kernel_version",
-						undefined
-					);
+					return await sendMessage("kernel_version", undefined);
 				}
 			},
 
 			sound: {
 				play: async (config: Sound) => {
-					const { id, duration } = await sendMessage<{
-						id: number;
-						duration: number;
-					}>("env_sound_play", {
-						pid,
-						config
-					});
+					const { id, duration } = await sendMessage(
+						"env_sound_play",
+						{
+							config
+						}
+					);
 
 					const onStop = new Promise<number>((resolve) => {
+						// @ts-expect-error
 						handle(`sound_stopped_${id}`, ({ time }) => {
 							resolve(time);
 						});
@@ -1201,12 +1182,12 @@ export async function workerFunction(this: undefined) {
 
 			sockets: {
 				async connectToSocket(directory: string) {
-					const socketId = await sendMessage<
-						number,
-						Worker_Sockets_Client_newConnection
-					>("Sockets/Client/newConnection", {
-						socketDirectory: directory
-					});
+					const socketId = await sendMessage(
+						"Sockets/Client/newConnection",
+						{
+							socketDirectory: directory
+						}
+					);
 
 					let exited = false;
 
@@ -1221,10 +1202,10 @@ export async function workerFunction(this: undefined) {
 									"Connection is no longer active and messages can no longer be sent."
 								);
 
-							emit<Worker_Sockets_Client_sendPacket>(
-								"Sockets/Client/sendPacket",
-								{ payload, socketId }
-							);
+							emit("Sockets/Client/sendPacket", {
+								payload,
+								socketId
+							});
 						},
 
 						exit() {
@@ -1238,10 +1219,7 @@ export async function workerFunction(this: undefined) {
 									(socket) => socket.connection !== connection
 								);
 
-							emit<Worker_Sockets_Client_endConnection>(
-								"Sockets/Client/endConnection",
-								{ socketId }
-							);
+							emit("Sockets/Client/endConnection", { socketId });
 						}
 					};
 
@@ -1251,12 +1229,12 @@ export async function workerFunction(this: undefined) {
 				},
 
 				async createSocket(directory: string) {
-					const socketId = await sendMessage<
-						number,
-						Worker_Sockets_Server_newServer
-					>("Sockets/Server/newServer", {
-						socketDirectory: directory
-					});
+					const socketId = await sendMessage(
+						"Sockets/Server/newServer",
+						{
+							socketDirectory: directory
+						}
+					);
 
 					let exited = false;
 
@@ -1273,14 +1251,11 @@ export async function workerFunction(this: undefined) {
 									"Server is no longer active and messages can no longer be sent"
 								);
 
-							emit<Worker_Sockets_Server_sendPacket>(
-								"Sockets/Server/sendPacket",
-								{
-									payload,
-									socketId: socketId,
-									targetPid: clientPid
-								}
-							);
+							emit("Sockets/Server/sendPacket", {
+								payload,
+								socketId: socketId,
+								targetPid: clientPid
+							});
 						},
 
 						exit() {
@@ -1293,10 +1268,7 @@ export async function workerFunction(this: undefined) {
 									(socket) => socket.server !== server
 								);
 
-							emit<Worker_Sockets_Server_endServer>(
-								"Sockets/Server/endServer",
-								{ socketId }
-							);
+							emit("Sockets/Server/endServer", { socketId });
 						}
 					};
 
@@ -1359,7 +1331,7 @@ export async function workerFunction(this: undefined) {
 			args,
 			workingDirectory,
 			input
-		}: RuntimeExecuteProgram) => {
+		}) => {
 			// from src/util/lib/uri.ts
 			async function blobToUrl(blob: Blob) {
 				const url = URL.createObjectURL(blob);
@@ -1465,7 +1437,7 @@ export async function workerFunction(this: undefined) {
 
 		programs.splice(programs.indexOf(program), 1);
 
-		sendMessage("termination", { pid: program.pid, data });
+		sendMessage("termination", { data });
 	}
 
 	const completedQueue: { pid: number }[] = [];
@@ -1549,16 +1521,13 @@ export async function workerFunction(this: undefined) {
 		return result;
 	});
 
-	handle(
-		"program_exit",
-		({ pid, data, logs }: { pid: number; data?: any; logs: string[] }) => {
-			const program = activePrograms[pid];
-			if (program) {
-				program.resolve({ return: data, logs: logs });
-				delete activePrograms[pid];
-			}
+	handle("program_exit", ({ pid, data, logs }) => {
+		const program = activePrograms[pid];
+		if (program) {
+			program.resolve({ return: data, logs: logs });
+			delete activePrograms[pid];
 		}
-	);
+	});
 
 	// sockets
 
@@ -1593,77 +1562,62 @@ export async function workerFunction(this: undefined) {
 		return connections;
 	}
 
-	handle(
-		"Sockets/Client/newConnection",
-		(packet: Runtime_Sockets_Client_newConnection) => {
-			const server = socketServerBySocketId(packet.socketId);
+	handle("Sockets/Client/newConnection", (packet) => {
+		const server = socketServerBySocketId(packet.socketId);
 
-			server?.server?.onClientConnect?.({ pid: packet.initiatorPid });
-		}
-	);
-	handle(
-		"Sockets/Client/endConnection",
-		(packet: Runtime_Sockets_Client_endConnection) => {
-			const server = socketServerBySocketId(packet.socketId);
+		server?.server?.onClientConnect?.({ pid: packet.initiatorPid });
+	});
+	handle("Sockets/Client/endConnection", (packet) => {
+		const server = socketServerBySocketId(packet.socketId);
 
-			server?.server?.onClientDisconnect?.({ pid: packet.initiatorPid });
-		}
-	);
-	handle(
-		"Sockets/Client/sendPacket",
-		(packet: Runtime_Sockets_Client_sendPacket) => {
-			const server = socketServerBySocketId(packet.socketId);
+		server?.server?.onClientDisconnect?.({ pid: packet.initiatorPid });
+	});
+	handle("Sockets/Client/sendPacket", (packet) => {
+		const server = socketServerBySocketId(packet.socketId);
 
-			server?.server?.onMessage?.(
-				{ pid: packet.initiatorPid },
-				packet.payload
-			);
-		}
-	);
+		server?.server?.onMessage?.(
+			{ pid: packet.initiatorPid },
+			packet.payload
+		);
+	});
 
 	// shouldnt fire
 	handle("Sockets/Server/newServer", () => {});
-	handle(
-		"Sockets/Server/endServer",
-		(packet: Runtime_Sockets_Server_endServer) => {
-			// a server has terminated, so we need to disconnect clients.
-			const connections = clientConnectionsBySocketId(packet.socketId);
+	handle("Sockets/Server/endServer", (packet) => {
+		// a server has terminated, so we need to disconnect clients.
+		const connections = clientConnectionsBySocketId(packet.socketId);
 
-			for (const connection of connections) {
-				// need onClose()
-				connection.connection.onClose?.();
-				connection.connection.exit();
-			}
+		for (const connection of connections) {
+			// need onClose()
+			connection.connection.onClose?.();
+			connection.connection.exit();
 		}
-	);
-	handle(
-		"Sockets/Server/sendPacket",
-		(packet: Runtime_Sockets_Server_sendPacket) => {
-			// recieve server packet
-			const recipient = programByPid(packet.targetPid);
+	});
+	handle("Sockets/Server/sendPacket", (packet) => {
+		// recieve server packet
+		const recipient = programByPid(packet.targetPid);
 
-			const ids = recipient.socketConnections.map(
-				(connection) => connection.socketId
-			);
-			const index = ids.indexOf(packet.socketId);
+		const ids = recipient.socketConnections.map(
+			(connection) => connection.socketId
+		);
+		const index = ids.indexOf(packet.socketId);
 
-			if (index == -1) return; // not connected
+		if (index == -1) return; // not connected
 
-			const { connection } = recipient.socketConnections[index];
+		const { connection } = recipient.socketConnections[index];
 
-			connection.onMessage?.(packet.payload);
-		}
-	);
+		connection.onMessage?.(packet.payload);
+	});
 
 	// events
-	handle("event_trigger", (packet: Runtime_Events_Trigger<any>) => {
+	handle("event_trigger", (packet) => {
 		const program = programByPid(packet.pid);
 
 		program.env.triggerEvent(packet.name, packet.data);
 	});
 
 	// output proxies
-	handle("proxy_log", (packet: Runtime_Proxy_Log) => {
+	handle("proxy_log", (packet) => {
 		const program = programByPid(packet.handlerPid);
 
 		const handler = program.outputProxyHandlers[packet.subjectPid];
@@ -1672,24 +1626,19 @@ export async function workerFunction(this: undefined) {
 		handler.onLog(packet.log.type, packet.log.data);
 	});
 
-	handle(
-		"proxy_input",
-		async (
-			packet: Runtime_Proxy_Input
-		): Promise<Worker_Proxy_Input_Response> => {
-			const program = programByPid(packet.handlerPid);
+	handle("proxy_input", async (packet) => {
+		const program = programByPid(packet.handlerPid);
 
-			const handler = program.outputProxyHandlers[packet.subjectPid];
-			if (!handler) return { finished: false };
+		const handler = program.outputProxyHandlers[packet.subjectPid];
+		if (!handler) return { finished: false };
 
-			return {
-				finished: true,
-				response: await handler.onInput(packet.message, packet.config)
-			};
-		}
-	);
+		return {
+			finished: true,
+			response: await handler.onInput(packet.message, packet.config)
+		};
+	});
 
-	handle("proxy_clear", (packet: Runtime_Proxy_ClearLogs) => {
+	handle("proxy_clear", (packet) => {
 		const program = programByPid(packet.handlerPid);
 
 		const handler = program.outputProxyHandlers[packet.subjectPid];

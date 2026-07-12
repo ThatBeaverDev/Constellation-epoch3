@@ -340,7 +340,7 @@ export interface Environment {
 	systemStats: {
 		uptime(): Promise<number>;
 
-		kernelVersion(): Promise<number>;
+		kernelVersion(): Promise<string>;
 	};
 
 	sound: {
