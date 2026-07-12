@@ -74,7 +74,7 @@ export default class WindowManager {
 						return;
 
 					case "":
-						if (e.alt) {
+						if (e.alt || e.ctrl) {
 							this.hidePalette();
 							return;
 						}
@@ -85,6 +85,15 @@ export default class WindowManager {
 			}
 
 			const keyName = e.name.trim().toLowerCase();
+
+			if (keyName == "" && (e.alt || e.ctrl)) {
+				if (this.#showPalette) {
+					this.hidePalette();
+				} else {
+					this.showPalette();
+				}
+				return;
+			}
 
 			if (e.alt) {
 				const total = this.windowIDs.length;
@@ -122,10 +131,6 @@ export default class WindowManager {
 					case "w":
 					case "∑":
 						this.#currentWindow?.window?.close?.();
-						break;
-
-					case "":
-						this.showPalette();
 						break;
 				}
 
