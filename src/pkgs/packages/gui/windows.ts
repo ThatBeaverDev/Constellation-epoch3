@@ -134,19 +134,28 @@ export default class WindowManager {
 
 				switch (keyName) {
 					case "arrowup":
-						if (window.scrollItem - 1 >= 0) {
-							// allow it
-							window.scrollItem -= 1;
+						if (e.shift) {
+							window.scroll -= 100;
+						} else {
+							if (window.scrollItem - 1 >= 0) {
+								// allow it
+								window.scrollItem -= 1;
+							}
 						}
+
 						return;
 
 					case "arrowdown":
-						if (
-							window.scrollItem + 1 <=
-							window.interactables.length - 1
-						) {
-							// allow it
-							window.scrollItem += 1;
+						if (e.shift) {
+							window.scroll += 100;
+						} else {
+							if (
+								window.scrollItem + 1 <=
+								window.interactables.length - 1
+							) {
+								// allow it
+								window.scrollItem += 1;
+							}
 						}
 						return;
 				}
@@ -154,81 +163,84 @@ export default class WindowManager {
 				const item =
 					window.contents[window.interactables[window.scrollItem]];
 
-				switch (item.type) {
-					case "button": {
-						if (keyName == "" || keyName == "enter") {
-							// space key
-							this.socketManager?.onButtonPress?.(
-								window,
-								item.identifier
-							);
-							return;
-						}
-						break;
-					}
-
-					case "textBox": {
-						if (!window.typing[item.identifier]) {
-							window.typing[item.identifier] = "";
+				if (item)
+					switch (item.type) {
+						case "button": {
+							if (keyName == "" || keyName == "enter") {
+								// space key
+								this.socketManager?.onButtonPress?.(
+									window,
+									item.identifier
+								);
+								return;
+							}
+							break;
 						}
 
-						const store: string = window.typing[item.identifier]!;
+						case "textBox": {
+							if (!window.typing[item.identifier]) {
+								window.typing[item.identifier] = "";
+							}
 
-						const registerChange = () => {
-							this.socketManager?.onTextboxValueChange(
-								window,
-								item.identifier,
-								// @ts-expect-error
-								window.typing[item.identifier]
-							);
-						};
+							const store: string =
+								window.typing[item.identifier]!;
 
-						switch (keyName) {
-							case "control":
-							case "shift":
-							case "meta":
-							case "tab":
-							case "escape":
-							case "delete":
-							case "end":
-							case "pagedown":
-							case "pageup":
-							case "insert":
-							case "home":
-								break;
+							const registerChange = () => {
+								this.socketManager?.onTextboxValueChange(
+									window,
+									item.identifier,
+									// @ts-expect-error
+									window.typing[item.identifier]
+								);
+							};
 
-							case "backspace":
-								const backspace = () => {
-									window.typing[item.identifier] =
-										store?.slice(0, store.length - 1);
-								};
+							switch (keyName) {
+								case "control":
+								case "shift":
+								case "meta":
+								case "tab":
+								case "escape":
+								case "delete":
+								case "end":
+								case "pagedown":
+								case "pageup":
+								case "insert":
+								case "home":
+								case "alt":
+									break;
 
-								if (e.alt) {
-									const lastWordLength = 2;
-									for (let i = 0; i > lastWordLength; i++)
+								case "backspace":
+									const backspace = () => {
+										window.typing[item.identifier] =
+											store?.slice(0, store.length - 1);
+									};
+
+									if (e.alt) {
+										const lastWordLength = 2;
+										for (let i = 0; i > lastWordLength; i++)
+											backspace();
+									} else {
 										backspace();
-								} else {
-									backspace();
-								}
+									}
 
-								registerChange();
-								break;
+									registerChange();
+									break;
 
-							case "":
-								window.typing[item.identifier] += " ";
-								registerChange();
-								break;
+								case "":
+									window.typing[item.identifier] += " ";
+									registerChange();
+									break;
 
-							case "enter":
-								item.complete = true;
-								break;
+								case "enter":
+									item.complete = true;
+									break;
 
-							default:
-								window.typing[item.identifier] += e.name;
-								registerChange();
+								default:
+									window.typing[item.identifier] += e.name;
+									registerChange();
+							}
 						}
 					}
-				}
 
 				// not caught - send to current app
 				if (this.socketManager) {
@@ -378,10 +390,13 @@ export default class WindowManager {
 const debugRendering = false;
 export abstract class Window {
 	scrollItem: number = 0;
-	contents: WindowContentItem[] = [];
+	#currentItemHeight?: number;
+
+	contents: Partial<WindowContentItem[]> = [];
 	interactables: number[] = [];
 
 	typing: Partial<Record<string, string>> = {};
+	scroll: number = 0;
 
 	constructor(
 		public windowManager: WindowManager,
@@ -410,6 +425,8 @@ export abstract class Window {
 			console.error("DEBUG RENDERING ENABLED");
 		}
 
+		this.#currentItemHeight = undefined;
+
 		// Window box
 		rect(
 			ctx,
@@ -427,9 +444,13 @@ export abstract class Window {
 
 		// rendered last so it can't be drawn over
 
+		const yRoot = y - this.scroll;
+
 		// dynamic content
 		for (const i in this.contents) {
 			const item = this.contents[i];
+			if (!item) continue;
+
 			const idx = Number(i);
 
 			const itemFocused = this.interactables[this.scrollItem] == idx;
@@ -449,18 +470,21 @@ export abstract class Window {
 						rect(
 							ctx,
 							x + item.x - 3,
-							y + headerHeight + item.y - 3,
+							yRoot + headerHeight + item.y - 3,
 							measurements.width + 6,
 							measurements.height + 6,
 							"rgb(65 65 65)"
 						);
+
+						this.#currentItemHeight =
+							item.y + measurements.height + 6;
 					}
 
 					drawLog(
 						ctx,
 						item.text,
 						x + item.x,
-						y + headerHeight + item.y,
+						yRoot + headerHeight + item.y,
 						item.font,
 						item.fontSize
 					);
@@ -490,18 +514,21 @@ export abstract class Window {
 						rect(
 							ctx,
 							x + item.x - 3,
-							y + headerHeight + item.y - 3,
+							yRoot + headerHeight + item.y - 3,
 							measurements.width + 6,
 							measurements.height + 6,
 							"rgb(65 65 65)",
 							"white"
 						);
+
+						this.#currentItemHeight =
+							item.y + measurements.height + 6;
 					}
 
 					text(
 						ctx,
 						x + item.x,
-						y + headerHeight + item.y,
+						yRoot + headerHeight + item.y,
 						displayText
 					);
 
@@ -521,17 +548,19 @@ export abstract class Window {
 					rect(
 						ctx,
 						x + item.x - 3,
-						y + headerHeight + item.y - 3,
+						yRoot + headerHeight + item.y - 3,
 						measurements.width + 6,
 						measurements.height + 6,
 						itemFocused ? "rgb(100 100 100)" : "rgb(75 75 75)"
 					);
 
+					this.#currentItemHeight = item.y + measurements.height + 6;
+
 					drawLog(
 						ctx,
 						item.text,
 						x + item.x,
-						y + headerHeight + item.y,
+						yRoot + headerHeight + item.y,
 						item.font,
 						item.fontSize
 					);
@@ -543,7 +572,7 @@ export abstract class Window {
 					text(
 						ctx,
 						x + item.x,
-						y + headerHeight + item.y,
+						yRoot + headerHeight + item.y,
 						`Unknown Component Type: ${item.type}`
 					);
 			}
@@ -570,6 +599,26 @@ export abstract class Window {
 		);
 
 		if (!debugRendering) ctx.restore();
+
+		const contentHeight = height - headerHeight;
+
+		const focused = this.contents[this.interactables[this.scrollItem]];
+		if (focused) {
+			const targetVisibleTop = focused.y - this.scroll;
+			const targetVisibleBottom =
+				(this.#currentItemHeight ?? focused.y + 15) - this.scroll;
+
+			if (targetVisibleBottom > contentHeight) {
+				this.scroll += Math.abs(targetVisibleBottom - contentHeight);
+			}
+			if (targetVisibleTop < headerHeight) {
+				this.scroll -= Math.abs(targetVisibleTop - headerHeight);
+			}
+
+			if (this.scroll < 0) {
+				this.scroll = 0;
+			}
+		}
 	}
 
 	// impl in WindowManager

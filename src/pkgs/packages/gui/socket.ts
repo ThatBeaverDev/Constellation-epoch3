@@ -133,7 +133,7 @@ export default class SocketManager {
 						const idx = Number(i);
 						const item = msg.contents[idx];
 
-						if (interactableTypes.has(item.type)) {
+						if (item && interactableTypes.has(item?.type)) {
 							interactables.push(idx);
 						}
 					}

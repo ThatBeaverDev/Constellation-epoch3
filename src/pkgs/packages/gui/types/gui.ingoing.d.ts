@@ -12,7 +12,7 @@ export interface GuiNewWindowIngoing {
 
 export interface GuiSetWindowContentsIngoing {
 	intent: "setWindowContents";
-	contents: WindowContentItem[];
+	contents: Partial<WindowContentItem[]>;
 	windowID?: number;
 }
 
