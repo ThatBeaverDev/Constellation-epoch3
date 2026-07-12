@@ -1,38 +1,11 @@
 import Constellation from "./index";
 import { FilesystemInterface } from "./lib/fs";
 import { newWorker, workerFunction } from "./lib/worker";
-import {
-	InputConfig,
-	Log,
-	NetworkDataResponse,
-	Process
-} from "./util/types/worker";
+import { InputConfig, Log, Process } from "./util/types/worker";
 import { implementWorkerFS, mainThreadMessageHandler } from "./lib/workerUtils";
 import {
-	Worker_Env_Get_LiveCanvas,
-	Worker_Env_Set_Logs,
-	Worker_Proxy_Input_Response,
-	Worker_Proxy_Trigger_Event,
-	Worker_Sockets_Client_endConnection,
-	Worker_Sockets_Client_newConnection,
-	Worker_Sockets_Client_sendPacket,
-	Worker_Sockets_Server_endServer,
-	Worker_Sockets_Server_newServer,
-	WorkerEnv_Exec,
-	WorkerEnv_Input,
-	WorkerEnv_Network_Get,
-	WorkerEnv_PlaySound,
-	WorkerEnv_SoundAction,
-	WorkerEnv_SoundRemove
-} from "./types/workerMessages";
-import {
-	Runtime_Proxy_Input,
-	Runtime_Proxy_Log,
-	Runtime_Sockets_Server_sendPacket,
-	RuntimeExecuteProgram,
-	Runtime_Sound_Stopped_ID,
-	Runtime_Proxy_Set_Logs,
-	Runtime_Proxy_Get_Dimensions
+	RuntimeMessageIntent,
+	RuntimeMessageMap
 } from "./types/runtimeMessages";
 import {
 	consoleError,
@@ -93,8 +66,14 @@ export interface WorkerStore {
 
 	program?: ProgramStore;
 
-	sendMessage<T = any, K = any>(intent: string, data: K): Promise<T>;
-	emit<T = any>(event: string, data: T): void;
+	sendMessage: <Intent extends RuntimeMessageIntent>(
+		intent: Intent,
+		data: RuntimeMessageMap[Intent]["data"]
+	) => Promise<RuntimeMessageMap[Intent]["return"]>;
+	emit: <Intent extends RuntimeMessageIntent>(
+		event: Intent,
+		data: RuntimeMessageMap[Intent]["data"]
+	) => void;
 	exit(): void;
 }
 
@@ -251,17 +230,17 @@ export default class Runtime {
 
 		implementWorkerFS(handle, this.#fs);
 
-		handle("program_log", ({ data }: { data: Log }) => {
+		handle("program_log", ({ data }) => {
 			const program = getProgram();
 
 			program.onLog("log", data);
 		});
-		handle("program_warn", ({ data }: { data: Log }) => {
+		handle("program_warn", ({ data }) => {
 			const program = getProgram();
 
 			program.onLog("warning", data);
 		});
-		handle("program_error", ({ data }: { data: Log }) => {
+		handle("program_error", ({ data }) => {
 			const program = getProgram();
 
 			program.onLog("error", data);
@@ -276,7 +255,7 @@ export default class Runtime {
 				workingDirectory,
 				input,
 				outputProxy
-			}: WorkerEnv_Exec) => {
+			}) => {
 				const parent = getProgram();
 
 				const program = await this.executeProgram(path, parent, args, {
@@ -331,14 +310,7 @@ export default class Runtime {
 
 		handle(
 			"env_network_get",
-			async ({
-				type,
-				url,
-				format,
-				body,
-				headers,
-				options
-			}: WorkerEnv_Network_Get): Promise<NetworkDataResponse> => {
+			async ({ type, url, format, body, headers, options }) => {
 				const processedType = `${type}`.toLowerCase();
 				let method = "GET";
 
@@ -455,7 +427,7 @@ export default class Runtime {
 			}
 		);
 
-		handle("termination", ({ data }: { data?: any }) => {
+		handle("termination", ({ data }) => {
 			this.#registerTermination(pid, data);
 
 			// delete all sounds
@@ -471,10 +443,7 @@ export default class Runtime {
 
 		handle(
 			"env_input",
-			async ({
-				message = "Messsage not provided.",
-				config
-			}: WorkerEnv_Input) => {
+			async ({ message = "Messsage not provided.", config }) => {
 				const program = getProgram();
 
 				return await program.onInput(message, {
@@ -486,7 +455,7 @@ export default class Runtime {
 			}
 		);
 
-		handle("env_set_logs", ({ logs }: Worker_Env_Set_Logs) => {
+		handle("env_set_logs", ({ logs }) => {
 			const program = getProgram();
 
 			return program.onSetLogs(logs);
@@ -501,35 +470,13 @@ export default class Runtime {
 		handle("kernel_uptime", () => Date.now() - this.#kernel.start);
 		handle("kernel_version", () => this.#kernel.version);
 
-		handle("worker_stats", () => {
-			const workers = this.workers;
-
-			const result: {
-				id: number;
-				processes: number;
-				activeTime: number;
-			}[] = [];
-
-			for (const worker of workers) {
-				result.push({
-					id: worker.id,
-
-					processes: worker.totalPrograms,
-
-					activeTime: worker.computePercentage / 100
-				});
-			}
-
-			return result;
-		});
-
 		handle("keepAlive", () => {
 			workerStore.lastKeepAlive = Date.now();
 		});
 
 		/* ----- Sounds ----- */
 
-		handle("env_sound_play", async ({ config }: WorkerEnv_PlaySound) => {
+		handle("env_sound_play", async ({ config }) => {
 			const program = getProgram();
 			const sound = await this.#kernel.ui.playSound?.(config);
 
@@ -540,12 +487,10 @@ export default class Runtime {
 			this.#sounds.set(id, { info: sound, program });
 
 			sound.onStop.then((time) => {
-				workerStore.emit<Runtime_Sound_Stopped_ID>(
-					`sound_stopped_${id}`,
-					{
-						time
-					}
-				);
+				// @ts-expect-error
+				workerStore.emit(`sound_stopped_${id}`, {
+					time
+				});
 
 				this.#sounds.delete(id);
 			});
@@ -556,116 +501,87 @@ export default class Runtime {
 			};
 		});
 
-		handle(
-			"env_sound_pause",
-			async ({ soundID }: WorkerEnv_SoundAction) => {
-				const sound = this.#sounds.get(soundID);
+		handle("env_sound_pause", async ({ soundID }) => {
+			const sound = this.#sounds.get(soundID);
 
-				if (!sound) throw new Error(`Sound ${soundID} does not exist.`);
+			if (!sound) throw new Error(`Sound ${soundID} does not exist.`);
 
-				sound.info.pause();
-			}
-		);
+			sound.info.pause();
+		});
 
-		handle(
-			"env_sound_resume",
-			async ({ soundID }: WorkerEnv_SoundAction) => {
-				const sound = this.#sounds.get(soundID);
+		handle("env_sound_resume", async ({ soundID }) => {
+			const sound = this.#sounds.get(soundID);
 
-				if (!sound) throw new Error(`Sound ${soundID} does not exist.`);
+			if (!sound) throw new Error(`Sound ${soundID} does not exist.`);
 
-				sound.info.play();
-			}
-		);
+			sound.info.play();
+		});
 
-		handle(
-			"env_sound_remove",
-			async ({ soundID }: WorkerEnv_SoundRemove) => {
-				const sound = this.#sounds.get(soundID);
+		handle("env_sound_remove", async ({ soundID }) => {
+			const sound = this.#sounds.get(soundID);
 
-				if (!sound) return;
+			if (!sound) return;
 
-				sound.info.remove();
-				this.#sounds.delete(soundID);
-			}
-		);
+			sound.info.remove();
+			this.#sounds.delete(soundID);
+		});
 
 		// sockets
-		handle(
-			"Sockets/Client/newConnection",
-			(packet: Worker_Sockets_Client_newConnection) => {
-				const client = getProgram();
+		handle("Sockets/Client/newConnection", (packet) => {
+			const client = getProgram();
 
-				return this.#sockets.newClientConnection(client, packet);
-			}
-		);
-		handle(
-			"Sockets/Client/endConnection",
-			(packet: Worker_Sockets_Client_endConnection) => {
-				const disconnectingClient = getProgram();
+			return this.#sockets.newClientConnection(client, packet);
+		});
+		handle("Sockets/Client/endConnection", (packet) => {
+			const disconnectingClient = getProgram();
 
-				return this.#sockets.endClientConnection(
-					disconnectingClient,
-					packet
+			return this.#sockets.endClientConnection(
+				disconnectingClient,
+				packet
+			);
+		});
+		handle("Sockets/Client/sendPacket", (packet) => {
+			const client = getProgram();
+
+			return this.#sockets.clientSendMessage(client, packet);
+		});
+
+		handle("Sockets/Server/newServer", (packet) => {
+			const server = getProgram();
+
+			return this.#sockets.newServerInstance(server, packet);
+		});
+		handle("Sockets/Server/endServer", (packet) => {
+			const server = getProgram();
+
+			return this.#sockets.endServerInstance(server, packet);
+		});
+		handle("Sockets/Server/sendPacket", (packet) => {
+			const server = getProgram();
+
+			return this.#sockets.serverSendMessage(server, packet);
+		});
+
+		// @ts-expect-error // withTransfer explodes the types
+		handle("env_get_liveCanvas", async ({ width, height }) => {
+			const liveCanvas = await this.#kernel.ui.getLiveCanvas?.(
+				width,
+				height
+			);
+
+			if (!liveCanvas) {
+				throw new Error(
+					"UI did not provide a canvas element (or does not support liveCanvas)."
 				);
 			}
-		);
-		handle(
-			"Sockets/Client/sendPacket",
-			(packet: Worker_Sockets_Client_sendPacket) => {
-				const client = getProgram();
 
-				return this.#sockets.clientSendMessage(client, packet);
-			}
-		);
+			const program = getProgram();
+			program.liveCanvasIds.push(liveCanvas.id);
 
-		handle(
-			"Sockets/Server/newServer",
-			(packet: Worker_Sockets_Server_newServer) => {
-				const server = getProgram();
+			return withTransfer(liveCanvas, [liveCanvas.canvas]);
+		});
 
-				return this.#sockets.newServerInstance(server, packet);
-			}
-		);
-		handle(
-			"Sockets/Server/endServer",
-			(packet: Worker_Sockets_Server_endServer) => {
-				const server = getProgram();
-
-				return this.#sockets.endServerInstance(server, packet);
-			}
-		);
-		handle(
-			"Sockets/Server/sendPacket",
-			(packet: Runtime_Sockets_Server_sendPacket) => {
-				const server = getProgram();
-
-				return this.#sockets.serverSendMessage(server, packet);
-			}
-		);
-
-		handle(
-			"env_get_liveCanvas",
-			async ({ width, height }: Worker_Env_Get_LiveCanvas) => {
-				const liveCanvas = await this.#kernel.ui.getLiveCanvas?.(
-					width,
-					height
-				);
-
-				if (!liveCanvas) {
-					throw new Error(
-						"UI did not provide a canvas element (or does not support liveCanvas)."
-					);
-				}
-
-				const program = getProgram();
-				program.liveCanvasIds.push(liveCanvas.id);
-
-				return withTransfer(liveCanvas, [liveCanvas.canvas]);
-			}
-		);
-
-		handle("env_remove_liveCanvas", (id: number) => {
+		handle("env_remove_liveCanvas", ({ id }) => {
 			const program = getProgram();
 
 			if (program.liveCanvasIds.includes(id)) {
@@ -676,26 +592,22 @@ export default class Runtime {
 			}
 		});
 
-		handle(
-			"proxy_trigger_event",
-			(msg: Worker_Proxy_Trigger_Event<any>) => {
-				switch (msg.eventName) {
-					case "resize":
-					case "keydown":
-					case "keyup": {
-						// allowed
-						const target = this.programByPid(msg.subjectPid);
+		handle("proxy_trigger_event", (msg) => {
+			switch (msg.eventName) {
+				case "keydown":
+				case "keyup": {
+					// allowed
+					const target = this.programByPid(msg.subjectPid);
 
-						triggerProgramEvent(target, msg.eventName, msg.data);
+					triggerProgramEvent(target, msg.eventName, msg.data);
 
-						break;
-					}
-
-					default:
-					// not allowed to trigger
+					break;
 				}
+
+				default:
+				// not allowed to trigger
 			}
-		);
+		});
 
 		this.workers.push(workerStore);
 		this.#log(`New worker created. (#${workerID})`);
@@ -788,17 +700,8 @@ export default class Runtime {
 			if (worker.lock) continue;
 			worker.lock = true;
 
-			interface execLoopResponse {
-				programs: {
-					pid: number;
-					directory: string;
-				}[];
-				completePrograms: { pid: number }[];
-				computePercentage: number;
-			}
-
 			worker
-				.sendMessage<execLoopResponse>("execLoop", undefined)
+				.sendMessage("execLoop", undefined)
 				.then(({ programs, completePrograms, computePercentage }) => {
 					worker.totalPrograms -= completePrograms.length;
 					worker.computePercentage = computePercentage;
@@ -870,7 +773,7 @@ export default class Runtime {
 				program.logs.push({ type, data: data });
 
 				if (proxyOwner) {
-					proxyOwner.worker.emit<Runtime_Proxy_Log>("proxy_log", {
+					proxyOwner.worker.emit("proxy_log", {
 						handlerPid: proxyOwner.pid,
 						subjectPid: program.pid,
 
@@ -929,14 +832,11 @@ export default class Runtime {
 				});
 
 				if (proxyOwner) {
-					proxyOwner.worker.emit<Runtime_Proxy_Set_Logs>(
-						"proxy_set_logs",
-						{
-							handlerPid: proxyOwner.pid,
-							subjectPid: program.pid,
-							logs
-						}
-					);
+					proxyOwner.worker.emit("proxy_set_logs", {
+						handlerPid: proxyOwner.pid,
+						subjectPid: program.pid,
+						logs
+					});
 				}
 
 				if (this.#kernel.ui.controller == program) {
@@ -982,16 +882,16 @@ export default class Runtime {
 				const getProxyInput = async () => {
 					if (!proxyOwner) return;
 
-					const inputResponse = await proxyOwner.worker.sendMessage<
-						Worker_Proxy_Input_Response | undefined,
-						Runtime_Proxy_Input
-					>("proxy_input", {
-						handlerPid: proxyOwner.pid,
-						subjectPid: program.pid,
+					const inputResponse = await proxyOwner.worker.sendMessage(
+						"proxy_input",
+						{
+							handlerPid: proxyOwner.pid,
+							subjectPid: program.pid,
 
-						message: query,
-						config
-					});
+							message: query,
+							config
+						}
+					);
 
 					if (!inputResponse) return noInput();
 
@@ -1035,16 +935,13 @@ export default class Runtime {
 				const getProxyDimensions = async () => {
 					if (!proxyOwner) return fallback;
 
-					return await proxyOwner.worker.sendMessage<
+					return await proxyOwner.worker.sendMessage(
+						"proxy_get_dimensions",
 						{
-							width: number;
-							height: number;
-						},
-						Runtime_Proxy_Get_Dimensions
-					>("proxy_get_dimensions", {
-						handlerPid: proxyOwner.pid,
-						subjectPid: program.pid
-					});
+							handlerPid: proxyOwner.pid,
+							subjectPid: program.pid
+						}
+					);
 				};
 
 				const getDisplayDimensions = () => {
@@ -1055,7 +952,7 @@ export default class Runtime {
 				};
 
 				if (proxyOwner) {
-					return getProxyDimensions();
+					return (await getProxyDimensions()) ?? fallback;
 				} else if (this.#kernel.ui.controller !== program) {
 					return fallback;
 				} else {
@@ -1085,17 +982,14 @@ export default class Runtime {
 		if (parent) parent.children.add(program);
 		this.programs.push(program);
 
-		const ok = await worker.sendMessage<boolean, RuntimeExecuteProgram>(
-			"executeProgram",
-			{
-				directory,
-				pid,
+		const ok = await worker.sendMessage("executeProgram", {
+			directory,
+			pid,
 
-				args,
-				workingDirectory: config?.workingDirectory ?? "/",
-				input: config?.input
-			}
-		);
+			args,
+			workingDirectory: config?.workingDirectory ?? "/",
+			input: config?.input
+		});
 		if (!ok) {
 			// not great, let's exit properly.
 

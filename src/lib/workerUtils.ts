@@ -1,4 +1,13 @@
 import { WorkerStore } from "../runtime";
+import {
+	RuntimeMessageIntent,
+	RuntimeMessageMap
+} from "../types/runtimeMessages";
+import {
+	WorkerMessageDataTypes,
+	WorkerMessageIntent,
+	WorkerMessageMap
+} from "../types/workerMessages";
 import { nodeJs } from "./config";
 import { FilesystemInterface } from "./fs";
 
@@ -30,8 +39,9 @@ type Pending = {
 	reject: (e: any) => void;
 };
 
-type RequestHandler = (data: any) => Promise<any> | any;
+type RequestHandler<T = any, K = any> = (data: T) => Promise<K> | K;
 
+export const transferrableMarkerSymbol = Symbol("transfer");
 export async function mainThreadMessageHandler(
 	worker: Worker,
 	store: WorkerStore
@@ -126,22 +136,30 @@ export async function mainThreadMessageHandler(
 		worker.onmessage = (event) => onMessage(event.data);
 	}
 
-	function sendMessage(intent: string, data: any): Promise<any> {
+	function sendMessage<Intent extends RuntimeMessageIntent>(
+		intent: Intent,
+		data: RuntimeMessageMap[Intent]["data"]
+	): Promise<RuntimeMessageMap[Intent]["return"]> {
 		const id = nextMessageID++;
 
-		return new Promise((resolve, reject) => {
-			pendingMessages.set(id, { resolve, reject });
+		return new Promise<RuntimeMessageMap[Intent]["return"]>(
+			(resolve, reject) => {
+				pendingMessages.set(id, { resolve, reject });
 
-			worker.postMessage({
-				kind: "request",
-				id,
-				intent,
-				data
-			});
-		});
+				worker.postMessage({
+					kind: "request",
+					id,
+					intent: intent,
+					data
+				});
+			}
+		);
 	}
 
-	function emit(event: string, data: any) {
+	function emit<Intent extends RuntimeMessageIntent>(
+		event: Intent,
+		data: RuntimeMessageMap[Intent]["data"]
+	) {
 		worker.postMessage({
 			kind: "event",
 			event,
@@ -149,11 +167,16 @@ export async function mainThreadMessageHandler(
 		});
 	}
 
-	function handle(intent: string, handler: RequestHandler) {
-		requestHandlers.set(intent, handler);
+	function handle<Intent extends WorkerMessageIntent>(
+		event: Intent,
+		handler: RequestHandler<
+			WorkerMessageMap[Intent]["data"],
+			WorkerMessageMap[Intent]["return"]
+		>
+	) {
+		requestHandlers.set(event, handler);
 	}
 
-	const transferrableMarkerSymbol = Symbol("transfer");
 	function withTransfer<T>(result: T, transfer: Transferable[]) {
 		return { [transferrableMarkerSymbol]: true as const, result, transfer };
 	}
@@ -167,73 +190,63 @@ export async function mainThreadMessageHandler(
 }
 
 export function implementWorkerFS(
-	handle: (intent: string, handler: RequestHandler) => void,
+	handle: <Intent extends keyof WorkerMessageDataTypes>(
+		event: Intent,
+		handler: RequestHandler<
+			WorkerMessageDataTypes[Intent]["data"],
+			WorkerMessageDataTypes[Intent]["return"]
+		>
+	) => void,
 	fs: FilesystemInterface
 ) {
-	handle(
-		"fs_readFile",
-		async ({
-			path,
-			format
-		}: {
-			path: string;
-			format?: "text" | "json";
-		}) => {
-			return await fs.readFile(path, format);
-		}
-	);
-	handle(
-		"fs_writeFile",
-		async ({ path, contents }: { path: string; contents: string }) => {
-			return await fs.writeFile(path, contents);
-		}
-	);
-	handle("fs_unlink", async ({ path }: { path: string }) => {
+	handle("fs_readFile", async ({ path, format }) => {
+		return await fs.readFile(path, format);
+	});
+	handle("fs_writeFile", async ({ path, contents }) => {
+		return await fs.writeFile(path, contents);
+	});
+	handle("fs_unlink", async ({ path }) => {
 		return await fs.unlink(path);
 	});
 
-	handle(
-		"fs_mkdir",
-		async ({
-			path,
-			options
-		}: {
-			path: string;
-			options?: { recursive?: boolean };
-		}) => {
-			if (options?.recursive) {
-				const parts = path
-					.split("/")
-					.filter((item) => item.trim() !== "");
+	handle("fs_mkdir", async ({ path, options }) => {
+		if (options?.recursive) {
+			const parts = path.split("/").filter((item) => item.trim() !== "");
 
-				let workingPath = "/";
-				for (const part of parts) {
-					workingPath += part;
-					await fs.mkdir(workingPath);
-				}
-			} else return await fs.mkdir(path);
-		}
-	);
-	handle("fs_readdir", async ({ path }: { path: string }) => {
+			let workingPath = "/";
+			for (const part of parts) {
+				workingPath += part;
+				const isGood = await fs.mkdir(workingPath);
+
+				if (!isGood)
+					throw new Error(
+						"Failed to create part of recursive directory"
+					);
+			}
+
+			return true;
+		} else return await fs.mkdir(path);
+	});
+	handle("fs_readdir", async ({ path }) => {
 		return await fs.readdir(path);
 	});
-	handle("fs_rmdir", async ({ path }: { path: string }) => {
+	handle("fs_rmdir", async ({ path }) => {
 		return await fs.rmdir(path);
 	});
 
-	handle("fs_rm", async ({ path }: { path: string }) => {
+	handle("fs_rm", async ({ path }) => {
 		return await fs.rm(path);
 	});
 
-	handle("fs_isdir", async ({ path }: { path: string }) => {
+	handle("fs_isdir", async ({ path }) => {
 		return await fs.isDir(path);
 	});
 
-	handle("fs_exists", async ({ path }: { path: string }) => {
+	handle("fs_exists", async ({ path }) => {
 		return await fs.exists(path);
 	});
 
-	handle("fs_stats", async ({ path }: { path: string }) => {
+	handle("fs_stats", async ({ path }) => {
 		return await fs.stats(path);
 	});
 }
