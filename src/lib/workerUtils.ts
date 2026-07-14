@@ -25,6 +25,7 @@ type WorkerResponse = {
 	success: boolean;
 	result?: any;
 	error?: string;
+	errorName: string;
 };
 
 type WorkerEvent = {
@@ -63,8 +64,14 @@ export async function mainThreadMessageHandler(
 
 			pendingMessages.delete(msg.id);
 
-			if (msg.success) pending.resolve(msg.result);
-			else pending.reject(new Error(msg.error ?? "Unknown error"));
+			if (msg.success) {
+				pending.resolve(msg.result);
+			} else {
+				const error = new Error(msg.error ?? "Unknown error");
+				error.name = msg.errorName;
+
+				pending.reject(error);
+			}
 
 			return;
 		}
@@ -107,7 +114,8 @@ export async function mainThreadMessageHandler(
 					kind: "response",
 					id: msg.id,
 					success: false,
-					error: err?.message ?? "Unknown error"
+					error: err?.message ?? "Unknown error",
+					errorName: err?.name ?? "Error"
 				});
 			}
 

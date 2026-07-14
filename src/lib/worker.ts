@@ -41,6 +41,7 @@ type WorkerResponse = {
 	success: boolean;
 	result?: any;
 	error?: string;
+	errorName: string;
 };
 
 type WorkerEvent = {
@@ -639,13 +640,16 @@ export async function workerFunction(this: undefined) {
 
 				pendingMessages.delete(msg.id);
 
-				if (msg.success) pending.resolve(msg.result);
-				else
-					pending.reject(
-						new Error(
-							`${pending.intent}     ${msg.error ?? "Unknown error"}`
-						)
+				if (msg.success) {
+					pending.resolve(msg.result);
+				} else {
+					const error = new Error(
+						`{in ${pending.intent}} ${msg.error ?? "Unknown error"}`
 					);
+					error.name = msg.errorName;
+
+					pending.reject(error);
+				}
 
 				return;
 			}
@@ -1475,7 +1479,11 @@ export async function workerFunction(this: undefined) {
 				// kill it.
 				terminateProgram(program, [
 					{
-						text: String(err instanceof Error ? err.stack : err),
+						text: String(
+							err instanceof Error
+								? `${err.name}: ${err.message}`
+								: err
+						),
 						colour: "#ff0000"
 					}
 				]);
