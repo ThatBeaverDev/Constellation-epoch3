@@ -19,6 +19,7 @@ import { nodeJs } from "./lib/config";
 import { blobToDataURL } from "./util/lib/uri";
 import { logToString } from "./util/lib/logs";
 import { triggerProgramEvent } from "./lib/triggerProgramEvent";
+import { User } from "./lib/users";
 
 export interface ProgramLog {
 	type: "log" | "warning" | "error";
@@ -38,6 +39,7 @@ export interface ProgramStore {
 	children: Set<ProgramStore>;
 
 	pid: number;
+	user: User;
 	directory: string;
 	startTime: Date;
 
@@ -258,12 +260,18 @@ export default class Runtime {
 			}) => {
 				const parent = getProgram();
 
-				const program = await this.executeProgram(path, parent, args, {
-					displayHandover: { oldOwner: executingProgramPid },
-					workingDirectory,
-					input,
-					outputProxy: outputProxy ? parent.pid : undefined
-				});
+				const program = await this.executeProgram(
+					path,
+					parent,
+					parent.user,
+					args,
+					{
+						displayHandover: { oldOwner: executingProgramPid },
+						workingDirectory,
+						input,
+						outputProxy: outputProxy ? parent.pid : undefined
+					}
+				);
 
 				return { pid: program.pid };
 			}
@@ -729,6 +737,7 @@ export default class Runtime {
 	async executeProgram(
 		directory: string,
 		parent?: ProgramStore,
+		user?: User,
 		args?: string[],
 		config?: {
 			displayHandover?: { oldOwner?: number };
@@ -747,11 +756,15 @@ export default class Runtime {
 			? this.programByPid(config?.outputProxy)
 			: undefined;
 
+		const programUser = parent?.user ?? user;
+		if (!programUser) throw new Error();
+
 		const program: ProgramStore = {
 			worker: worker,
 
 			parent,
 			children: new Set(),
+			user: programUser,
 
 			directory,
 			pid,
