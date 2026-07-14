@@ -736,6 +736,30 @@ export default class Runtime {
 
 	async executeProgram(
 		directory: string,
+		parent: undefined,
+		user: User,
+		args?: string[],
+		config?: {
+			displayHandover?: { oldOwner?: number };
+			workingDirectory: string;
+			input?: Log[];
+			outputProxy?: number;
+		}
+	): Promise<ProgramStore>;
+	async executeProgram(
+		directory: string,
+		parent: ProgramStore,
+		user?: User,
+		args?: string[],
+		config?: {
+			displayHandover?: { oldOwner?: number };
+			workingDirectory: string;
+			input?: Log[];
+			outputProxy?: number;
+		}
+	): Promise<ProgramStore>;
+	async executeProgram(
+		directory: string,
 		parent?: ProgramStore,
 		user?: User,
 		args?: string[],
@@ -745,7 +769,7 @@ export default class Runtime {
 			input?: Log[];
 			outputProxy?: number;
 		}
-	) {
+	): Promise<ProgramStore> {
 		this.#log("Executing program from " + directory);
 
 		const pid = this.#nextPID++;
