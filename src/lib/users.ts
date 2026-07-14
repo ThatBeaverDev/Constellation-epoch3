@@ -51,6 +51,34 @@ export default class UsersManager {
 		public ui: UiManager
 	) {}
 
+	async #getRootPasswordChoice(): Promise<string> {
+		const inputRequest1 = await this.ui.input("Select a root password: ", {
+			hideTyping: true,
+			initialText: "",
+			inline: false,
+			leaveInputOnCompletion: true
+		});
+		if (!inputRequest1.finished) throw new Error("Input must be complete.");
+
+		const inputRequest2 = await this.ui.input(
+			"Re-enter a root password: ",
+			{
+				hideTyping: true,
+				initialText: "",
+				inline: false,
+				leaveInputOnCompletion: true
+			}
+		);
+		if (!inputRequest2.finished) throw new Error("Input must be complete.");
+
+		if (inputRequest1.response !== inputRequest2.response) {
+			this.ui.log("Users", "Passwords don't match.");
+			return await this.#getRootPasswordChoice();
+		}
+
+		return inputRequest1.response;
+	}
+
 	async init() {
 		const userJson = await this.fs.readFile<UsersFile>(USER_FILE, "json");
 		const passwordJson = await this.fs.readFile<PasswordStore>(
@@ -68,19 +96,11 @@ export default class UsersManager {
 			this.#nextUID = userJson.nextUID;
 			this.#nextGUID = userJson.nextGUID;
 		} else {
-			const inputRequest = await this.ui.input("Enter root Password: ", {
-				hideTyping: true,
-				initialText: "",
-				inline: false,
-				leaveInputOnCompletion: false
-			});
-
-			if (!inputRequest.finished)
-				throw new Error("Input must be complete.");
+			const password = await this.#getRootPasswordChoice();
 
 			const { user: root, password: rootPassword } = await this.#user(
 				"root",
-				inputRequest.response
+				password
 			);
 
 			this.#users = { [root.UID]: root };
