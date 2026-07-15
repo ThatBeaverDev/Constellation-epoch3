@@ -56,7 +56,7 @@ export default class UsersManager {
 			hideTyping: true,
 			initialText: "",
 			inline: false,
-			leaveInputOnCompletion: true
+			leaveInputOnCompletion: false
 		});
 		if (!inputRequest1.finished) throw new Error("Input must be complete.");
 
@@ -66,7 +66,7 @@ export default class UsersManager {
 				hideTyping: true,
 				initialText: "",
 				inline: false,
-				leaveInputOnCompletion: true
+				leaveInputOnCompletion: false
 			}
 		);
 		if (!inputRequest2.finished) throw new Error("Input must be complete.");
