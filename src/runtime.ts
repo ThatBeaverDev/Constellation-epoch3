@@ -238,7 +238,12 @@ export default class Runtime {
 			return __program;
 		};
 
-		implementWorkerFS(handle, this.#fs);
+		implementWorkerFS(
+			handle,
+			this.#fs,
+			this.#kernel.users,
+			() => getProgram().user
+		);
 
 		handle("program_log", ({ data }) => {
 			const program = getProgram();

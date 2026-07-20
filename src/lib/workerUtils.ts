@@ -8,9 +8,11 @@ import {
 	WorkerMessageIntent,
 	WorkerMessageMap
 } from "../types/workerMessages";
+import { User } from "../util/types/worker";
 import { nodeJs } from "./config";
 import { FilesystemInterface } from "./fs";
 import { tryReadFile, tryWriteFile } from "./permissions";
+import UsersManager from "./users";
 
 type WorkerRequest = {
 	kind: "request";
@@ -206,26 +208,28 @@ export function implementWorkerFS(
 			WorkerMessageDataTypes[Intent]["return"]
 		>
 	) => void,
-	fs: FilesystemInterface
+	fs: FilesystemInterface,
+	users: UsersManager,
+	getUser: () => User
 ) {
 	handle("fs_readFile", async ({ path, format }) => {
-		tryReadFile(path);
+		await tryReadFile(path, users, getUser());
 
 		return await fs.readFile(path, format);
 	});
 	handle("fs_writeFile", async ({ path, contents }) => {
-		tryWriteFile(path);
+		await tryWriteFile(path, users, getUser());
 
 		return await fs.writeFile(path, contents);
 	});
 	handle("fs_unlink", async ({ path }) => {
-		tryWriteFile(path);
+		await tryWriteFile(path, users, getUser());
 
 		return await fs.unlink(path);
 	});
 
 	handle("fs_mkdir", async ({ path, options }) => {
-		tryWriteFile(path);
+		await tryWriteFile(path, users, getUser());
 
 		if (options?.recursive) {
 			const parts = path.split("/").filter((item) => item.trim() !== "");
@@ -245,18 +249,18 @@ export function implementWorkerFS(
 		} else return await fs.mkdir(path);
 	});
 	handle("fs_readdir", async ({ path }) => {
-		tryReadFile(path);
+		await tryReadFile(path, users, getUser());
 
 		return await fs.readdir(path);
 	});
 	handle("fs_rmdir", async ({ path }) => {
-		tryWriteFile(path);
+		await tryWriteFile(path, users, getUser());
 
 		return await fs.rmdir(path);
 	});
 
 	handle("fs_rm", async ({ path }) => {
-		tryWriteFile(path);
+		await tryWriteFile(path, users, getUser());
 
 		return await fs.rm(path);
 	});
@@ -270,7 +274,7 @@ export function implementWorkerFS(
 	});
 
 	handle("fs_stats", async ({ path }) => {
-		tryReadFile(path);
+		await tryReadFile(path, users, getUser());
 
 		return await fs.stats(path);
 	});
