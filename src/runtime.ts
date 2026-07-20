@@ -817,7 +817,7 @@ export default class Runtime {
 			? this.programByPid(config?.outputProxy)
 			: undefined;
 
-		const programUser = parent?.user ?? user;
+		const programUser = user ?? parent?.user;
 		if (!programUser) throw new Error();
 
 		const program: ProgramStore = {

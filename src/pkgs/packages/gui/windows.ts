@@ -274,7 +274,7 @@ export default class WindowManager {
 	}
 
 	showPalette() {
-		this.refreshPaletteIndex(["/bin/gui"]).then(() =>
+		this.refreshPaletteIndex(["/bin/gui", "/sbin/gui"]).then(() =>
 			this.refreshPalette()
 		);
 

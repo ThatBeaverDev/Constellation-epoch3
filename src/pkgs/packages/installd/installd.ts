@@ -90,7 +90,7 @@ export default async function* install(env: Environment) {
 		await env.fs.writeFile("/bin/pkg.js", pkgSrc);
 
 		if (installerJSON.packages) {
-			const pkgExec = await env.execute("/bin/pkg.js", [
+			const pkgExec = await env.execute("/sbin/pkg.js", [
 				"install",
 				...installerJSON.packages
 			]);
@@ -107,7 +107,7 @@ export default async function* install(env: Environment) {
 		env.print("Updating packages...");
 
 		// update system
-		const pkgExec = await env.execute("/bin/pkg.js", ["update"]);
+		const pkgExec = await env.execute("/sbin/pkg.js", ["update"]);
 
 		// wait for it to finish
 		await pkgExec.onExit;

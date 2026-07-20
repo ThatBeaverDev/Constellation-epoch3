@@ -265,7 +265,7 @@ export async function shellImpl(env: Environment, io: Shell_IO) {
 			case "which":
 				for (const commandName of command.args) {
 					const envExec = await env.execute(
-						"/bin/env.js",
+						"/sbin/env.js",
 						[commandName],
 						{ user: execUser }
 					);
@@ -320,7 +320,7 @@ export async function shellImpl(env: Environment, io: Shell_IO) {
 
 			default:
 				const envExec = await env.execute(
-					"/bin/env.js",
+					"/sbin/env.js",
 					[command.name],
 					{ user: execUser }
 				);

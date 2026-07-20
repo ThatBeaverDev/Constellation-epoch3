@@ -212,23 +212,37 @@ export function implementWorkerFS(
 	users: UsersManager,
 	getUser: () => User
 ) {
+	function reroot(path: string) {
+		const user = getUser();
+
+		if (path[0] == "/") {
+			return user.home + path;
+		} else {
+			return user.home + "/" + path;
+		}
+	}
+
 	handle("fs_readFile", async ({ path, format }) => {
+		path = reroot(path);
 		await tryReadFile(path, users, getUser());
 
 		return await fs.readFile(path, format);
 	});
 	handle("fs_writeFile", async ({ path, contents }) => {
+		path = reroot(path);
 		await tryWriteFile(path, users, getUser());
 
 		return await fs.writeFile(path, contents);
 	});
 	handle("fs_unlink", async ({ path }) => {
+		path = reroot(path);
 		await tryWriteFile(path, users, getUser());
 
 		return await fs.unlink(path);
 	});
 
 	handle("fs_mkdir", async ({ path, options }) => {
+		path = reroot(path);
 		await tryWriteFile(path, users, getUser());
 
 		if (options?.recursive) {
@@ -249,34 +263,41 @@ export function implementWorkerFS(
 		} else return await fs.mkdir(path);
 	});
 	handle("fs_createAlias", async ({ path, targetPath }) => {
+		path = reroot(path);
 		return await fs.createAlias(path, targetPath);
 	});
 	handle("fs_readdir", async ({ path }) => {
+		path = reroot(path);
 		await tryReadFile(path, users, getUser());
 
 		return await fs.readdir(path);
 	});
 	handle("fs_rmdir", async ({ path }) => {
+		path = reroot(path);
 		await tryWriteFile(path, users, getUser());
 
 		return await fs.rmdir(path);
 	});
 
 	handle("fs_rm", async ({ path }) => {
+		path = reroot(path);
 		await tryWriteFile(path, users, getUser());
 
 		return await fs.rm(path);
 	});
 
 	handle("fs_isdir", async ({ path }) => {
+		path = reroot(path);
 		return await fs.isDir(path);
 	});
 
 	handle("fs_exists", async ({ path }) => {
+		path = reroot(path);
 		return await fs.exists(path);
 	});
 
 	handle("fs_stats", async ({ path }) => {
+		path = reroot(path);
 		await tryReadFile(path, users, getUser());
 
 		return await fs.stats(path);
