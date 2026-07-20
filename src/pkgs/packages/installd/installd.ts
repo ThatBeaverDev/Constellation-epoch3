@@ -33,6 +33,8 @@ export default async function* install(env: Environment) {
 		for (const name of USER_FOLDERS) {
 			await env.fs.mkdir(`/${name}`);
 		}
+		await env.fs.mkdir("/users");
+		await env.fs.createAlias("/sbin", "/bin");
 
 		let installerJSON: InstallationDataFile;
 		try {
@@ -55,7 +57,7 @@ export default async function* install(env: Environment) {
 
 		installerData.files = [];
 		// already created standard USER_FOLDERS for root.
-		installerData.directories = ["/users"];
+		installerData.directories = [...USER_FOLDERS, "/users"];
 
 		env.print("Creating directories...");
 		for (const directory of installerJSON.directories) {
