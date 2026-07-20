@@ -20,6 +20,7 @@ import { blobToDataURL } from "./util/lib/uri";
 import { logToString } from "./util/lib/logs";
 import { triggerProgramEvent } from "./lib/triggerProgramEvent";
 import { User } from "./util/types/worker";
+import { insurePrivilege } from "./lib/users";
 
 export interface ProgramLog {
 	type: "log" | "warning" | "error";
@@ -624,14 +625,6 @@ export default class Runtime {
 			}
 		});
 
-		handle("get_user", (msg) => {
-			return this.#kernel.users.userByUID(msg.uid);
-		});
-
-		handle("list_users", () => {
-			return this.#kernel.users.UIDs();
-		});
-
 		handle("switch_user", async (msg) => {
 			const targetUser = await this.#kernel.users.userByUID(msg.uid);
 			if (!targetUser) {
@@ -650,6 +643,12 @@ export default class Runtime {
 			}
 
 			return isValid;
+		});
+
+		handle("change_password", async (msg) => {
+			await insurePrivilege(getProgram(), this.#kernel.users);
+
+			return this.#kernel.users.changePassword(msg.uid, msg.newPassword);
 		});
 
 		this.workers.push(workerStore);

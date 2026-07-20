@@ -1008,14 +1008,6 @@ export async function workerFunction(this: undefined) {
 			path,
 
 			users: {
-				user: (uid) => {
-					return sendMessage("get_user", { uid });
-				},
-
-				list() {
-					return sendMessage("list_users", undefined);
-				},
-
 				switchTo(uid, password) {
 					return sendMessage("switch_user", { uid, password });
 				}

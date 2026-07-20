@@ -435,11 +435,21 @@ export interface Group {
 	UIDs: number[];
 }
 
+export type SemiRecord<T extends string | number | symbol, K> = Partial<
+	Record<T, K>
+>;
+
+export interface UsersFile {
+	users: SemiRecord<number, User>;
+	groups: SemiRecord<number, Group>;
+
+	rootUsers: number[];
+
+	nextUID: number;
+	nextGUID: number;
+}
+
 export interface EnvironmentUsers {
-	user(uid: number): Promise<User | undefined>;
-
-	list(): Promise<number[]>;
-
 	switchTo(uid: number, password: string): Promise<boolean>;
 }
 

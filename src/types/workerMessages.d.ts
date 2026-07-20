@@ -180,16 +180,12 @@ interface WorkerMessageDataTypes {
 		return: FileStats | undefined;
 	};
 
-	get_user: {
-		data: { uid: number };
-		return: User | undefined;
-	};
-	list_users: {
-		data: void;
-		return: number[];
-	};
 	switch_user: {
 		data: { uid: number; password: string };
+		return: boolean;
+	};
+	change_password: {
+		data: { uid: number; newPassword: string };
 		return: boolean;
 	};
 }

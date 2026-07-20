@@ -1,5 +1,6 @@
 import { Environment } from "../util/types/worker";
 import { formatTable } from "../util/lib/table";
+import { user } from "../util/lib/users";
 
 export default async function* ps(env: Environment) {
 	const programs = await env.processes();
@@ -9,7 +10,7 @@ export default async function* ps(env: Environment) {
 	];
 
 	const users = await Promise.all(
-		programs.map((item) => env.users.user(item.UID))
+		programs.map((item) => user(env, item.UID))
 	);
 
 	for (const i in programs) {

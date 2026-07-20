@@ -6,19 +6,8 @@ import {
 import { UiManager } from "../ui/ui";
 import { PermissionError } from "./errors";
 import { FilesystemInterface } from "./fs";
-import { Group, User } from "../util/types/worker";
-
-type SemiRecord<T extends string | number | symbol, K> = Partial<Record<T, K>>;
-
-interface UsersFile {
-	users: SemiRecord<number, User>;
-	groups: SemiRecord<number, Group>;
-
-	rootUsers: number[];
-
-	nextUID: number;
-	nextGUID: number;
-}
+import { Group, SemiRecord, User, UsersFile } from "../util/types/worker";
+import { ProgramStore } from "../runtime";
 
 type UsersStore = SemiRecord<number, User>;
 type PasswordAlgorithms = "SHA-512";
@@ -45,6 +34,17 @@ type ReadonlyUserDataGetResponse = {
 	data: Readonly<UsersData>;
 	onFinish: () => void;
 };
+
+export async function insurePrivilege(
+	program: ProgramStore,
+	users: UsersManager
+) {
+	const isPrivileged = await users.isPrivileged(program.user.UID);
+
+	if (!isPrivileged) {
+		throw new Error(`Privileged user is required for this action.`);
+	}
+}
 
 export default class UsersManager {
 	#lockQueue: Promise<void>[] = [];
@@ -167,6 +167,31 @@ export default class UsersManager {
 		};
 	}
 
+	async changePassword(uid: number, newPassword: string) {
+		const { data, onFinish } = await this.#getUserData();
+
+		const user = data.users[uid];
+		if (!user)
+			throw new Error(
+				`User by UID ${uid} does not exist! (Trying to change password)`
+			);
+
+		const hash = await this.#passhash(newPassword, DEFAULT_PASSWORD_ALGO);
+		data.passwords[uid] = { hash, algo: DEFAULT_PASSWORD_ALGO };
+
+		await this.#writeFiles(data);
+
+		onFinish();
+
+		return true;
+	}
+
+	async isPrivileged(uid: number) {
+		const { data } = await this.#getUserData(true);
+
+		return data.rootUsers.has(uid);
+	}
+
 	async #user(name: string, password: string) {
 		const { data } = await this.#getUserData();
 
@@ -239,12 +264,6 @@ export default class UsersManager {
 		return data.users[UID];
 	}
 
-	async UIDs() {
-		const { data } = await this.#getUserData(true);
-
-		return Object.keys(data.users).map((item) => Number(item));
-	}
-
 	async newGroup(name: string, UIDs: number[]) {
 		const { data, onFinish } = await this.#getUserData();
 
@@ -263,12 +282,6 @@ export default class UsersManager {
 		onFinish();
 
 		return group;
-	}
-
-	async GUIDs() {
-		const { data } = await this.#getUserData(true);
-
-		return Object.keys(data.groups).map((item) => Number(item));
 	}
 
 	async verifyPassword(user: User, password: string) {
