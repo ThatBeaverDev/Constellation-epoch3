@@ -217,7 +217,11 @@ export async function shellImpl(env: Environment, io: Shell_IO) {
 	redisplayLogs();
 
 	const executedCommandRequiresExitReturn = Symbol();
-	async function executeCommand(command: ShellCommand, input?: Log[]) {
+	async function executeCommand(
+		command: ShellCommand,
+		input?: Log[],
+		overrideUser?: { uid: number; password: string }
+	): Promise<Log[] | typeof executedCommandRequiresExitReturn | undefined> {
 		const result: Log[] = [];
 
 		const logs = newLogSection();
@@ -267,7 +271,7 @@ export async function shellImpl(env: Environment, io: Shell_IO) {
 					const envExec = await env.execute(
 						"/sbin/env.js",
 						[commandName],
-						{ user: execUser }
+						{ user: overrideUser ?? execUser }
 					);
 					const { return: programDirectory } = await envExec.onExit;
 
@@ -291,7 +295,8 @@ export async function shellImpl(env: Environment, io: Shell_IO) {
 				}
 
 				const password = await io.input(`Password:`, {
-					hideTyping: true
+					hideTyping: true,
+					leaveInputOnCompletion: false
 				});
 
 				const correct = await env.users.validatePassword(
@@ -321,11 +326,44 @@ export async function shellImpl(env: Environment, io: Shell_IO) {
 				break;
 			}
 
+			case "sudo": {
+				const password = await io.input("Password:", {
+					hideTyping: true,
+					leaveInputOnCompletion: false
+				});
+
+				try {
+					return await executeCommand(
+						{
+							name: command.args[0],
+							args: command.args.slice(1),
+							output: command.output
+						},
+						input,
+						{ uid: 0, password }
+					);
+				} catch (e) {
+					if (
+						e instanceof Error &&
+						e.message.includes("Password is incorrect")
+					) {
+						result.push([
+							{ text: "sudo: ", colour: "#888888" },
+							{ text: "Incorrect password" }
+						]);
+					} else {
+						result.push(`${e}`);
+					}
+				}
+
+				break;
+			}
+
 			default:
 				const envExec = await env.execute(
 					"/sbin/env.js",
 					[command.name],
-					{ user: execUser }
+					{ user: overrideUser ?? execUser }
 				);
 				const { return: programDirectory } = await envExec.onExit;
 				if (!programDirectory) {
@@ -369,7 +407,7 @@ export async function shellImpl(env: Environment, io: Shell_IO) {
 								return io.terminalDimensions();
 							}
 						},
-						user: execUser
+						user: overrideUser ?? execUser
 					}
 				);
 
