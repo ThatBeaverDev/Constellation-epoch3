@@ -490,7 +490,7 @@ export interface EnvironmentFilesystem {
 
 export interface Process {
 	readonly pid: number;
-	readonly directory: string;
+	readonly name: string;
 	readonly startTime: Date;
 	readonly UID: number;
 }

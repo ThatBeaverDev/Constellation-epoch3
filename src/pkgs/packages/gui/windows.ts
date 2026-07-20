@@ -377,22 +377,28 @@ export default class WindowManager {
 		const index: PaletteIndex = [];
 
 		for (const directory of directories) {
-			const contents = await this.env.fs.readdir(directory);
+			try {
+				const contents = await this.env.fs.readdir(directory);
 
-			for (const child of contents) {
-				if (!child.endsWith(".js")) continue;
+				for (const child of contents) {
+					if (!child.endsWith(".js")) continue;
 
-				const fullPath = this.env.path.join(directory, child);
+					const fullPath = this.env.path.join(directory, child);
 
-				const stats = await this.env.fs.stats(fullPath);
-				if (!stats) continue;
+					const stats = await this.env.fs.stats(fullPath);
+					if (!stats) continue;
 
-				if (stats.type == "file") {
-					index.push({
-						directory: fullPath,
-						name: child.substring(0, child.length - 3)
-					});
+					if (stats.type == "file") {
+						index.push({
+							directory: fullPath,
+							name: child.substring(0, child.length - 3)
+						});
+					}
 				}
+			} catch (e) {
+				this.env.warn(
+					e instanceof Error ? (e.stack ?? `${e}`) : `${e}`
+				);
 			}
 		}
 

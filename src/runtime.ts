@@ -245,6 +245,16 @@ export default class Runtime {
 			() => getProgram().user
 		);
 
+		function reroot(path: string) {
+			const user = getProgram().user;
+
+			if (path[0] == "/") {
+				return user.home + path;
+			} else {
+				return user.home + "/" + path;
+			}
+		}
+
 		handle("program_log", ({ data }) => {
 			const program = getProgram();
 
@@ -299,7 +309,7 @@ export default class Runtime {
 					: parent.user;
 
 				const program = await this.executeProgram(
-					path,
+					reroot(path),
 					parent,
 					user,
 					args,
@@ -318,7 +328,7 @@ export default class Runtime {
 		function sessionToProgram(session: ProgramStore): Process {
 			return {
 				pid: session.pid,
-				directory: session.directory,
+				name: session.directory.textAfterAll("/"),
 
 				startTime: session.startTime,
 				UID: session.user.UID
@@ -524,7 +534,11 @@ export default class Runtime {
 
 		handle("env_sound_play", async ({ config }) => {
 			const program = getProgram();
-			const sound = await this.#kernel.ui.playSound?.(config);
+			const sound = await this.#kernel.ui.playSound?.(
+				"file" in config
+					? { ...config, file: reroot(config.file) }
+					: config
+			);
 
 			const id = this.#nextSoundID++;
 
@@ -576,7 +590,10 @@ export default class Runtime {
 		handle("Sockets/Client/newConnection", (packet) => {
 			const client = getProgram();
 
-			return this.#sockets.newClientConnection(client, packet);
+			return this.#sockets.newClientConnection(client, {
+				...packet,
+				socketDirectory: reroot(packet.socketDirectory)
+			});
 		});
 		handle("Sockets/Client/endConnection", (packet) => {
 			const disconnectingClient = getProgram();
@@ -595,7 +612,10 @@ export default class Runtime {
 		handle("Sockets/Server/newServer", (packet) => {
 			const server = getProgram();
 
-			return this.#sockets.newServerInstance(server, packet);
+			return this.#sockets.newServerInstance(server, {
+				...packet,
+				socketDirectory: reroot(packet.socketDirectory)
+			});
 		});
 		handle("Sockets/Server/endServer", (packet) => {
 			const server = getProgram();

@@ -259,11 +259,9 @@ export async function shellImpl(env: Environment, io: Shell_IO) {
 
 			case "which":
 				for (const commandName of command.args) {
-					const envExec = await env.execute(
-						"/sbin/env.js",
-						[commandName],
-						{ user: overrideUser ?? execUser }
-					);
+					const envExec = await env.execute("/sbin/env.js", [
+						commandName
+					]);
 					const { return: programDirectory } = await envExec.onExit;
 
 					if (programDirectory) {
@@ -350,11 +348,9 @@ export async function shellImpl(env: Environment, io: Shell_IO) {
 			}
 
 			default:
-				const envExec = await env.execute(
-					"/sbin/env.js",
-					[command.name],
-					{ user: overrideUser ?? execUser }
-				);
+				const envExec = await env.execute("/sbin/env.js", [
+					command.name
+				]);
 				const { return: programDirectory } = await envExec.onExit;
 				if (!programDirectory) {
 					const log: Log = [
