@@ -451,6 +451,8 @@ export interface UsersFile {
 
 export interface EnvironmentUsers {
 	switchTo(uid: number, password: string): Promise<boolean>;
+
+	changePassword(uid: number, newPassword: string): Promise<boolean>;
 }
 
 export interface EnvironmentFilesystem {
