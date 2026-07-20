@@ -2,9 +2,11 @@ import {
 	Environment,
 	EventMap,
 	EventName,
-	Log
+	Log,
+	User
 } from "../../../util/types/worker";
 import { logsToString, logToString } from "../../../util/lib/logs";
+import { user, usersByName } from "../../../util/lib/users";
 
 export interface ShellCommand {
 	name: string;
@@ -199,6 +201,14 @@ export async function shellImpl(env: Environment, io: Shell_IO) {
 		return logs;
 	}
 
+	let localUser: User = await (async () => {
+		const local = await user(env, (await env.self()).UID);
+
+		if (!local) throw new Error(`Local program's user does not exist.`);
+
+		return local;
+	})();
+
 	const welcome = await env.fs.readFile(welcomeMessage);
 	if (welcome) newLogSection().push(welcome);
 
@@ -265,6 +275,40 @@ export async function shellImpl(env: Environment, io: Shell_IO) {
 				}
 
 				break;
+
+			case "su": {
+				const targetUID = command.args[0]
+					? (await usersByName(env, command.args[0]))[0]?.UID
+					: 0;
+
+				if (targetUID == undefined) {
+					result.push(`su: User not found.`);
+					break;
+				}
+
+				const password = await io.input(`Password:`, {
+					hideTyping: true
+				});
+
+				const changeOk = await env.users.switchTo(targetUID, password);
+
+				if (!changeOk) {
+					result.push(`su: Sorry.`);
+				} else {
+					// ok
+					const newUser = await user(env, targetUID);
+
+					if (!newUser) {
+						throw new Error(
+							"New target user does not exist! (but it did before?)"
+						);
+					}
+
+					localUser = newUser;
+				}
+
+				break;
+			}
 
 			default:
 				const envExec = await env.execute("/bin/env.js", [
@@ -369,7 +413,7 @@ export async function shellImpl(env: Environment, io: Shell_IO) {
 	}
 
 	async function runCommand() {
-		const query = `${env.workingDirectory} $ `;
+		const query = `${localUser?.name} ${env.workingDirectory} $ `;
 		const response = await io.input(query);
 
 		newLogSection().push(`${query}${response}`);

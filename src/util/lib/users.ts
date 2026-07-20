@@ -57,3 +57,22 @@ export async function user(env: Environment, uid: number) {
 
 	return data.users[uid];
 }
+
+export async function usersByName(
+	env: Environment,
+	name: string
+): Promise<Partial<User[]>> {
+	const data = await getUserData(env);
+
+	const results: User[] = [];
+
+	for (const uid in data.users) {
+		const user = data.users[uid];
+
+		if (user?.name == name || user?.displayName == name) {
+			results.push(user);
+		}
+	}
+
+	return results;
+}
