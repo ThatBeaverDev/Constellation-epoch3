@@ -869,6 +869,20 @@ export async function workerFunction(this: undefined) {
 
 			return await this.#sendMessage("fs_mkdir", { path, options });
 		}
+
+		async createAlias(path: string, targetPath: string): Promise<boolean> {
+			if (typeof path !== "string")
+				throw new Error("Path must be string");
+
+			if (typeof targetPath !== "string")
+				throw new Error("Target path must be string");
+
+			return await this.#sendMessage("fs_createAlias", {
+				path,
+				targetPath
+			});
+		}
+
 		async readdir(path: string): Promise<string[]> {
 			if (typeof path !== "string")
 				throw new Error("Path must be string");

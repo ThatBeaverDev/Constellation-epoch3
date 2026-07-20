@@ -474,6 +474,7 @@ export interface EnvironmentFilesystem {
 	unlink(path: string): Promise<void>;
 
 	mkdir(path: string, options?: { recursive?: boolean }): Promise<boolean>;
+	createAlias(path: string, targetPath: string): Promise<boolean>;
 	readdir(path: string): Promise<string[]>;
 	rmdir(path: string): Promise<void>;
 
