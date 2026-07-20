@@ -126,7 +126,8 @@ export default class UsersManager {
 			const root: User = {
 				name: "root",
 				UID: 0,
-				GUIDs: []
+				GUIDs: [],
+				home: "/"
 			};
 
 			const rootPassword = await this.#passhash(

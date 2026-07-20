@@ -1,5 +1,6 @@
 import { Environment } from "../../../util/types/worker";
 import { objectFallback } from "../../../util/lib/object";
+import { USER_FOLDERS } from "../../../constants";
 
 interface InstallerData {
 	installed: number | boolean;
@@ -29,13 +30,9 @@ export default async function* install(env: Environment) {
 		env.print("Installing system...");
 
 		// basic directories
-		await env.fs.mkdir("/bin");
-
-		await env.fs.mkdir("/data");
-		await env.fs.mkdir("/config");
-
-		await env.fs.mkdir("/user");
-		await env.fs.mkdir("/users");
+		for (const name of USER_FOLDERS) {
+			await env.fs.mkdir(`/${name}`);
+		}
 
 		let installerJSON: InstallationDataFile;
 		try {
@@ -57,13 +54,8 @@ export default async function* install(env: Environment) {
 		}
 
 		installerData.files = [];
-		installerData.directories = [
-			"/bin",
-			"/data",
-			"/config",
-			"/user",
-			"/users"
-		];
+		// already created standard USER_FOLDERS for root.
+		installerData.directories = ["/users"];
 
 		env.print("Creating directories...");
 		for (const directory of installerJSON.directories) {

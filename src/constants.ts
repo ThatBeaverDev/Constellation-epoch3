@@ -16,3 +16,5 @@ export const WORKER_READ_ROOT_BLACKLIST: Set<string> = new Set([
 export const WORKER_READ_BLACKLIST: Set<string> = new Set([
 	...WORKER_READ_ROOT_BLACKLIST
 ]);
+
+export const USER_FOLDERS = ["data", "config", "bin", "sbin"];

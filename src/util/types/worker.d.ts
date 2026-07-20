@@ -427,6 +427,7 @@ export interface User {
 	displayName?: string;
 	UID: number;
 	GUIDs: number[];
+	home: string;
 }
 export interface Group {
 	name: string;
