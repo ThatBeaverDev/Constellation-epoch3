@@ -192,20 +192,6 @@ export default class UsersManager {
 		return data.rootUsers.has(uid);
 	}
 
-	async #user(name: string, password: string) {
-		const { data } = await this.#getUserData();
-
-		const user: User = {
-			name,
-			UID: data.nextUID++,
-			GUIDs: []
-		};
-
-		const hash = await this.#passhash(password, DEFAULT_PASSWORD_ALGO);
-
-		return { user, password: hash, algo: DEFAULT_PASSWORD_ALGO };
-	}
-
 	async #passhash(password: string, algo: PasswordAlgorithms) {
 		const encoder = new TextEncoder();
 
@@ -243,45 +229,10 @@ export default class UsersManager {
 		await Promise.all(promises);
 	}
 
-	async newUser(name: string, password: string) {
-		const { data, onFinish } = await this.#getUserData();
-
-		const { user, password: hash, algo } = await this.#user(name, password);
-
-		data.users[user.UID] = user;
-		data.passwords[user.UID] = { hash, algo };
-
-		await this.#writeFiles(data);
-
-		onFinish();
-
-		return user;
-	}
-
 	async userByUID(UID: number) {
 		const { data } = await this.#getUserData(true);
 
 		return data.users[UID];
-	}
-
-	async newGroup(name: string, UIDs: number[]) {
-		const { data, onFinish } = await this.#getUserData();
-
-		const group: Group = {
-			name,
-			GUID: data.nextGUID++,
-			UIDs: UIDs.filter(
-				(GivenUID) => data.passwords[GivenUID] !== undefined
-			)
-		};
-
-		data.groups[group.GUID] = group;
-
-		await this.#writeFiles(data);
-
-		onFinish();
-
-		return group;
 	}
 
 	async verifyPassword(user: User, password: string) {
