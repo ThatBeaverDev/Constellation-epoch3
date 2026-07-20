@@ -28,6 +28,8 @@ export function createMockEnv(): Environment {
 			resolve: (...args: string[]) => args.join("/")
 		} as any,
 
+		users: { user: vi.fn() } as any,
+
 		addEventListener: vi.fn(),
 		removeEventListener: vi.fn(),
 		triggerEvent: vi.fn(),

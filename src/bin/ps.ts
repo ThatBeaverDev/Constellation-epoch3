@@ -5,10 +5,18 @@ export default async function* ps(env: Environment) {
 	const programs = await env.processes();
 
 	const table: string[][] = [
-		["PID", "Name", "Directory", "Uptime", "Worker#"]
+		["PID", "Name", "Directory", "Uptime", "UserID"]
 	];
 
-	for (const program of programs) {
+	const users = await Promise.all(
+		programs.map((item) => env.users.user(item.UID))
+	);
+
+	for (const i in programs) {
+		const program = programs[i];
+		const user = users[i];
+		if (!user) continue;
+
 		let uptime = Date.now() - program.startTime.getTime();
 		let uptimeUnits = "ms";
 
@@ -41,7 +49,7 @@ export default async function* ps(env: Environment) {
 			name,
 			program.directory,
 			`${roundedUptime}${uptimeUnits}`,
-			`Worker${program.core}`
+			`${user.displayName ?? user.name}`
 		]);
 	}
 

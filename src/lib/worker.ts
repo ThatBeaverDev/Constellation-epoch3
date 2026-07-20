@@ -1007,6 +1007,12 @@ export async function workerFunction(this: undefined) {
 			fs,
 			path,
 
+			users: {
+				user: (uid) => {
+					return sendMessage("get_user", { uid });
+				}
+			},
+
 			triggerEvent(name, data) {
 				const callbacks = eventsMap[name];
 
