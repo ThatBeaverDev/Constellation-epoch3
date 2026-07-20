@@ -1022,12 +1022,12 @@ export async function workerFunction(this: undefined) {
 			path,
 
 			users: {
-				switchTo(uid, password) {
-					return sendMessage("switch_user", { uid, password });
-				},
-
 				changePassword(uid, newPassword) {
 					return sendMessage("change_password", { uid, newPassword });
+				},
+
+				validatePassword(uid, password) {
+					return sendMessage("validate_password", { uid, password });
 				}
 			},
 
@@ -1062,6 +1062,7 @@ export async function workerFunction(this: undefined) {
 					handOverDisplay?: boolean;
 					input?: Log[];
 					outputProxy?: WorkerOutputProxy;
+					user?: { uid: number; password: string };
 				}
 			) {
 				const { pid: executedPID } = await sendMessage("env_exec", {
@@ -1072,7 +1073,8 @@ export async function workerFunction(this: undefined) {
 						: undefined,
 					workingDirectory: this.workingDirectory,
 					input: config?.input,
-					outputProxy: config?.outputProxy !== undefined
+					outputProxy: config?.outputProxy !== undefined,
+					user: config?.user
 				});
 
 				if (config?.outputProxy) {

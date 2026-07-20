@@ -285,6 +285,7 @@ export interface Environment {
 			handOverDisplay?: boolean;
 			input?: Log[];
 			outputProxy?: undefined;
+			user?: { uid: number; password: string };
 		}
 	): Promise<{
 		onExit: Promise<{ return?: Log; logs: Log[] }>;
@@ -296,6 +297,7 @@ export interface Environment {
 			handOverDisplay?: boolean;
 			input?: Log[];
 			outputProxy: WorkerOutputProxy;
+			user?: { uid: number; password: string };
 		}
 	): Promise<{
 		onExit: Promise<{ return?: Log; logs: Log[] }>;
@@ -451,9 +453,9 @@ export interface UsersFile {
 }
 
 export interface EnvironmentUsers {
-	switchTo(uid: number, password: string): Promise<boolean>;
-
 	changePassword(uid: number, newPassword: string): Promise<boolean>;
+
+	validatePassword(uid: number, password: string): Promise<boolean>;
 }
 
 export interface EnvironmentFilesystem {

@@ -201,6 +201,8 @@ export async function shellImpl(env: Environment, io: Shell_IO) {
 		return logs;
 	}
 
+	let execUser: { uid: number; password: string } | undefined = undefined;
+
 	let localUser: User = await (async () => {
 		const local = await user(env, (await env.self()).UID);
 
@@ -262,9 +264,11 @@ export async function shellImpl(env: Environment, io: Shell_IO) {
 
 			case "which":
 				for (const commandName of command.args) {
-					const envExec = await env.execute("/bin/env.js", [
-						commandName
-					]);
+					const envExec = await env.execute(
+						"/bin/env.js",
+						[commandName],
+						{ user: execUser }
+					);
 					const { return: programDirectory } = await envExec.onExit;
 
 					if (programDirectory) {
@@ -290,9 +294,12 @@ export async function shellImpl(env: Environment, io: Shell_IO) {
 					hideTyping: true
 				});
 
-				const changeOk = await env.users.switchTo(targetUID, password);
+				const correct = await env.users.validatePassword(
+					targetUID,
+					password
+				);
 
-				if (!changeOk) {
+				if (!correct) {
 					result.push(`su: Sorry.`);
 				} else {
 					// ok
@@ -305,15 +312,18 @@ export async function shellImpl(env: Environment, io: Shell_IO) {
 					}
 
 					localUser = newUser;
+					execUser = { uid: newUser.UID, password };
 				}
 
 				break;
 			}
 
 			default:
-				const envExec = await env.execute("/bin/env.js", [
-					command.name
-				]);
+				const envExec = await env.execute(
+					"/bin/env.js",
+					[command.name],
+					{ user: execUser }
+				);
 				const { return: programDirectory } = await envExec.onExit;
 				if (!programDirectory) {
 					const log: Log = [
@@ -355,7 +365,8 @@ export async function shellImpl(env: Environment, io: Shell_IO) {
 							getDimensions() {
 								return io.terminalDimensions();
 							}
-						}
+						},
+						user: execUser
 					}
 				);
 

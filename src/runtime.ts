@@ -34,15 +34,15 @@ export interface ProgramInputLog {
 }
 
 export interface ProgramStore {
-	worker: WorkerStore;
+	readonly worker: WorkerStore;
 
 	parent?: ProgramStore;
 	children: Set<ProgramStore>;
 
-	pid: number;
-	user: User;
-	directory: string;
-	startTime: Date;
+	readonly pid: number;
+	readonly user: User;
+	readonly directory: string;
+	readonly startTime: Date;
 
 	onExit: (data?: any) => void;
 
@@ -269,14 +269,39 @@ export default class Runtime {
 				handoverDisplayPid: executingProgramPid,
 				workingDirectory,
 				input,
-				outputProxy
+				outputProxy,
+				user: loginInfo
 			}) => {
 				const parent = getProgram();
+
+				if (loginInfo) {
+					const user = await this.#kernel.users.userByUID(
+						loginInfo.uid
+					);
+
+					if (!user)
+						throw new Error(
+							`No user exists by UID ${loginInfo?.uid}`
+						);
+
+					const isValid = await this.#kernel.users.verifyPassword(
+						user,
+						loginInfo.password
+					);
+
+					if (!isValid) {
+						throw new Error("Password is incorrect.");
+					}
+				}
+
+				let user = loginInfo
+					? await this.#kernel.users.userByUID(loginInfo.uid)
+					: parent.user;
 
 				const program = await this.executeProgram(
 					path,
 					parent,
-					parent.user,
+					user,
 					args,
 					{
 						displayHandover: { oldOwner: executingProgramPid },
@@ -630,30 +655,18 @@ export default class Runtime {
 			}
 		});
 
-		handle("switch_user", async (msg) => {
-			const targetUser = await this.#kernel.users.userByUID(msg.uid);
-			if (!targetUser) {
-				throw new Error(`No user exists by UID ${msg.uid}`);
-			}
-
-			const isValid = await this.#kernel.users.verifyPassword(
-				targetUser,
-				msg.password
-			);
-
-			if (isValid) {
-				const program = getProgram();
-
-				program.user = targetUser;
-			}
-
-			return isValid;
-		});
-
 		handle("change_password", async (msg) => {
 			await insurePrivilege(getProgram(), this.#kernel.users);
 
 			return this.#kernel.users.changePassword(msg.uid, msg.newPassword);
+		});
+
+		handle("validate_password", async (msg) => {
+			const user = await this.#kernel.users.userByUID(msg.uid);
+			if (!user)
+				throw new Error(`User by UID ${msg.uid} does not exist.`);
+
+			return this.#kernel.users.verifyPassword(user, msg.password);
 		});
 
 		this.workers.push(workerStore);
