@@ -628,6 +628,30 @@ export default class Runtime {
 			return this.#kernel.users.userByUID(msg.uid);
 		});
 
+		handle("list_users", () => {
+			return this.#kernel.users.UIDs();
+		});
+
+		handle("switch_user", async (msg) => {
+			const targetUser = await this.#kernel.users.userByUID(msg.uid);
+			if (!targetUser) {
+				throw new Error(`No user exists by UID ${msg.uid}`);
+			}
+
+			const isValid = await this.#kernel.users.verifyPassword(
+				targetUser,
+				msg.password
+			);
+
+			if (isValid) {
+				const program = getProgram();
+
+				program.user = targetUser;
+			}
+
+			return isValid;
+		});
+
 		this.workers.push(workerStore);
 		this.#log(`New worker created. (#${workerID})`);
 

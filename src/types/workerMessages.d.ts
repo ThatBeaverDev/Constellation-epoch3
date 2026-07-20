@@ -184,6 +184,14 @@ interface WorkerMessageDataTypes {
 		data: { uid: number };
 		return: User | undefined;
 	};
+	list_users: {
+		data: void;
+		return: number[];
+	};
+	switch_user: {
+		data: { uid: number; password: string };
+		return: boolean;
+	};
 }
 
 export type WorkerMessageMap = WorkerMessageDataTypes;

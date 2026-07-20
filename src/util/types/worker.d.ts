@@ -437,6 +437,10 @@ export interface Group {
 
 export interface EnvironmentUsers {
 	user(uid: number): Promise<User | undefined>;
+
+	list(): Promise<number[]>;
+
+	switchTo(uid: number, password: string): Promise<boolean>;
 }
 
 export interface EnvironmentFilesystem {

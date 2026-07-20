@@ -239,6 +239,12 @@ export default class UsersManager {
 		return data.users[UID];
 	}
 
+	async UIDs() {
+		const { data } = await this.#getUserData(true);
+
+		return Object.keys(data.users).map((item) => Number(item));
+	}
+
 	async newGroup(name: string, UIDs: number[]) {
 		const { data, onFinish } = await this.#getUserData();
 
@@ -257,6 +263,12 @@ export default class UsersManager {
 		onFinish();
 
 		return group;
+	}
+
+	async GUIDs() {
+		const { data } = await this.#getUserData(true);
+
+		return Object.keys(data.groups).map((item) => Number(item));
 	}
 
 	async verifyPassword(user: User, password: string) {
