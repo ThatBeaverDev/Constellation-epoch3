@@ -64,7 +64,7 @@ export default class Constellation {
 			await this.#onInstallReady(this.fs);
 
 			// start init
-			const root = this.users.userByUID(0);
+			const root = await this.users.userByUID(0);
 			if (!root) throw new Error("Users did not provide a root user.");
 
 			await this.runtime.executeProgram("/bin/init.js", undefined, root);

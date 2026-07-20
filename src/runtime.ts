@@ -19,7 +19,7 @@ import { nodeJs } from "./lib/config";
 import { blobToDataURL } from "./util/lib/uri";
 import { logToString } from "./util/lib/logs";
 import { triggerProgramEvent } from "./lib/triggerProgramEvent";
-import { User } from "./lib/users";
+import { User } from "./util/types/worker";
 
 export interface ProgramLog {
 	type: "log" | "warning" | "error";
@@ -77,6 +77,13 @@ export interface WorkerStore {
 		data: RuntimeMessageMap[Intent]["data"]
 	) => void;
 	exit(): void;
+}
+
+interface ProgramConfig {
+	displayHandover?: { oldOwner?: number };
+	workingDirectory: string;
+	input?: Log[];
+	outputProxy?: number;
 }
 
 export default class Runtime {
@@ -283,7 +290,7 @@ export default class Runtime {
 				directory: session.directory,
 
 				startTime: session.startTime,
-				core: session.worker.id
+				UID: session.user.UID
 			};
 		}
 
@@ -617,6 +624,10 @@ export default class Runtime {
 			}
 		});
 
+		handle("get_user", (msg) => {
+			return this.#kernel.users.userByUID(msg.uid);
+		});
+
 		this.workers.push(workerStore);
 		this.#log(`New worker created. (#${workerID})`);
 
@@ -739,36 +750,21 @@ export default class Runtime {
 		parent: undefined,
 		user: User,
 		args?: string[],
-		config?: {
-			displayHandover?: { oldOwner?: number };
-			workingDirectory: string;
-			input?: Log[];
-			outputProxy?: number;
-		}
+		config?: ProgramConfig
 	): Promise<ProgramStore>;
 	async executeProgram(
 		directory: string,
 		parent: ProgramStore,
 		user?: User,
 		args?: string[],
-		config?: {
-			displayHandover?: { oldOwner?: number };
-			workingDirectory: string;
-			input?: Log[];
-			outputProxy?: number;
-		}
+		config?: ProgramConfig
 	): Promise<ProgramStore>;
 	async executeProgram(
 		directory: string,
-		parent?: ProgramStore,
+		parent: ProgramStore | undefined,
 		user?: User,
 		args?: string[],
-		config?: {
-			displayHandover?: { oldOwner?: number };
-			workingDirectory: string;
-			input?: Log[];
-			outputProxy?: number;
-		}
+		config?: ProgramConfig
 	): Promise<ProgramStore> {
 		this.#log("Executing program from " + directory);
 

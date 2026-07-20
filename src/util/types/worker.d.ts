@@ -226,6 +226,11 @@ export interface Environment {
 	fs: EnvironmentFilesystem;
 
 	/**
+	 * Access Users Info
+	 */
+	users: EnvironmentUsers;
+
+	/**
 	 * Path utilities
 	 */
 	path: {
@@ -417,6 +422,23 @@ export interface SocketConnection<
 	exit(): void;
 }
 
+export interface User {
+	name: string;
+	displayName?: string;
+	UID: number;
+	GUIDs: number[];
+}
+export interface Group {
+	name: string;
+
+	GUID: number;
+	UIDs: number[];
+}
+
+export interface EnvironmentUsers {
+	user(uid: number): Promise<User | undefined>;
+}
+
 export interface EnvironmentFilesystem {
 	ready: boolean;
 	waitForReady(): Promise<void>;
@@ -447,10 +469,10 @@ export interface EnvironmentFilesystem {
 }
 
 export interface Process {
-	pid: number;
-	directory: string;
-	startTime: Date;
-	core: number;
+	readonly pid: number;
+	readonly directory: string;
+	readonly startTime: Date;
+	readonly UID: number;
 }
 
 export interface WorkerProgramStore {

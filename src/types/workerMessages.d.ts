@@ -1,3 +1,4 @@
+import { User } from "../util/types/worker";
 import { transferrableMarkerSymbol } from "../lib/workerUtils";
 import {
 	EventMap,
@@ -177,6 +178,11 @@ interface WorkerMessageDataTypes {
 	fs_stats: {
 		data: { path: string };
 		return: FileStats | undefined;
+	};
+
+	get_user: {
+		data: { uid: number };
+		return: User | undefined;
 	};
 }
 
