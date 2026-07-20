@@ -1010,6 +1010,10 @@ export async function workerFunction(this: undefined) {
 			users: {
 				switchTo(uid, password) {
 					return sendMessage("switch_user", { uid, password });
+				},
+
+				changePassword(uid, newPassword) {
+					return sendMessage("change_password", { uid, newPassword });
 				}
 			},
 
