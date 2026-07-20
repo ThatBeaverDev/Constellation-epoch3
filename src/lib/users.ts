@@ -4,7 +4,6 @@ import {
 	USER_PASSWORD_FILE
 } from "../constants";
 import { UiManager } from "../ui/ui";
-import { PermissionError } from "./errors";
 import { FilesystemInterface } from "./fs";
 import { Group, SemiRecord, User, UsersFile } from "../util/types/worker";
 import { ProgramStore } from "../runtime";
@@ -249,9 +248,7 @@ export default class UsersManager {
 			// all good
 			return true;
 		} else {
-			throw new PermissionError(
-				`Incorrect password for user ${user.UID}.`
-			);
+			return false;
 		}
 	}
 }

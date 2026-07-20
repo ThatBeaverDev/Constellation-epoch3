@@ -300,7 +300,10 @@ export async function shellImpl(env: Environment, io: Shell_IO) {
 				);
 
 				if (!correct) {
-					result.push(`su: Sorry.`);
+					result.push([
+						{ text: "su: ", colour: "#888888" },
+						{ text: "Incorrect password" }
+					]);
 				} else {
 					// ok
 					const newUser = await user(env, targetUID);
