@@ -1,23 +1,54 @@
-import { getUserData, user, writeUserData } from "../../../util/lib/users";
+import {
+	getUserData,
+	user,
+	usersByName,
+	writeUserData
+} from "../../../util/lib/users";
 import { Environment } from "../../../util/types/worker";
 
 export default async function* userdel(env: Environment, args: string[]) {
-	const targetUID = Number(args[0] ?? (await env.self()).UID);
+	async function deleteDirectory(dir: string) {
+		const contents = await env.fs.readdir(dir);
 
-	const userInfo = await user(env, targetUID);
-	if (!userInfo) throw new Error(`User by UID ${targetUID} does not exist!`);
+		for (const name of contents) {
+			const path = env.path.join(dir, name);
 
-	const ok =
-		(
-			await env.input(
-				`Confirm deletion of user ${userInfo.displayName ?? userInfo.name} [y/N]: `
-			)
-		).toLowerCase() == "y";
+			const stats = await env.fs.stats(path);
+			if (!stats) continue;
+
+			if (stats.type == "directory") {
+				await deleteDirectory(path);
+			} else {
+				await env.fs.rm(path);
+			}
+		}
+
+		await env.fs.rm(dir);
+	}
+
+	if (args.length !== 1) {
+		return `Usage: sudo userdel [name]`;
+	}
+
+	const target =
+		(await usersByName(env, args[0]))[0] ??
+		(await user(env, (await env.self()).UID));
+
+	if (!target) throw new Error(`User by Name ${args[0]} does not exist!`);
+
+	const input = await env.input(
+		`Confirm deletion of user ${target.displayName ?? target.name} [y/N]: `
+	);
+	const ok = input.toLowerCase() == "y";
 
 	if (!ok) return;
 
 	const data = await getUserData(env);
-	delete data.users[targetUID];
+
+	const home = data.users[target.UID]?.home;
+	if (home) await deleteDirectory(home);
+
+	delete data.users[target.UID];
 
 	await writeUserData(env, data);
 }

@@ -5,8 +5,10 @@ import { Environment, User } from "../../../util/types/worker";
 import passwd from "../passwd/passwd";
 
 export default async function* useradd(env: Environment, args: string[]) {
-	if (args.length !== 2) {
-		env.print(`Usage: useradd [username] [password]`);
+	const self = await env.self();
+	if (args.length !== 2 || self.UID !== 0) {
+		env.print(`Usage: sudo useradd [username] [password]`);
+		if (self.UID !== 0) env.print("Must be ran as root.");
 
 		return;
 	}
@@ -28,6 +30,7 @@ export default async function* useradd(env: Environment, args: string[]) {
 
 		await env.fs.mkdir(dir);
 	}
+	await env.fs.createAlias(env.path.join(home, "sbin"), "/bin");
 
 	data.users[user.UID] = user;
 
