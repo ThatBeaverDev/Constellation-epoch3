@@ -4,7 +4,7 @@ export default async function* ResolveCommand(
 	env: Environment,
 	[name]: [string]
 ) {
-	const PATH = ["/bin"];
+	const PATH = ["/bin", "/sbin"];
 
 	for (const dir of PATH) {
 		const contents = await env.fs.readdir(dir);
