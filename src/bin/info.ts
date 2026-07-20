@@ -1,6 +1,7 @@
 import { Environment } from "../util/types/worker";
 import { formatTable } from "../util/lib/table";
 import { PackagesJson } from "../pkgs/packages/pkg/pkg";
+import { readableTime } from "../util/lib/time";
 
 export default async function* getInfo(env: Environment) {
 	const username = "root";
@@ -41,7 +42,7 @@ export default async function* getInfo(env: Environment) {
 			["User", `${username}@${hostname}`],
 			["System", `${systemName} v${systemVersion}`],
 			["Kernel", "unknown"],
-			["Uptime", `${uptime}`],
+			["Uptime", readableTime(uptime)],
 			["Packages", `${packages}`],
 			["Shell", shell || "No Shell Detected"],
 			["Screen", screen],

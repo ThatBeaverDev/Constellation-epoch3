@@ -1,6 +1,7 @@
 import { Environment } from "../util/types/worker";
 import { formatTable } from "../util/lib/table";
 import { user } from "../util/lib/users";
+import { readableTime } from "../util/lib/time";
 
 export default async function* ps(env: Environment) {
 	const programs = await env.processes();
@@ -9,39 +10,8 @@ export default async function* ps(env: Environment) {
 		["PID", "Name", "Directory", "Uptime", "UserID"]
 	];
 
-	const users = await Promise.all(
-		programs.map((item) => user(env, item.UID))
-	);
-
-	for (const i in programs) {
-		const program = programs[i];
-		const user = users[i];
-		if (!user) continue;
-
-		let uptime = Date.now() - program.startTime.getTime();
-		let uptimeUnits = "ms";
-
-		if (uptime > 1000) {
-			uptime /= 1000;
-			uptimeUnits = "secs";
-
-			if (uptime > 60) {
-				uptime /= 60;
-				uptimeUnits = "mins";
-
-				if (uptime > 60) {
-					uptime /= 60;
-					uptimeUnits = "hrs";
-
-					if (uptime > 24) {
-						uptime /= 24;
-						uptimeUnits = "days";
-					}
-				}
-			}
-		}
-
-		const roundedUptime = Math.round(uptime * 1000) / 1000;
+	for (const program of programs) {
+		const uptime = readableTime(Date.now() - program.startTime.getTime());
 
 		const name = program.directory.textAfterAll("/");
 
@@ -49,7 +19,7 @@ export default async function* ps(env: Environment) {
 			`${program.pid}`,
 			name,
 			program.directory,
-			`${roundedUptime}${uptimeUnits}`,
+			uptime,
 			`${user.displayName ?? user.name}`
 		]);
 	}
