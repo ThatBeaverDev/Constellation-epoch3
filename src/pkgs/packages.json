@@ -46,7 +46,13 @@
 		"users": {
 			"author": "ThatBeaverDev",
 			"published": 0,
-			"dependencies": ["passwd", "useradd", "userlist", "userdel"],
+			"dependencies": [
+				"passwd",
+				"useradd",
+				"userlist",
+				"userdel",
+				"whoami"
+			],
 			"main": false
 		},
 
@@ -63,6 +69,10 @@
 			"published": 0
 		},
 		"userdel": {
+			"author": "ThatBeaverDev",
+			"published": 0
+		},
+		"whoami": {
 			"author": "ThatBeaverDev",
 			"published": 0
 		}
