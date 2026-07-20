@@ -1,5 +1,7 @@
 import { type Environment } from "../../../util/types/worker.js";
 import { objectFallback } from "../../../util/lib/object.js";
+import { PassthroughOutputProxy } from "../../../util/lib/io.js";
+import { usersByName } from "../../../util/lib/users.js";
 
 interface Service {
 	running: boolean;
@@ -10,6 +12,7 @@ interface Service {
 	directory: string;
 	args: string[];
 	display: boolean;
+	askForUser: boolean;
 }
 
 interface ServiceJSON {
@@ -32,6 +35,11 @@ interface ServiceJSON {
 	 * Whether to pass display control
 	 */
 	display?: boolean;
+
+	/**
+	 * Whether `init` should request username and password from the user.
+	 */
+	askForUser?: boolean;
 }
 
 export default async function* initSystem(env: Environment) {
@@ -45,10 +53,27 @@ export default async function* initSystem(env: Environment) {
 				continue;
 
 			try {
+				let userState: { uid: number; password: string } | undefined =
+					undefined;
+				if (service.askForUser) {
+					const username = await env.input("Username: ");
+					const targetUser = (await usersByName(env, username))[0];
+					if (!targetUser) {
+						env.print(`User '${username}' doesn't exist!`);
+						continue;
+					}
+
+					const password = await env.input("Password: ", {
+						hideTyping: true
+					});
+
+					userState = { uid: targetUser?.UID, password };
+				}
+
 				const exec = await env.execute(
 					service.directory,
 					service.args,
-					{ handOverDisplay: service.display }
+					{ handOverDisplay: service.display, user: userState }
 				);
 				service.running = true;
 				if (service.restartPolicy == "once") {
@@ -95,7 +120,8 @@ export default async function* initSystem(env: Environment) {
 
 				restartPolicy: serviceJSON.restart,
 				args: serviceJSON.args ?? [],
-				display: serviceJSON.display ?? false
+				display: serviceJSON.display ?? false,
+				askForUser: serviceJSON.askForUser ?? false
 			};
 
 			services.push(service);
@@ -105,7 +131,9 @@ export default async function* initSystem(env: Environment) {
 	}
 
 	// Runs installer to make sure that init isn't lonely
-	const result = await env.execute("/bin/installd.js");
+	const result = await env.execute("/bin/installd.js", undefined, {
+		outputProxy: PassthroughOutputProxy(env)
+	});
 	await result.onExit;
 
 	env.print("Installer has exited. Finding services...");

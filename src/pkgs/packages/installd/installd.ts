@@ -99,6 +99,34 @@ export default async function* install(env: Environment) {
 			await pkgExec.onExit;
 		}
 
+		// setup user
+		env.print(" ");
+		env.print("User Setup");
+		const username = await env.input("Username: ");
+		async function getPassword(): Promise<string> {
+			const pass1 = await env.input("Password: ", {
+				hideTyping: true,
+				leaveInputOnCompletion: false
+			});
+			const pass2 = await env.input("Repeat password: ", {
+				hideTyping: true,
+				leaveInputOnCompletion: false
+			});
+
+			if (pass1 !== pass2) {
+				return getPassword();
+			}
+
+			return pass1;
+		}
+
+		const exec = await env.execute("/sbin/useradd.js", [
+			username,
+			await getPassword()
+		]);
+
+		await exec.onExit;
+
 		installerData.installed = Date.now();
 		installerData.shipNum = 1;
 

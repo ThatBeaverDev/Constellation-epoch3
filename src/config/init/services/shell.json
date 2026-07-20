@@ -1,5 +1,6 @@
 {
 	"directory": "/bin/shell.js",
 	"restart": "always",
-	"display": true
+	"display": true,
+	"askForUser": true
 }
