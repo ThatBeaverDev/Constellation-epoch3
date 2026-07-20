@@ -1056,8 +1056,15 @@ export default class Runtime {
 		if (parent) parent.children.add(program);
 		this.programs.push(program);
 
+		const code = await this.#fs.readFile(directory);
+		if (!code)
+			throw new Error(
+				`File at ${directory} cannot be executed because it does not exist.`
+			);
+
 		const ok = await worker.sendMessage("executeProgram", {
 			directory,
+			code,
 			pid,
 
 			args,

@@ -1358,6 +1358,7 @@ export async function workerFunction(this: undefined) {
 		"executeProgram",
 		async ({
 			directory,
+			code: contents,
 			pid,
 
 			args,
@@ -1378,7 +1379,6 @@ export async function workerFunction(this: undefined) {
 			if (!directory) throw new Error("Directory is required!");
 			if (!pid) throw new Error("PID is required!");
 
-			const contents = await fs.readFile(directory);
 			if (!contents)
 				throw new Error(
 					`File '${directory}' to execute does not exist!`
