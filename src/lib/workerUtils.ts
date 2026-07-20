@@ -227,6 +227,9 @@ export function implementWorkerFS(
 			return true;
 		} else return await fs.mkdir(path);
 	});
+	handle("fs_createAlias", async ({ path, targetPath }) => {
+		return await fs.createAlias(path, targetPath);
+	});
 	handle("fs_readdir", async ({ path }) => {
 		return await fs.readdir(path);
 	});

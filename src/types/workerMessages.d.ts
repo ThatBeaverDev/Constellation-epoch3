@@ -154,6 +154,10 @@ interface WorkerMessageDataTypes {
 		data: { path: string; options?: { recursive?: boolean } };
 		return: boolean;
 	};
+	fs_createAlias: {
+		data: { path: string; targetPath: string };
+		return: boolean;
+	};
 	fs_readdir: {
 		data: { path: string };
 		return: string[];
