@@ -216,7 +216,7 @@ export default class UsersManager {
 		const hashArray = Array.from(new Uint8Array(hashBuffer));
 		const hashHex = hashArray
 			.map((item) => item.toString(16).padStart(2, "0"))
-			.join("-");
+			.join("");
 
 		return hashHex;
 	}
