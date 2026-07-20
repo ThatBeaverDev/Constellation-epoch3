@@ -132,7 +132,7 @@ export default class SocketManager {
 		target.worker.emit("Sockets/Server/sendPacket", packet);
 	}
 
-	newServerInstance(
+	async newServerInstance(
 		server: ProgramStore,
 		packet: Worker_Sockets_Server_newServer
 	) {
@@ -163,7 +163,7 @@ export default class SocketManager {
 		this.#socketsById.set(socket.id, socket);
 		this.#socketDirectoryMap.set(socket.directory, socket.id);
 
-		this.#fs.registerSocket(packet.socketDirectory, socket.id);
+		await this.#fs.registerSocket(packet.socketDirectory, socket.id);
 
 		return socket.id;
 	}

@@ -13,7 +13,7 @@ export interface FilesystemInterface {
 
 	init?(): Promise<void> | void;
 
-	registerSocket(directory: string, socketId: number): void;
+	registerSocket(directory: string, socketId: number): Promise<void> | void;
 
 	/**
 	 * Reads contents from a file
@@ -46,6 +46,12 @@ export interface FilesystemInterface {
 	 * @param path Directory to create
 	 */
 	mkdir(path: string): Promise<boolean>;
+
+	createAlias(
+		newDirectory: string,
+		targetDirectory: string
+	): Promise<boolean>;
+
 	/**
 	 * Lists the contents of a directory.
 	 * @param path Directory to read
@@ -90,6 +96,15 @@ interface DomFsFile {
 	type: "file" | "directory";
 }
 
+interface DomFsAlias {
+	store: number;
+	size: number;
+	creation: number;
+	modified: number;
+	type: "alias";
+	targetDirectory: string;
+}
+
 interface DomFsSocket {
 	socketId: number;
 	creation: number;
@@ -97,7 +112,7 @@ interface DomFsSocket {
 	type: "socket";
 }
 
-type FilesystemStore = DomFsFile | DomFsSocket;
+type FilesystemStore = DomFsFile | DomFsAlias | DomFsSocket;
 
 export function normalise(path: string): string {
 	if (path == undefined) {
@@ -183,8 +198,8 @@ class DomFs implements FilesystemInterface {
 		};
 	}
 
-	registerSocket(path: string, socketId: number) {
-		path = normalise(path);
+	async registerSocket(path: string, socketId: number) {
+		path = await this.resolve(path);
 
 		const parentDir = parent(path);
 		const parentEntry = this.#index[parentDir];
@@ -317,11 +332,67 @@ class DomFs implements FilesystemInterface {
 	}
 
 	/* ================================
+	   UTILITIES
+	================================ */
+
+	async resolve(path: string): Promise<string> {
+		await this.#loadIndex();
+
+		const normalised = normalise(path);
+		const parts = normalised.split("/").filter((item) => item !== "");
+
+		let position = "/";
+
+		for (let i = 0; i < parts.length; i++) {
+			const part = parts[i];
+			const isLast = i === parts.length - 1;
+
+			const entry = this.#index[position];
+
+			if (!entry) {
+				// doesn't exist. just assume it's a directory.
+				position =
+					position === "/" ? `/${part}` : `${position}/${part}`;
+				continue;
+			}
+
+			switch (entry.type) {
+				case "directory":
+					position =
+						position === "/" ? `/${part}` : `${position}/${part}`;
+					break;
+
+				case "alias":
+					// Jump to the alias target directory and append the current part
+					position = normalise(`${entry.targetDirectory}/${part}`);
+					break;
+
+				default:
+					if (!isLast) {
+						throw new Error(
+							`Path is invalid: file or socket ('${part}') found within traversal`
+						);
+					}
+					position =
+						position === "/" ? `/${part}` : `${position}/${part}`;
+			}
+		}
+
+		const entry = this.#index[position];
+
+		if (entry?.type == "alias") {
+			position = entry.targetDirectory;
+		}
+
+		return normalise(position);
+	}
+
+	/* ================================
 	   DIRECTORY OPERATIONS
 	================================ */
 
 	async mkdir(path: string) {
-		path = normalise(path);
+		path = await this.resolve(path);
 		await this.#loadIndex();
 
 		if (this.#index[path]) return false;
@@ -353,8 +424,46 @@ class DomFs implements FilesystemInterface {
 		return true;
 	}
 
+	async createAlias(path: string, targetDirectory: string): Promise<boolean> {
+		path = await this.resolve(path);
+		targetDirectory = await this.resolve(targetDirectory);
+
+		await this.#loadIndex();
+
+		if (this.#index[path]) return false;
+
+		const parentDir = parent(path);
+		const parentEntry = this.#index[parentDir];
+
+		if (!parentEntry || parentEntry.type !== "directory")
+			throw new Error(
+				`Parent directory does not exist (createAlias ${path})`
+			);
+
+		const now = Date.now();
+
+		const entry: DomFsAlias = {
+			store: -1,
+			size: 0,
+			creation: now,
+			modified: now,
+			type: "alias",
+			targetDirectory
+		};
+
+		const transaction = this.#db!.transaction("index", "readwrite");
+		transaction.objectStore("index").put({ path, entry });
+		this.#sync.postMessage({
+			type: "createAlias",
+			path
+		});
+
+		this.#index[path] = entry;
+		return true;
+	}
+
 	async readdir(path: string): Promise<string[]> {
-		path = normalise(path);
+		path = await this.resolve(path);
 		await this.#loadIndex();
 
 		const dir = this.#index[path];
@@ -372,7 +481,7 @@ class DomFs implements FilesystemInterface {
 	}
 
 	async rmdir(path: string) {
-		path = normalise(path);
+		path = await this.resolve(path);
 		await this.#loadIndex();
 
 		if (path === "/") throw new Error("Cannot remove root");
@@ -404,7 +513,7 @@ class DomFs implements FilesystemInterface {
 		path: string,
 		format: "text" | "json" = "text"
 	): Promise<string | T | undefined> {
-		path = normalise(path);
+		path = await this.resolve(path);
 		await this.#loadIndex();
 
 		const file = this.#index[path];
@@ -448,7 +557,7 @@ class DomFs implements FilesystemInterface {
 	}
 
 	async writeFile(path: string, contents: string) {
-		path = normalise(path);
+		path = await this.resolve(path);
 		await this.#loadIndex();
 
 		const parentDir = parent(path);
@@ -527,7 +636,7 @@ class DomFs implements FilesystemInterface {
 	}
 
 	async unlink(path: string) {
-		path = normalise(path);
+		path = await this.resolve(path);
 		await this.#loadIndex();
 
 		const entry = this.#index[path];
@@ -550,7 +659,7 @@ class DomFs implements FilesystemInterface {
 	}
 
 	async rm(path: string) {
-		path = normalise(path);
+		path = await this.resolve(path);
 		await this.#loadIndex();
 
 		const entry = this.#index[path];
@@ -570,8 +679,8 @@ class DomFs implements FilesystemInterface {
 		await this.rmdir(path);
 	}
 
-	async isDir(path: string) {
-		path = normalise(path);
+	async isDir(path: string): Promise<boolean> {
+		path = await this.resolve(path);
 
 		await this.#loadIndex();
 
@@ -581,7 +690,7 @@ class DomFs implements FilesystemInterface {
 	}
 
 	async exists(path: string) {
-		path = normalise(path);
+		path = await this.resolve(path);
 
 		await this.#loadIndex();
 
@@ -591,7 +700,7 @@ class DomFs implements FilesystemInterface {
 	}
 
 	async stats(path: string): Promise<FileStats | undefined> {
-		path = normalise(path);
+		path = await this.resolve(path);
 
 		await this.#loadIndex();
 
@@ -601,7 +710,7 @@ class DomFs implements FilesystemInterface {
 
 		return {
 			size: "size" in entry ? entry.size : -1,
-			type: entry.type,
+			type: entry.type as "file" | "directory" | "socket", // alias is resolved away.
 			modified: entry.modified,
 			created: entry.creation
 		};
