@@ -31,6 +31,10 @@ export default async function* useradd(env: Environment, args: string[]) {
 		await env.fs.mkdir(dir);
 	}
 	await env.fs.createAlias(env.path.join(home, "sbin"), "/bin");
+	await env.fs.createAlias(
+		env.path.join(home, "config/users.json"),
+		"/config/users.json"
+	);
 
 	data.users[user.UID] = user;
 
