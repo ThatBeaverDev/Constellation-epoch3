@@ -2,8 +2,7 @@ import {
 	Environment,
 	EventMap,
 	EventName,
-	Log,
-	User
+	Log
 } from "../../../util/types/worker";
 import { logsToString, logToString } from "../../../util/lib/logs";
 import { user, usersByName } from "../../../util/lib/users";
@@ -203,14 +202,6 @@ export async function shellImpl(env: Environment, io: Shell_IO) {
 
 	let execUser: { uid: number; password: string } | undefined = undefined;
 
-	let localUser: User = await (async () => {
-		const local = await user(env, (await env.self()).UID);
-
-		if (!local) throw new Error(`Local program's user does not exist.`);
-
-		return local;
-	})();
-
 	const welcome = await env.fs.readFile(welcomeMessage);
 	if (welcome) newLogSection().push(welcome);
 
@@ -319,7 +310,6 @@ export async function shellImpl(env: Environment, io: Shell_IO) {
 						);
 					}
 
-					localUser = newUser;
 					execUser = { uid: newUser.UID, password };
 				}
 
@@ -465,7 +455,7 @@ export async function shellImpl(env: Environment, io: Shell_IO) {
 	}
 
 	async function runCommand() {
-		const query = `${localUser?.name} ${env.workingDirectory} $ `;
+		const query = `${env.workingDirectory} $ `;
 		const response = await io.input(query);
 
 		newLogSection().push(`${query}${response}`);
