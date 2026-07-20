@@ -38,6 +38,29 @@
 			"fileMap": {
 				"cli.js": "/bin/gui/terminal.js"
 			}
+		},
+		"users": {
+			"author": "ThatBeaverDev",
+			"published": 0,
+			"dependencies": ["passwd", "useradd", "userlist", "userdel"],
+			"main": false
+		},
+
+		"passwd": {
+			"author": "ThatBeaverDev",
+			"published": 0
+		},
+		"useradd": {
+			"author": "ThatBeaverDev",
+			"published": 0
+		},
+		"userlist": {
+			"author": "ThatBeaverDev",
+			"published": 0
+		},
+		"userdel": {
+			"author": "ThatBeaverDev",
+			"published": 0
 		}
 	}
 }
