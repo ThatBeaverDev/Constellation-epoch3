@@ -14,6 +14,7 @@ export interface RemotePackage {
 
 	directories?: string[];
 	fileMap?: Record<string, string>;
+	main?: boolean;
 }
 
 // local
@@ -208,26 +209,32 @@ export default async function* packageInstall(
 						`Match for ${packageName} found in repository ${url}`
 					);
 
-					let sourceRequest = await fetch(
-						url + `/packages/${packageName}/${packageName}.js`
-					);
-
-					if (!sourceRequest.isOk) {
-						sourceRequest = await fetch(
-							url + `/packages/${packageName}/package.js`
+					const main = packageInfo.main ?? true;
+					const binpath = `/bin/${packageName}.js`;
+					if (main) {
+						let sourceRequest = await fetch(
+							url + `/packages/${packageName}/${packageName}.js`
 						);
 
 						if (!sourceRequest.isOk) {
-							throw new Error(
-								`Source code for package ${packageName} could not be found.`
+							sourceRequest = await fetch(
+								url + `/packages/${packageName}/package.js`
 							);
+
+							if (!sourceRequest.isOk) {
+								throw new Error(
+									`Source code for package ${packageName} could not be found.`
+								);
+							}
 						}
+
+						const source = sourceRequest.response;
+
+						if (!source) continue;
+						env.print(`Match has source, installing`);
+
+						await env.fs.writeFile(binpath, source);
 					}
-
-					const source = sourceRequest.response;
-
-					if (!source) continue;
-					env.print(`Match has source, installing`);
 
 					if (packageInfo.directories) {
 						env.print(
@@ -262,20 +269,17 @@ export default async function* packageInstall(
 						}
 					}
 
-					const binpath = `/bin/${packageName}.js`;
 					const pkg: Package = {
 						...packageInfo,
 						files: [
-							binpath,
+							main ? binpath : undefined,
 							...Object.keys(packageInfo.fileMap ?? {})
-						],
+						].filter((item) => item !== undefined),
 						directories: packageInfo.directories
 					};
 
 					packages.packages[packageName] = pkg;
 					repo.packages[packageName] = pkg;
-
-					await env.fs.writeFile(binpath, source);
 
 					if (packageInfo.dependencies) {
 						env.print(
