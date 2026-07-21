@@ -8,6 +8,7 @@ import {
 	WorkerMessageIntent,
 	WorkerMessageMap
 } from "../types/workerMessages";
+import { EnvironmentFilesystem, FileStats } from "../util/types/worker";
 import { nodeJs } from "./config";
 import { FilesystemInterface } from "./fs";
 
@@ -35,6 +36,8 @@ type WorkerEvent = {
 type WorkerMessage = WorkerRequest | WorkerResponse | WorkerEvent;
 
 type Pending = {
+	intent: string;
+
 	resolve: (v: any) => void;
 	reject: (e: any) => void;
 };
@@ -144,7 +147,7 @@ export async function mainThreadMessageHandler(
 
 		return new Promise<RuntimeMessageMap[Intent]["return"]>(
 			(resolve, reject) => {
-				pendingMessages.set(id, { resolve, reject });
+				pendingMessages.set(id, { intent, resolve, reject });
 
 				worker.postMessage({
 					kind: "request",
@@ -252,4 +255,251 @@ export function implementWorkerFS(
 	handle("fs_stats", async ({ path }) => {
 		return await fs.stats(path);
 	});
+}
+
+export async function workerMessageHandler() {
+	let nextMessageID = 1;
+
+	// @ts-expect-error
+	const isNode = typeof process !== "undefined";
+
+	let postMessage: (typeof globalThis)["postMessage"];
+
+	if (isNode) {
+		// @ts-expect-error
+		const parentPort = (await import("node:worker_threads")).parentPort;
+
+		postMessage = parentPort.postMessage.bind(parentPort);
+	} else {
+		postMessage = globalThis.postMessage;
+	}
+
+	globalThis.postMessage = () => {};
+
+	const pendingMessages = new Map<number, Pending>();
+	const requestHandlers = new Map<string, RequestHandler>();
+
+	const onRecievedMessage = async (msg: WorkerMessage) => {
+		// ---------- RESPONSE ----------
+		if (msg.kind === "response") {
+			const pending = pendingMessages.get(msg.id);
+			if (!pending) return;
+
+			pendingMessages.delete(msg.id);
+
+			if (msg.success) pending.resolve(msg.result);
+			else
+				pending.reject(
+					new Error(
+						`${pending.intent}     ${msg.error ?? "Unknown error"}`
+					)
+				);
+
+			return;
+		}
+
+		// ---------- REQUEST ----------
+		if (msg.kind === "request") {
+			const handler = requestHandlers.get(msg.intent);
+
+			if (!handler) {
+				postMessage({
+					kind: "response",
+					id: msg.id,
+					success: false,
+					error: `No handler for ${msg.intent}`
+				});
+				return;
+			}
+
+			try {
+				const result = await handler(msg.data);
+
+				postMessage({
+					kind: "response",
+					id: msg.id,
+					success: true,
+					result
+				});
+			} catch (err: any) {
+				postMessage({
+					kind: "response",
+					id: msg.id,
+					success: false,
+					error: err?.message ?? "Unknown error"
+				});
+			}
+
+			return;
+		}
+
+		// ---------- EVENT ----------
+		if (msg.kind === "event") {
+			const listener = requestHandlers.get(msg.event);
+			if (!listener) return;
+
+			try {
+				listener(msg.data);
+			} catch (e) {
+				console.error(
+					`Handler in worker of intent ${msg.event} failed:`,
+					e
+				);
+			}
+		}
+	};
+
+	if (isNode) {
+		// node
+		// @ts-expect-error
+		const { parentPort } = await import("node:worker_threads");
+		parentPort.on("message", onRecievedMessage);
+	} else {
+		// web worker
+		globalThis.onmessage = (event) => onRecievedMessage(event.data);
+	}
+
+	function sendMessage<Intent extends WorkerMessageIntent>(
+		intent: Intent,
+		data: WorkerMessageMap[Intent]["data"]
+	): Promise<WorkerMessageMap[Intent]["return"]> {
+		const id = nextMessageID++;
+
+		return new Promise((resolve, reject) => {
+			pendingMessages.set(id, { intent, resolve, reject });
+
+			postMessage({
+				kind: "request",
+				id,
+				intent,
+				data
+			});
+		});
+	}
+
+	function emit<Intent extends WorkerMessageIntent>(
+		event: Intent,
+		data: WorkerMessageMap[Intent]["data"]
+	) {
+		postMessage({
+			kind: "event",
+			event,
+			data
+		});
+	}
+
+	function handle<Intent extends RuntimeMessageIntent>(
+		event: Intent,
+		handler: RequestHandler<
+			RuntimeMessageMap[Intent]["data"],
+			RuntimeMessageMap[Intent]["return"]
+		>
+	) {
+		requestHandlers.set(event, handler);
+	}
+
+	return {
+		sendMessage,
+		emit,
+		handle
+	};
+}
+
+export class WorkerFS implements EnvironmentFilesystem {
+	ready = true;
+	waitForReady(): Promise<void> {
+		return new Promise((resolve) => resolve());
+	}
+	#sendMessage: <Intent extends keyof WorkerMessageDataTypes>(
+		intent: Intent,
+		data: WorkerMessageMap[Intent]["data"]
+	) => Promise<WorkerMessageMap[Intent]["return"]>;
+
+	constructor(
+		sendMessage: <Intent extends keyof WorkerMessageDataTypes>(
+			intent: Intent,
+			data: WorkerMessageMap[Intent]["data"]
+		) => Promise<WorkerMessageMap[Intent]["return"]>
+	) {
+		this.#sendMessage = sendMessage;
+	}
+
+	readFile(path: string): Promise<string | void>;
+	readFile(path: string, format: "text"): Promise<string | void>;
+	readFile<T extends Object = Object>(
+		path: string,
+		format: "json"
+	): Promise<T | void>;
+	async readFile<T extends Object = Object>(
+		path: string,
+		format?: "text" | "json"
+	): Promise<string | T | void> {
+		if (typeof path !== "string") throw new Error("Path must be string");
+		if (!["text", "json", undefined].includes(format))
+			throw new Error("Format must be 'text', 'json' or blank.");
+
+		return await this.#sendMessage("fs_readFile", { path, format });
+	}
+	async writeFile(path: string, contents: string) {
+		if (typeof path !== "string") throw new Error("Path must be string");
+		if (typeof contents !== "string")
+			throw new Error("Contents must be string");
+
+		return await this.#sendMessage("fs_writeFile", { path, contents });
+	}
+	async unlink(path: string): Promise<void> {
+		if (typeof path !== "string") throw new Error("Path must be string");
+
+		return await this.#sendMessage("fs_unlink", { path });
+	}
+
+	async mkdir(
+		path: string,
+		options?: { recursive?: boolean }
+	): Promise<boolean> {
+		if (typeof path !== "string") throw new Error("Path must be string");
+
+		return await this.#sendMessage("fs_mkdir", { path, options });
+	}
+
+	async createAlias(path: string, targetPath: string): Promise<boolean> {
+		if (typeof path !== "string") throw new Error("Path must be string");
+
+		if (typeof targetPath !== "string")
+			throw new Error("Target path must be string");
+
+		return await this.#sendMessage("fs_createAlias", {
+			path,
+			targetPath
+		});
+	}
+
+	async readdir(path: string): Promise<string[]> {
+		if (typeof path !== "string") throw new Error("Path must be string");
+
+		return await this.#sendMessage("fs_readdir", { path });
+	}
+	async rmdir(path: string): Promise<void> {
+		if (typeof path !== "string") throw new Error("Path must be string");
+
+		return await this.#sendMessage("fs_rmdir", { path });
+	}
+
+	async rm(path: string): Promise<void> {
+		if (typeof path !== "string") throw new Error("Path must be string");
+
+		return await this.#sendMessage("fs_rm", { path });
+	}
+
+	async isDirectory(path: string): Promise<boolean> {
+		return await this.#sendMessage("fs_isdir", { path });
+	}
+
+	async exists(path: string): Promise<boolean> {
+		return await this.#sendMessage("fs_exists", { path });
+	}
+
+	async stats(path: string): Promise<FileStats | undefined> {
+		return await this.#sendMessage("fs_stats", { path });
+	}
 }
