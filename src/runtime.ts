@@ -1,6 +1,6 @@
 import Constellation from "./index";
 import { FilesystemInterface } from "./lib/fs";
-import { newWorker, workerFunction } from "./lib/worker";
+import ConstellationWorker from "web-worker:./lib/worker";
 import { InputConfig, Log, Process } from "./util/types/worker";
 import { implementWorkerFS, mainThreadMessageHandler } from "./lib/workerUtils";
 import {
@@ -193,7 +193,7 @@ export default class Runtime {
 		const workerID = this.#nextWorkerID++;
 		const workerName = `Worker #${workerID} (for ${programDirectory})`;
 
-		const worker = await newWorker(workerFunction, workerName);
+		const worker = new ConstellationWorker();
 
 		const workerStore: WorkerStore = {
 			worker,
