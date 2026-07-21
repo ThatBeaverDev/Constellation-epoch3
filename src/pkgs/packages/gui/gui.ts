@@ -1,5 +1,6 @@
 import { Environment } from "../../../util/types/worker";
 import {
+	DEFAULT_WALLAPER,
 	GUI_DATA_PATH,
 	WALLPAPER_INDEX_PATH,
 	WALLPAPER_SOURCES
@@ -113,9 +114,7 @@ export default async function* GraphicalEnvironment(env: Environment) {
 
 	WALLPAPER_SOURCES.forEach((url) => loadWallpaperList(url));
 
-	setNetworkWallpaper(
-		"https://raw.githubusercontent.com/Mistium/Origin-OS/main/Wallpapers/originOS%20Rift.png"
-	);
+	setNetworkWallpaper(DEFAULT_WALLAPER);
 
 	function drawWallpaper() {
 		if (bitmap) {
