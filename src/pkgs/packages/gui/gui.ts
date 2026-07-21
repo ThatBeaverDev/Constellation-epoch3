@@ -1,4 +1,3 @@
-import { encodeBase64 } from "../../../util/lib/base64";
 import { Environment } from "../../../util/types/worker";
 import {
 	GUI_DATA_PATH,
@@ -83,7 +82,7 @@ export default async function* GraphicalEnvironment(env: Environment) {
 	}
 
 	async function loadNetworkWallpaper(url: string) {
-		const fileName = encodeBase64(url);
+		const fileName = encodeURIComponent(url);
 		const wallpaperPath = env.path.join(WALLPAPER_INDEX_PATH, fileName);
 
 		// TODO: check if already loaded
