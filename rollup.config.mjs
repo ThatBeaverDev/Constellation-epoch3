@@ -3,6 +3,7 @@ import path from "path";
 import commonjs from "@rollup/plugin-commonjs";
 import { nodeResolve } from "@rollup/plugin-node-resolve";
 import { string } from "rollup-plugin-string";
+import webWorkerLoader from "rollup-plugin-web-worker-loader";
 
 const plugins = [
 	nodeResolve({
@@ -12,22 +13,11 @@ const plugins = [
 	string({
 		include: ["**/*.css"]
 	}),
-	commonjs()
-	//	babel({
-	//		babelHelpers: "bundled",
-	//		presets: [
-	//			[
-	//				"@babel/preset-env",
-	//				{
-	//					targets: {
-	//						safari: "15"
-	//					},
-	//					corejs: 3
-	//				}
-	//			]
-	//		],
-	//		extensions: [".js"]
-	//	})
+	commonjs(),
+	webWorkerLoader({
+		targetPlatform: "auto",
+		inline: true
+	})
 ];
 
 const programConfigs = globSync("./build/bin/*.js").map((file) => {
