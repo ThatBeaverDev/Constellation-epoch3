@@ -20,11 +20,15 @@ export default async function* GraphicalEnvironment(env: Environment) {
 	await env.fs.mkdir(GUI_DATA_PATH);
 	await env.fs.mkdir(WALLPAPER_INDEX_PATH);
 
-	async function renderCanvas(widthPx: number): Promise<GuiState> {
+	async function renderCanvas(
+		widthPx: number,
+		heightPx: number
+	): Promise<GuiState> {
 		const lineWidth = widthPx / lineGap;
+		const lineHeight = heightPx / lineGap;
 
 		const width = widthPx;
-		const height = width / 1.777777777777777;
+		const height = heightPx;
 
 		const { canvas, id: liveCanvasId } = await env.getLiveCanvas(
 			width,
@@ -37,7 +41,7 @@ export default async function* GraphicalEnvironment(env: Environment) {
 				type: "liveCanvas",
 				id: liveCanvasId,
 				width: lineWidth,
-				height: lineWidth / 1.777777777777777
+				height: lineHeight
 			}
 		]);
 
@@ -46,10 +50,11 @@ export default async function* GraphicalEnvironment(env: Environment) {
 		return { ctx, width, height };
 	}
 
-	let state = await renderCanvas((await env.terminalDimensions()).width);
+	const dimensions = await env.terminalDimensions();
+	let state = await renderCanvas(dimensions.width, dimensions.height);
 
-	env.addEventListener("resize", async ({ width }) => {
-		const result = await renderCanvas(width);
+	env.addEventListener("resize", async ({ width, height }) => {
+		const result = await renderCanvas(width, height);
 
 		state.ctx = result.ctx;
 		state.width = result.width;
