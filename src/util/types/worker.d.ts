@@ -341,14 +341,22 @@ export interface Environment {
 			headers?: Record<string, string>,
 			options?: WorkerEnv_Network_Get["options"]
 		): Promise<NetworkDataResponse<string>>;
-		request<T = Object>(
+		request(
 			type: NetworkRequestType,
 			url: string,
-			format?: "text" | "json" | "datauri",
+			format: "blob",
 			body?: Object,
 			headers?: Record<string, string>,
 			options?: WorkerEnv_Network_Get["options"]
-		): Promise<NetworkDataResponse<string | T>>;
+		): Promise<NetworkDataResponse<Blob>>;
+		request<T = Object>(
+			type: NetworkRequestType,
+			url: string,
+			format?: "text" | "json" | "datauri" | "blob",
+			body?: Object,
+			headers?: Record<string, string>,
+			options?: WorkerEnv_Network_Get["options"]
+		): Promise<NetworkDataResponse<string | T | Blob>>;
 	};
 
 	systemStats: {

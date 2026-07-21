@@ -373,6 +373,8 @@ export default class Runtime {
 						case "datauri":
 							result = await blobToDataURL(new Blob([contents]));
 							break;
+						case "blob":
+							result = new Blob([contents]);
 
 						default:
 							throw new Error(
@@ -407,6 +409,10 @@ export default class Runtime {
 							const blob = await request.blob();
 
 							result = await blobToDataURL(blob);
+							break;
+
+						case "blob":
+							result = await request.blob();
 							break;
 
 						default:

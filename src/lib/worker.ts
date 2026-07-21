@@ -1126,7 +1126,7 @@ export async function workerFunction(this: undefined) {
 				request: async (
 					type: NetworkRequestType,
 					url: string,
-					format: "text" | "json" | "datauri" = "text",
+					format: "text" | "json" | "datauri" | "blob" = "text",
 					body?: Object,
 					headers?: Record<string, string>,
 					options?: WorkerEnv_Network_Get["options"]

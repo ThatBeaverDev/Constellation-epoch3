@@ -206,7 +206,7 @@ export interface WorkerEnv_Input {
 export interface WorkerEnv_Network_Get {
 	type: NetworkRequestType;
 	url: string;
-	format: "text" | "json" | "datauri";
+	format: "text" | "json" | "datauri" | "blob";
 	body?: Object;
 	headers?: Record<string, string>;
 	options: {
