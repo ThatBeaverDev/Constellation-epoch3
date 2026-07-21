@@ -147,6 +147,13 @@ export default class SocketManager {
 					break;
 				}
 
+				case "setTextboxContents": {
+					const window = client.windows[msg.windowID ?? 0];
+
+					window.typing[msg.reference] = "";
+					break;
+				}
+
 				default: {
 					// @ts-expect-error
 					console.warn("Unknown message intent:", msg.intent);

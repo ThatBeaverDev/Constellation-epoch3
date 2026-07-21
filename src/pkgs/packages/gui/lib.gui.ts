@@ -99,4 +99,12 @@ export default class GraphicalUIManager {
 
 		return await this.#textboxes[responder].promise;
 	}
+
+	setTextboxContents(reference: string, contents: string) {
+		this.#socketConnection?.sendMessage({
+			intent: "setTextboxContents",
+			reference,
+			contents
+		});
+	}
 }

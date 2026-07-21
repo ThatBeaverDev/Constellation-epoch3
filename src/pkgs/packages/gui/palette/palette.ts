@@ -61,6 +61,10 @@ export default class PaletteHandler {
 		this.#guiLib.onKeyPress = () => {};
 	}
 
+	resetSearchQuery() {
+		this.#guiLib.setTextboxContents(paletteSearchIdentifier, "");
+	}
+
 	#indexCache?: PaletteIndex;
 	#topResult?: PaletteIndex[0];
 	update(idx?: PaletteIndex) {

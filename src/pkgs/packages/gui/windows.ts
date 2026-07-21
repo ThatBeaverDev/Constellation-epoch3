@@ -278,6 +278,8 @@ export default class WindowManager {
 			this.refreshPalette()
 		);
 
+		this.#paletteHandler.resetSearchQuery();
+
 		this.refreshPalette();
 
 		this.#showPalette = true;

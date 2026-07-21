@@ -16,4 +16,14 @@ export interface GuiSetWindowContentsIngoing {
 	windowID?: number;
 }
 
-export type GuiIngoing = GuiNewWindowIngoing | GuiSetWindowContentsIngoing;
+export interface GuiSetTextboxContentsIngoing {
+	intent: "setTextboxContents";
+	reference: string;
+	contents: string;
+	windowID?: number;
+}
+
+export type GuiIngoing =
+	| GuiNewWindowIngoing
+	| GuiSetWindowContentsIngoing
+	| GuiSetTextboxContentsIngoing;
