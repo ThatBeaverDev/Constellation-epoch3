@@ -1,4 +1,10 @@
+import { encodeBase64 } from "../../../util/lib/base64";
 import { Environment } from "../../../util/types/worker";
+import {
+	GUI_DATA_PATH,
+	WALLPAPER_INDEX_PATH,
+	WALLPAPER_SOURCES
+} from "./constants";
 import SocketManager from "./socket";
 import WindowManager, { WindowInfo } from "./windows";
 
@@ -11,6 +17,9 @@ export interface GuiState {
 }
 
 export default async function* GraphicalEnvironment(env: Environment) {
+	await env.fs.mkdir(GUI_DATA_PATH);
+	await env.fs.mkdir(WALLPAPER_INDEX_PATH);
+
 	async function renderCanvas(widthPx: number): Promise<GuiState> {
 		const lineWidth = widthPx / lineGap;
 
@@ -55,11 +64,70 @@ export default async function* GraphicalEnvironment(env: Environment) {
 	await socketManager.init();
 	await windowManager.init();
 
+	let bitmap: ImageBitmap | undefined = undefined;
+	async function setFilesystemWallpaper(path: string) {
+		const contents = await env.fs.readFile(path);
+		if (!contents) return;
+
+		const result = await env.network.request("get", contents, "blob");
+
+		if (result.isOk) {
+			bitmap = await createImageBitmap(result.response);
+		}
+	}
+
+	async function setNetworkWallpaper(url: string) {
+		const path = await loadNetworkWallpaper(url);
+
+		if (path) await setFilesystemWallpaper(path);
+	}
+
+	async function loadNetworkWallpaper(url: string) {
+		const fileName = encodeBase64(url);
+		const wallpaperPath = env.path.join(WALLPAPER_INDEX_PATH, fileName);
+
+		// TODO: check if already loaded
+
+		const result = await env.network.request("get", url, "datauri");
+
+		if (result.isOk) {
+			await env.fs.writeFile(wallpaperPath, result.response);
+
+			return wallpaperPath;
+		}
+	}
+
+	async function loadWallpaperList(url: string) {
+		const result = await env.network.request<string[]>("get", url, "json");
+
+		if (result.isOk) {
+			const arr = result.response;
+
+			const promises = arr.map((url) => loadNetworkWallpaper(url));
+
+			await Promise.all(promises);
+		}
+	}
+
+	WALLPAPER_SOURCES.forEach((url) => loadWallpaperList(url));
+
+	setNetworkWallpaper(
+		"https://raw.githubusercontent.com/Mistium/Origin-OS/main/Wallpapers/originOS%20Rift.png"
+	);
+
+	function drawWallpaper() {
+		if (bitmap) {
+			state.ctx.drawImage(bitmap, 0, 0, state.width, state.height);
+		} else {
+			state.ctx.fillStyle = "rgba(0,0,0,1)";
+			state.ctx.fillRect(0, 0, state.width, state.height);
+		}
+	}
+
 	while (true) {
 		windowManager.reposition();
 
-		state.ctx.fillStyle = "red";
-		state.ctx.fillRect(0, 0, state.width, state.height);
+		drawWallpaper();
 
 		const drawWindow = (info: WindowInfo, focused?: boolean) => {
 			state.ctx.fillStyle = "black";

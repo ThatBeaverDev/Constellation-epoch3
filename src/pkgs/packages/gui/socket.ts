@@ -87,8 +87,6 @@ export default class SocketManager {
 	}
 
 	async init() {
-		await this.env.fs.mkdir("/data/gui");
-
 		this.socketServer =
 			await this.env.sockets.createSocket(GUI_SOCKET_PATH);
 
