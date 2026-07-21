@@ -600,6 +600,7 @@ export default class Runtime {
 
 		handle("proxy_trigger_event", (msg) => {
 			switch (msg.eventName) {
+				case "resize":
 				case "keydown":
 				case "keyup": {
 					// allowed
