@@ -85,7 +85,10 @@ export default async function* GraphicalEnvironment(env: Environment) {
 		const fileName = encodeURIComponent(url);
 		const wallpaperPath = env.path.join(WALLPAPER_INDEX_PATH, fileName);
 
-		// TODO: check if already loaded
+		const exists = await env.fs.exists(wallpaperPath);
+		if (exists) {
+			return wallpaperPath;
+		}
 
 		const result = await env.network.request("get", url, "datauri");
 
