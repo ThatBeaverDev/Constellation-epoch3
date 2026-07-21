@@ -13,6 +13,7 @@ import {
 import { type WorkerEnv_Network_Get } from "../types/workerMessages.js";
 import path from "path-browserify";
 import { WorkerFS, workerMessageHandler } from "./workerUtils.js";
+import { ALLOWED_PROXY_EVENTS } from "../constants.js";
 
 /// <reference path="@typescript/lib-webworker@npm:@types/webworker" />
 
@@ -237,25 +238,16 @@ async function worker() {
 						onExit: obj.promise,
 
 						triggerProxyEvent: (eventName, data) => {
-							switch (eventName) {
-								case "resize":
-								case "keydown":
-								case "keyup": {
-									// allowed
+							if (ALLOWED_PROXY_EVENTS.has(eventName)) {
+								// allowed
 
-									emit("proxy_trigger_event", {
-										handlerPid: program.pid,
-										subjectPid: executedPID,
+								emit("proxy_trigger_event", {
+									handlerPid: program.pid,
+									subjectPid: executedPID,
 
-										eventName,
-										data: data
-									});
-
-									break;
-								}
-
-								default:
-								// not allowed to trigger
+									eventName,
+									data: data
+								});
 							}
 						}
 					};
