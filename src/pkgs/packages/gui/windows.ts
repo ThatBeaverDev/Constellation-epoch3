@@ -5,6 +5,7 @@ import SocketManager, { Client } from "./socket";
 import { drawLog, measureText, rect, text } from "./util/rendering";
 import { WindowContentItem } from "./types/windowContents";
 import { GuiState } from "./gui";
+import { dataURItoBlob } from "../../../util/lib/uri";
 
 export interface WindowInfo {
 	window: Window;
@@ -411,7 +412,14 @@ export abstract class Window {
 	interactables: number[] = [];
 
 	typing: Partial<Record<string, string>> = {};
+	images: Partial<
+		Record<
+			string,
+			{ state: "loaded"; bitmap: ImageBitmap } | { state: "loading" }
+		>
+	> = {};
 	scroll: number = 0;
+	lastTime: number = 0;
 
 	constructor(
 		public windowManager: WindowManager,
@@ -419,7 +427,9 @@ export abstract class Window {
 		public id: number,
 		public name: string,
 		public description?: string
-	) {}
+	) {
+		this.lastTime = performance.now();
+	}
 
 	render(
 		ctx: OffscreenCanvasRenderingContext2D,
@@ -429,6 +439,9 @@ export abstract class Window {
 		height: number,
 		isFocused: boolean
 	) {
+		const currentTime = performance.now();
+		this.lastTime = currentTime;
+
 		if (!debugRendering) {
 			const region = new Path2D();
 			region.rect(x, y, width, height);
@@ -583,11 +596,122 @@ export abstract class Window {
 					break;
 				}
 
-				default:
-					text(
+				case "box": {
+					rect(
 						ctx,
 						x + item.x,
 						yRoot + headerHeight + item.y,
+						item.width,
+						item.height,
+						undefined,
+						"rgb(200 200 200)"
+					);
+
+					break;
+				}
+
+				case "image": {
+					const ref = `${item.sourceType}:${item.source}`;
+
+					const image = this.images[ref];
+
+					if (!image) {
+						this.images[ref] = { state: "loading" };
+
+						(async () => {
+							switch (item.sourceType) {
+								case "file":
+									const data =
+										await this.windowManager.env.fs.readFile(
+											item.source
+										);
+
+									if (data) {
+										const blob = dataURItoBlob(data);
+
+										const bitmap =
+											await createImageBitmap(blob);
+
+										this.images[ref] = {
+											state: "loaded",
+											bitmap
+										};
+									}
+
+									break;
+
+								case "url":
+									const request =
+										await this.windowManager.env.network.request(
+											"get",
+											item.source,
+											"blob"
+										);
+
+									if (request.isOk) {
+										const blob = request.response;
+
+										const bitmap =
+											await createImageBitmap(blob);
+
+										this.images[ref] = {
+											state: "loaded",
+											bitmap
+										};
+									} else {
+									}
+
+									break;
+
+								default:
+									console.error(
+										`Unhandled image sourceType: '${item.sourceType}'`
+									);
+							}
+						})();
+					}
+
+					switch (image?.state) {
+						case undefined:
+						case "loading":
+							const colour =
+								150 + 37.5 * Math.sin(currentTime / 500);
+
+							rect(
+								ctx,
+								x + item.x,
+								yRoot + headerHeight + item.y,
+								item.width,
+								item.height,
+								`rgb(${colour} ${colour} ${colour})`,
+								"rgb(200 200 200)"
+							);
+
+							break;
+
+						case "loaded":
+							ctx.drawImage(
+								image.bitmap,
+								x + item.x,
+								yRoot + headerHeight + item.y,
+								item.width,
+								item.height
+							);
+
+							break;
+					}
+
+					break;
+				}
+
+				default:
+					text(
+						ctx,
+						// @ts-expect-error
+						x + item.x,
+						// @ts-expect-error
+						yRoot + headerHeight + item.y,
+						// @ts-expect-error
 						`Unknown Component Type: ${item.type}`
 					);
 			}

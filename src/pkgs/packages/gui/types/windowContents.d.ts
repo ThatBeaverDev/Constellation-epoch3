@@ -45,8 +45,11 @@ export interface WindowTextBox extends WindowBaseItem {
 	identifier: string;
 }
 
+export interface WindowBox extends WindowBaseItem {
+	type: "box";
+	width: number;
+	height: number;
+}
+
 export type WindowContentItem =
-	| WindowText
-	| WindowImage
-	| WindowButton
-	| WindowTextBox;
+	WindowText | WindowImage | WindowButton | WindowTextBox | WindowBox;
