@@ -2,9 +2,11 @@ import { Environment } from "../../../util/types/worker";
 
 export default async function* ResolveCommandGui(
 	env: Environment,
-	[name]: [string]
+	[name]: [string | undefined]
 ) {
 	const PATH = ["/bin/gui"];
+
+	if (!name) return "Usage: genv [name]";
 
 	for (const dir of PATH) {
 		try {

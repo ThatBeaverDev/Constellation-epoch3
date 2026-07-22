@@ -2,9 +2,11 @@ import { Environment } from "../../../util/types/worker";
 
 export default async function* ResolveCommand(
 	env: Environment,
-	[name]: [string]
+	[name]: [string | undefined]
 ) {
 	const PATH = ["/bin"];
+
+	if (!name) return "Usage: env [name]";
 
 	if ([".", "/"].includes(name[0])) {
 		// resolve it
