@@ -222,6 +222,10 @@ export default class WindowManager {
 								case "insert":
 								case "home":
 								case "alt":
+								case "arrowup":
+								case "arrowleft":
+								case "arrowdown":
+								case "arrowright":
 									break;
 
 								case "backspace":
