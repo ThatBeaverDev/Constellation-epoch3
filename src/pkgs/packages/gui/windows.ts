@@ -147,8 +147,6 @@ export default class WindowManager {
 			const window = cur?.window;
 
 			if (window) {
-				this.socketManager?.onKeyPress(window, e);
-
 				switch (keyName) {
 					case "arrowup":
 						if (e.shift) {
