@@ -49,6 +49,9 @@ export interface WindowBox extends WindowBaseItem {
 	type: "box";
 	width: number;
 	height: number;
+
+	fill?: string;
+	stroke?: string;
 }
 
 export type WindowContentItem =

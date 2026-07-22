@@ -621,8 +621,8 @@ export abstract class Window {
 						yRoot + headerHeight + item.y,
 						item.width,
 						item.height,
-						undefined,
-						"rgb(200 200 200)"
+						item.fill ?? "rgb(45 45 45)",
+						item.stroke ?? "rgb(55 55 55)"
 					);
 
 					break;

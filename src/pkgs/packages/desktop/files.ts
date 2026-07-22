@@ -57,7 +57,9 @@ export default async function* FilesApp(env: Environment) {
 					x: 5,
 					y: (y += 50),
 					width: lib.dimensions.width - 20,
-					height: 40
+					height: 40,
+
+					fill: "rgb(35 35 35)"
 				},
 				{
 					type: "button",
