@@ -21,6 +21,7 @@ import { logToString } from "./util/lib/logs";
 import { triggerProgramEvent } from "./lib/triggerProgramEvent";
 import { User } from "./util/types/worker";
 import { insurePrivilege } from "./lib/users";
+import { ALLOWED_PROXY_EVENTS } from "./constants";
 
 export interface ProgramLog {
 	type: "log" | "warning" | "error";
@@ -665,19 +666,11 @@ export default class Runtime {
 		});
 
 		handle("proxy_trigger_event", (msg) => {
-			switch (msg.eventName) {
-				case "keydown":
-				case "keyup": {
-					// allowed
-					const target = this.programByPid(msg.subjectPid);
+			if (ALLOWED_PROXY_EVENTS.has(msg.eventName)) {
+				// allowed
+				const target = this.programByPid(msg.subjectPid);
 
-					triggerProgramEvent(target, msg.eventName, msg.data);
-
-					break;
-				}
-
-				default:
-				// not allowed to trigger
+				triggerProgramEvent(target, msg.eventName, msg.data);
 			}
 		});
 

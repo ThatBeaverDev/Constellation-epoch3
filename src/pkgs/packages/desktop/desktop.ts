@@ -1,6 +1,6 @@
 import { sleep } from "../../../util/lib/time";
 import { Environment } from "../../../util/types/worker";
-import GraphicalUIManager from "../gui/lib.gui";
+import GuiWindow from "../gui/lib.gui";
 
 export default async function* DesktopEnv(env: Environment) {
 	await env.execute("/sbin/gui.js", undefined, { handOverDisplay: true });
@@ -9,7 +9,7 @@ export default async function* DesktopEnv(env: Environment) {
 	// TODO: Make less 'flimsy'
 	await sleep(250);
 
-	const lib = new GraphicalUIManager(env);
+	const lib = new GuiWindow(env);
 	await lib.init("Desktop Tester");
 
 	let i = 0;

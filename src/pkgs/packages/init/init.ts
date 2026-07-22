@@ -10,6 +10,7 @@ interface Service {
 	failed: false | Error;
 
 	directory: string;
+	fallback?: string;
 	args: string[];
 	display: boolean;
 	askForUser: boolean;
@@ -40,6 +41,10 @@ interface ServiceJSON {
 	 * Whether `init` should request username and password from the user.
 	 */
 	askForUser?: boolean;
+	/*
+	 * Path to the file to execute in the case of a failure
+	 */
+	fallback?: string;
 }
 
 export default async function* initSystem(env: Environment) {
@@ -82,10 +87,31 @@ export default async function* initSystem(env: Environment) {
 
 				exec.onExit.then(() => (service.running = false));
 			} catch (e) {
-				service.failed = e instanceof Error ? e : false;
-				env.warn(
-					`Service from ${service.directory} has failed to start: ${String(e)}`
-				);
+				try {
+					if (service.fallback) {
+						const exec = await env.execute(
+							service.fallback,
+							service.args,
+							{ handOverDisplay: service.display }
+						);
+						service.running = true;
+						if (service.restartPolicy == "once") {
+							service.restartPolicy = "never";
+						}
+
+						exec.onExit.then(() => (service.running = false));
+					}
+				} catch (e) {
+					service.failed = e instanceof Error ? e : false;
+					env.warn(
+						`Service from ${service.directory} (and fallback at ${service.fallback}) has failed to start: ${String(e)}`
+					);
+				} finally {
+					service.failed = e instanceof Error ? e : false;
+					env.warn(
+						`Service from ${service.directory} has failed to start: ${String(e)}`
+					);
+				}
 			}
 		}
 	}
@@ -114,6 +140,7 @@ export default async function* initSystem(env: Environment) {
 
 			const service: Service = {
 				directory: serviceJSON.directory,
+				fallback: serviceJSON.fallback,
 
 				running: false,
 				failed: false,

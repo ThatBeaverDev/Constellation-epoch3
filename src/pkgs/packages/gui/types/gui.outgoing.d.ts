@@ -35,9 +35,18 @@ export interface GuiButtonPressOutgoing {
 	reference: string;
 }
 
+export interface GuiWindowResizeOutgoing {
+	intent: "windowResize";
+	windowID: number;
+
+	width: number;
+	height: number;
+}
+
 export type GuiOutgoing =
 	| GuiKeypressOutgoing
 	| GuiWindowCloseOutgoing
 	| GuiTextboxCompleteOutgoing
 	| GuiTextboxValueChangeOutgoing
-	| GuiButtonPressOutgoing;
+	| GuiButtonPressOutgoing
+	| GuiWindowResizeOutgoing;

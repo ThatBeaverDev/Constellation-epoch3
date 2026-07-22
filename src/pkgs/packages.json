@@ -37,10 +37,11 @@
 		"desktop": {
 			"author": "ThatBeaverDev",
 			"published": 0,
-			"dependencies": ["gui"],
+			"dependencies": ["gui", "genv"],
 			"directories": ["/bin/gui"],
 			"fileMap": {
-				"cli.js": "/bin/gui/terminal.js"
+				"cli.js": "/bin/gui/terminal.js",
+				"files.js": "/bin/gui/files.js"
 			}
 		},
 		"users": {
@@ -73,6 +74,10 @@
 			"published": 0
 		},
 		"whoami": {
+			"author": "ThatBeaverDev",
+			"published": 0
+		},
+		"genv": {
 			"author": "ThatBeaverDev",
 			"published": 0
 		}

@@ -18,3 +18,4 @@ export const WORKER_READ_BLACKLIST: Set<string> = new Set([
 ]);
 
 export const USER_FOLDERS = ["data", "config", "bin"];
+export const ALLOWED_PROXY_EVENTS = new Set(["keyup", "keydown", "resize"]);

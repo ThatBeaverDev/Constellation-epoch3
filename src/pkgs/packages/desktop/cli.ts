@@ -1,11 +1,14 @@
 import { logToArrayLog, logToString } from "../../../util/lib/logs";
 import { ArrayLog, Environment, InputConfig } from "../../../util/types/worker";
-import GraphicalUIManager from "../gui/lib.gui";
+import GuiWindow from "../gui/lib.gui";
 import { WindowText, WindowTextBox } from "../gui/types/windowContents";
 import { Shell_IO, shellImpl } from "../shell/shell";
 
-export default async function* TerminalApp(env: Environment) {
-	const lib = new GraphicalUIManager(env);
+export default async function* TerminalApp(
+	env: Environment,
+	[command]: [string | undefined]
+) {
+	const lib = new GuiWindow(env);
 	await lib.init("Terminal");
 
 	const logs: ArrayLog[] = [];
@@ -103,7 +106,16 @@ export default async function* TerminalApp(env: Environment) {
 		}
 	};
 
-	const { runCommand } = await shellImpl(env, io);
+	const { runCommand, executeCommand } = await shellImpl(
+		env,
+		io,
+		command == undefined
+	);
+
+	if (command) {
+		await executeCommand(command);
+		return;
+	}
 
 	while (true) {
 		const exit = await runCommand();

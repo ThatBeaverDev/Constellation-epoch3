@@ -162,7 +162,11 @@ export interface Shell_IO {
 	setLogs: (logs: Log[]) => void;
 	terminalDimensions: Environment["terminalDimensions"];
 }
-export async function shellImpl(env: Environment, io: Shell_IO) {
+export async function shellImpl(
+	env: Environment,
+	io: Shell_IO,
+	allowWelcome: boolean = true
+) {
 	const configDirectory = "/config/shell";
 	const welcomeMessage = env.path.resolve(configDirectory, "./welcome.txt");
 
@@ -202,8 +206,10 @@ export async function shellImpl(env: Environment, io: Shell_IO) {
 
 	let execUser: { uid: number; password: string } | undefined = undefined;
 
-	const welcome = await env.fs.readFile(welcomeMessage);
-	if (welcome) newLogSection().push(welcome);
+	if (allowWelcome) {
+		const welcome = await env.fs.readFile(welcomeMessage);
+		if (welcome) newLogSection().push(welcome);
+	}
 
 	redisplayLogs();
 
@@ -450,13 +456,20 @@ export async function shellImpl(env: Environment, io: Shell_IO) {
 		} else return result;
 	}
 
+	function inputQuery() {
+		return `${env.workingDirectory} $ `;
+	}
+
 	async function runCommand() {
-		const query = `${env.workingDirectory} $ `;
-		const response = await io.input(query);
+		const response = await io.input(inputQuery());
 
-		newLogSection().push(`${query}${response}`);
+		return runTextCommand(response);
+	}
 
-		const commands = parseShellCommand(response);
+	async function runTextCommand(command: string) {
+		newLogSection().push(`${inputQuery()}${command}`);
+
+		const commands = parseShellCommand(command);
 
 		for (const command of commands) {
 			const logs = await executeCommand(command);
@@ -470,7 +483,7 @@ export async function shellImpl(env: Environment, io: Shell_IO) {
 		return false;
 	}
 
-	return { runCommand };
+	return { runCommand, executeCommand: runTextCommand };
 }
 
 export default async function* Shell(env: Environment) {
