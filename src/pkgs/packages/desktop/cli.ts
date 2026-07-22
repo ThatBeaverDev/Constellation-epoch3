@@ -4,7 +4,10 @@ import GuiWindow from "../gui/lib.gui";
 import { WindowText, WindowTextBox } from "../gui/types/windowContents";
 import { Shell_IO, shellImpl } from "../shell/shell";
 
-export default async function* TerminalApp(env: Environment) {
+export default async function* TerminalApp(
+	env: Environment,
+	[command]: [string | undefined]
+) {
 	const lib = new GuiWindow(env);
 	await lib.init("Terminal");
 
@@ -103,7 +106,12 @@ export default async function* TerminalApp(env: Environment) {
 		}
 	};
 
-	const { runCommand } = await shellImpl(env, io);
+	const { runCommand, executeCommand } = await shellImpl(env, io);
+
+	if (command) {
+		const exit = await executeCommand(command);
+		if (exit) return;
+	}
 
 	while (true) {
 		const exit = await runCommand();
