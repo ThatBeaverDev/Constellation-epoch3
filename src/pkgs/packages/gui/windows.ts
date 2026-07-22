@@ -583,6 +583,20 @@ export abstract class Window {
 					break;
 				}
 
+				case "box": {
+					rect(
+						ctx,
+						x + item.x,
+						yRoot + headerHeight + item.y,
+						item.width,
+						item.height,
+						undefined,
+						"rgb(200 200 200)"
+					);
+
+					break;
+				}
+
 				default:
 					text(
 						ctx,
