@@ -19,8 +19,21 @@ export default async function* FilesApp(env: Environment) {
 
 	let path = "/";
 
+	lib.onButtonPress = (reference) => {
+		if (reference.startsWith("button:/")) {
+			const buttonPath = reference.substring(7);
+
+			path = buttonPath;
+			updateUI();
+		}
+	};
+
 	async function updateUI() {
 		const contents = await env.fs.readdir(path);
+
+		if (path !== "/") {
+			contents.splice(0, 0, "..");
+		}
 
 		const ui: WindowContentItem[] = [];
 		const { height: headerHeight, contents: headerContents } = header(
@@ -32,6 +45,12 @@ export default async function* FilesApp(env: Environment) {
 		let y = 5 + headerHeight;
 
 		for (const item of contents) {
+			const dir = env.path.join(path, item);
+			const stats = await env.fs.stats(dir);
+			if (!stats) continue;
+
+			const isDirectory = stats.type == "directory";
+
 			const row: WindowContentItem[] = [
 				{
 					type: "box",
@@ -40,7 +59,13 @@ export default async function* FilesApp(env: Environment) {
 					width: lib.dimensions.width - 20,
 					height: 40
 				},
-				{ type: "text", text: item, x: 5, y: y + 5 }
+				{
+					type: "button",
+					text: isDirectory ? item + "/" : item,
+					x: 5,
+					y: y + 5,
+					identifier: `button:${dir}`
+				}
 			];
 
 			ui.push(...row);
