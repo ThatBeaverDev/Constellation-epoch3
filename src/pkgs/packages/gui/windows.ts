@@ -377,7 +377,7 @@ export default class WindowManager {
 		if (isPalette) {
 			this.#palette = info;
 		} else {
-			this.windows.push(info);
+			this.windowID = this.windows.push(info) - 1;
 		}
 
 		return { window };
