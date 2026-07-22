@@ -84,7 +84,6 @@ export default class WindowManager {
 			case "w":
 			case "∑":
 				this.#currentWindow?.window?.close?.();
-				this.windowID -= 1;
 				return true;
 
 			case "return":
@@ -346,6 +345,10 @@ export default class WindowManager {
 	newWindow(client: Client | undefined, name: string) {
 		const window = new GuiWindow(this, client, name);
 		window.close = () => {
+			if (this.#currentWindow == info) {
+				this.windowID -= 1;
+			}
+
 			this.windows = this.windows.filter((item) => item !== info);
 
 			try {
