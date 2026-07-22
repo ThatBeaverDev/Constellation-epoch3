@@ -1,3 +1,4 @@
+import { logToString } from "../../../util/lib/logs";
 import { Environment } from "../../../util/types/worker";
 import GuiWindow from "../gui/lib.gui";
 import { WindowContentItem } from "../gui/types/windowContents";
@@ -14,17 +15,62 @@ function header(width: number, path: string) {
 }
 
 export default async function* FilesApp(env: Environment) {
+	async function fileColour(path: string) {
+		const stats = await env.fs.stats(path);
+
+		if (!stats) return "rgb(255 255 255)";
+
+		switch (stats.type) {
+			case "directory":
+				return "rgb(255 255 0)";
+
+			case "file":
+				if (path.endsWith(".js")) {
+					return "rgb(138, 150, 255)";
+				} else {
+					return "rgb(255 255 255)";
+				}
+
+			case "socket":
+				return "rgb(130, 161, 130)";
+		}
+	}
+
 	const lib = new GuiWindow(env);
 	await lib.init("Files");
 
 	let path = "/";
 
-	lib.onButtonPress = (reference) => {
+	lib.onButtonPress = async (reference) => {
 		if (reference.startsWith("button:/")) {
 			const buttonPath = reference.substring(7);
 
-			path = buttonPath;
-			updateUI();
+			const stats = await env.fs.stats(buttonPath);
+
+			switch (stats?.type) {
+				case "directory":
+					path = buttonPath;
+					updateUI();
+					break;
+
+				case "file":
+					if (buttonPath.endsWith(".js")) {
+						const genvExec = await env.execute("/bin/genv.js", [
+							"terminal"
+						]);
+
+						const { return: result } = await genvExec.onExit;
+						if (!result) return;
+
+						const terminalPath = logToString(result);
+						await env.execute(terminalPath, [buttonPath]);
+					}
+
+					break;
+
+				case "socket":
+					break;
+			}
 		}
 	};
 
@@ -63,7 +109,12 @@ export default async function* FilesApp(env: Environment) {
 				},
 				{
 					type: "button",
-					text: isDirectory ? item + "/" : item,
+					text: [
+						{
+							text: isDirectory ? item + "/" : item,
+							colour: await fileColour(dir)
+						}
+					],
 					x: 5,
 					y: y + 5,
 					identifier: `button:${dir}`
@@ -74,6 +125,7 @@ export default async function* FilesApp(env: Environment) {
 		}
 
 		lib.setContents(ui);
+		lib.setPointerPosition();
 	}
 
 	updateUI();
