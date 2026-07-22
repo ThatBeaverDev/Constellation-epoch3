@@ -13,6 +13,7 @@ export default class GraphicalUIManager {
 			{ promise: Promise<string>; resolve: (data: string) => void }
 		>
 	> = {};
+	#dimensions: { width: number; height: number } = { width: 0, height: 0 };
 
 	onTextboxCompletion?: (contents: string, reference: string) => any;
 	onTextboxValueChange?: (contents: string, reference: string) => any;
@@ -20,6 +21,10 @@ export default class GraphicalUIManager {
 	onKeyPress?: (event: { name: string; alt: boolean; shift: boolean }) => any;
 
 	constructor(public env: Environment) {}
+
+	get dimensions() {
+		return structuredClone(this.#dimensions);
+	}
 
 	async guiAvailable() {
 		const stats = await this.env.fs.stats(GUI_SOCKET_PATH);
@@ -63,6 +68,14 @@ export default class GraphicalUIManager {
 				case "onButtonPress":
 					this.onButtonPress?.(msg.reference);
 					break;
+
+				case "windowResize":
+					this.#dimensions = { width: msg.width, height: msg.height };
+					break;
+
+				default:
+					// @ts-expect-error
+					console.warn(`Unhandled GUI message intent: ${msg.intent}`);
 			}
 		};
 
