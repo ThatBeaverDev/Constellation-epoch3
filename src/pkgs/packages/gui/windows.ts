@@ -66,212 +66,206 @@ export default class WindowManager {
 		return this.windows[this.windowID];
 	}
 
+	#handleAltNavigation(key: string): boolean {
+		const total = this.windowIDs.length;
+
+		switch (key) {
+			case "arrowup":
+				console.error("NO_IMPL:WORKSPACE_UP");
+				return true;
+
+			case "arrowleft":
+				this.windowID = Math.max(0, this.windowID - 1);
+				return true;
+
+			case "arrowdown":
+				console.error("NO_IMPL:WORKSPACE_DOWN");
+				return true;
+
+			case "arrowright":
+				this.windowID = Math.min(total - 1, this.windowID + 1);
+				return true;
+
+			case "w":
+			case "∑":
+				this.#currentWindow?.window?.close?.();
+				this.windowID -= 1;
+				return true;
+
+			case "return":
+			case "enter":
+				return true;
+		}
+
+		return false;
+	}
+
+	#handleWindowScroll(window: any, key: string, isShift: boolean): boolean {
+		if (key === "arrowup") {
+			if (isShift) {
+				window.scroll -= 100;
+			} else {
+				window.scrollItem = Math.max(0, window.scrollItem - 1);
+			}
+			return true;
+		}
+
+		if (key === "arrowdown") {
+			if (isShift) {
+				window.scroll += 100;
+			} else {
+				const maxIndex = (window.interactables?.length || 1) - 1;
+				window.scrollItem = Math.min(maxIndex, window.scrollItem + 1);
+			}
+			return true;
+		}
+
+		return false;
+	}
+
+	#handleItemInteraction(
+		window: any,
+		item: any,
+		key: string,
+		rawKey: string,
+		e: any
+	): boolean {
+		if (item.type === "button") {
+			if (key === "" || key === "enter" || key === " ") {
+				this.socketManager?.onButtonPress?.(window, item.identifier);
+				return true;
+			}
+		}
+
+		if (item.type === "textBox") {
+			return this.#handleTextBoxInput(window, item, key, rawKey, e);
+		}
+
+		return false;
+	}
+
+	#handleTextBoxInput(
+		window: any,
+		item: any,
+		key: string,
+		rawKey: string,
+		e: any
+	): boolean {
+		const ignoredKeys = new Set([
+			"control",
+			"shift",
+			"meta",
+			"tab",
+			"escape",
+			"delete",
+			"end",
+			"pagedown",
+			"pageup",
+			"insert",
+			"home",
+			"alt",
+			"arrowup",
+			"arrowleft",
+			"arrowdown",
+			"arrowright"
+		]);
+
+		if (ignoredKeys.has(key)) return true;
+
+		// make sure the typing entry exists
+		if (window.typing[item.identifier] == null) {
+			window.typing[item.identifier] = "";
+		}
+
+		const notifyChange = () => {
+			this.socketManager?.onTextboxValueChange?.(
+				window,
+				item.identifier,
+				window.typing[item.identifier]
+			);
+		};
+
+		if (key === "backspace") {
+			const currentText = window.typing[item.identifier];
+			if (currentText.length > 0) {
+				const charsToRemove = e.alt ? 2 : 1;
+				window.typing[item.identifier] = currentText.slice(
+					0,
+					-charsToRemove
+				);
+				notifyChange();
+			}
+			return true;
+		}
+
+		if (key === "enter") {
+			item.complete = true;
+			return true;
+		}
+
+		// add it
+		const charToAdd = key === "" ? " " : rawKey;
+		window.typing[item.identifier] += charToAdd;
+		notifyChange();
+
+		return true;
+	}
+
 	constructor(
 		public env: Environment,
 		public state: GuiState
 	) {
 		this.#paletteHandler = new PaletteHandler(env, this);
 
-		env.addEventListener("keydown", (e) => {
+		env.addEventListener("keydown", (e: KeyboardEvent | any) => {
+			const rawKey = (e.key || e.name || "").trim();
+			const key = rawKey.toLowerCase();
+			const isAltOrCtrl = e.alt || e.ctrl;
+
 			if (this.paletteVisible) {
-				switch (e.name.trim()) {
-					case "Escape":
-						this.hidePalette();
-						return;
-
-					case "":
-						if (e.alt || e.ctrl) {
-							this.hidePalette();
-							return;
-						}
-						break;
+				if (key === "escape" || (key === "" && isAltOrCtrl)) {
+					this.hidePalette();
+					return;
 				}
-
-				// let it flow on
 			}
 
-			const keyName = e.name.trim().toLowerCase();
-
-			if (keyName == "" && (e.alt || e.ctrl)) {
-				if (this.#showPalette) {
-					this.hidePalette();
-				} else {
-					this.showPalette();
-				}
+			if (key === "" && isAltOrCtrl) {
+				this.#showPalette ? this.hidePalette() : this.showPalette();
 				return;
 			}
 
-			if (e.alt) {
-				const total = this.windowIDs.length;
-				const gridSides = Math.ceil(Math.sqrt(total));
-
-				switch (keyName) {
-					case "arrowup":
-						if (this.windowID - gridSides >= 0) {
-							// allow it
-							this.windowID -= gridSides;
-						}
-						return;
-
-					case "arrowleft":
-						if (this.windowID - 1 >= 0) {
-							// allow it
-							this.windowID -= 1;
-						}
-						return;
-
-					case "arrowdown":
-						if (this.windowID + gridSides <= total - 1) {
-							// allow it
-							this.windowID += gridSides;
-						}
-						return;
-
-					case "arrowright":
-						if (this.windowID + 1 <= total - 1) {
-							// allow it
-							this.windowID += 1;
-						}
-						return;
-
-					case "w":
-					case "∑":
-						this.#currentWindow?.window?.close?.();
-						break;
-				}
-
-				if (keyName == "return") return;
+			if (e.alt && this.#handleAltNavigation(key)) {
+				return;
 			}
 
+			// get active winow
 			const cur = this.#currentWindow;
 			const window = cur?.window;
 
-			if (window) {
-				switch (keyName) {
-					case "arrowup":
-						if (e.shift) {
-							window.scroll -= 100;
-						} else {
-							if (window.scrollItem - 1 >= 0) {
-								// allow it
-								window.scrollItem -= 1;
-							}
-						}
+			if (!window) return;
 
-						return;
-
-					case "arrowdown":
-						if (e.shift) {
-							window.scroll += 100;
-						} else {
-							if (
-								window.scrollItem + 1 <=
-								window.interactables.length - 1
-							) {
-								// allow it
-								window.scrollItem += 1;
-							}
-						}
-						return;
-				}
-
-				const item =
-					window.contents[window.interactables[window.scrollItem]];
-
-				if (item)
-					switch (item.type) {
-						case "button": {
-							if (keyName == "" || keyName == "enter") {
-								// space key
-								this.socketManager?.onButtonPress?.(
-									window,
-									item.identifier
-								);
-								return;
-							}
-							break;
-						}
-
-						case "textBox": {
-							if (!window.typing[item.identifier]) {
-								window.typing[item.identifier] = "";
-							}
-
-							const store: string =
-								window.typing[item.identifier]!;
-
-							const registerChange = () => {
-								this.socketManager?.onTextboxValueChange(
-									window,
-									item.identifier,
-									// @ts-expect-error
-									window.typing[item.identifier]
-								);
-							};
-
-							switch (keyName) {
-								case "control":
-								case "shift":
-								case "meta":
-								case "tab":
-								case "escape":
-								case "delete":
-								case "end":
-								case "pagedown":
-								case "pageup":
-								case "insert":
-								case "home":
-								case "alt":
-								case "arrowup":
-								case "arrowleft":
-								case "arrowdown":
-								case "arrowright":
-									break;
-
-								case "backspace":
-									if (
-										window.typing[item.identifier]
-											?.length == 0
-									)
-										break;
-
-									const backspace = () => {
-										window.typing[item.identifier] =
-											store?.slice(0, store.length - 1);
-									};
-
-									if (e.alt) {
-										const lastWordLength = 2;
-										for (let i = 0; i > lastWordLength; i++)
-											backspace();
-									} else {
-										backspace();
-									}
-
-									registerChange();
-									break;
-
-								case "":
-									window.typing[item.identifier] += " ";
-									registerChange();
-									break;
-
-								case "enter":
-									item.complete = true;
-									break;
-
-								default:
-									window.typing[item.identifier] += e.name;
-									registerChange();
-							}
-						}
-					}
-
-				// not caught - send to current app
-				if (this.socketManager) {
-					this.socketManager.onKeyPress(cur.window, e);
-				}
+			// handle scrolling of window contents
+			if (this.#handleWindowScroll(window, key, e.shift)) {
+				return;
 			}
+
+			// handle interactivity
+			const currentItem =
+				window.contents?.[window.interactables?.[window.scrollItem]];
+
+			if (currentItem) {
+				const handled = this.#handleItemInteraction(
+					window,
+					currentItem,
+					key,
+					rawKey,
+					e
+				);
+				if (handled) return;
+			}
+
+			// send unhandled to focused window
+			this.socketManager?.onKeyPress?.(cur.window, e);
 		});
 	}
 
