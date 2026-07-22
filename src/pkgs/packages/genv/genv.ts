@@ -1,22 +1,12 @@
 import { Environment } from "../../../util/types/worker";
 
-export default async function* ResolveCommand(
+export default async function* ResolveCommandGui(
 	env: Environment,
 	[name]: [string | undefined]
 ) {
-	const PATH = ["/bin"];
+	const PATH = ["/bin/gui"];
 
-	if (!name) return "Usage: env [name]";
-
-	if ([".", "/"].includes(name[0])) {
-		// resolve it
-		const path = env.path.resolve(env.workingDirectory, name);
-
-		const exists = await env.fs.exists(path);
-		if (exists) {
-			return path;
-		}
-	}
+	if (!name) return "Usage: genv [name]";
 
 	for (const dir of PATH) {
 		try {

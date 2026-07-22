@@ -5,6 +5,12 @@ import SocketManager, { Client } from "./socket";
 import { drawLog, measureText, rect, text } from "./util/rendering";
 import { WindowContentItem } from "./types/windowContents";
 import { GuiState } from "./gui";
+import { dataURItoBlob } from "../../../util/lib/uri";
+import {
+	focusedWindowStroke,
+	unfocusedWindowStroke,
+	windowFill
+} from "./constants";
 
 export interface WindowInfo {
 	window: Window;
@@ -19,12 +25,7 @@ export type PaletteIndex = { directory: string; name: string }[];
 const headerHeight = 50;
 
 export default class WindowManager {
-	windows: Record<number, WindowInfo | undefined> = {};
-	windowIDs: number[] = [];
-
-	refreshWindowIDs() {
-		this.windowIDs = Object.keys(this.windows).map((item) => Number(item));
-	}
+	windows: WindowInfo[] = [];
 
 	socketManager?: SocketManager;
 	self?: Process;
@@ -44,12 +45,12 @@ export default class WindowManager {
 		return this.#palette;
 	}
 
-	windowFocused(id: number) {
-		if (this.palette !== undefined && id !== this.palette?.window?.id) {
+	windowFocused(info: WindowInfo) {
+		if (this.palette !== undefined && info !== this.palette) {
 			return false;
 		}
 
-		const isFocused = this.#currentWindow == this.windows[id];
+		const isFocused = this.#currentWindow == info;
 
 		return isFocused;
 	}
@@ -60,223 +61,225 @@ export default class WindowManager {
 		return this.windows[this.windowID];
 	}
 
+	#handleAltNavigation(key: string): boolean {
+		const total = this.windows.length;
+
+		switch (key) {
+			case "arrowup":
+				// TODO: Workspaces
+				return true;
+
+			case "arrowleft":
+				this.windowID = Math.max(0, this.windowID - 1);
+				return true;
+
+			case "arrowdown":
+				// TODO: Workspaces
+				return true;
+
+			case "arrowright":
+				this.windowID = Math.min(total - 1, this.windowID + 1);
+				return true;
+
+			case "w":
+			case "∑":
+				this.#currentWindow?.window?.close?.();
+				return true;
+
+			case "return":
+			case "enter":
+				return true;
+		}
+
+		return false;
+	}
+
+	#handleWindowScroll(window: any, key: string, isShift: boolean): boolean {
+		if (key === "arrowup") {
+			if (isShift) {
+				window.scroll -= 100;
+			} else {
+				window.scrollItem = Math.max(0, window.scrollItem - 1);
+			}
+			return true;
+		}
+
+		if (key === "arrowdown") {
+			if (isShift) {
+				window.scroll += 100;
+			} else {
+				const maxIndex = (window.interactables?.length || 1) - 1;
+				window.scrollItem = Math.min(maxIndex, window.scrollItem + 1);
+			}
+			return true;
+		}
+
+		return false;
+	}
+
+	#handleItemInteraction(
+		window: any,
+		item: any,
+		key: string,
+		rawKey: string,
+		e: any
+	): boolean {
+		if (item.type === "button") {
+			if (key === "" || key === "enter" || key === " ") {
+				this.socketManager?.onButtonPress?.(window, item.identifier);
+				return true;
+			}
+		}
+
+		if (item.type === "textBox") {
+			return this.#handleTextBoxInput(window, item, key, rawKey, e);
+		}
+
+		return false;
+	}
+
+	#handleTextBoxInput(
+		window: any,
+		item: any,
+		key: string,
+		rawKey: string,
+		e: any
+	): boolean {
+		const ignoredKeys = new Set([
+			"control",
+			"shift",
+			"meta",
+			"tab",
+			"escape",
+			"delete",
+			"end",
+			"pagedown",
+			"pageup",
+			"insert",
+			"home",
+			"alt",
+			"arrowup",
+			"arrowleft",
+			"arrowdown",
+			"arrowright"
+		]);
+
+		if (ignoredKeys.has(key)) return true;
+
+		// make sure the typing entry exists
+		if (window.typing[item.identifier] == null) {
+			window.typing[item.identifier] = "";
+		}
+
+		const notifyChange = () => {
+			this.socketManager?.onTextboxValueChange?.(
+				window,
+				item.identifier,
+				window.typing[item.identifier]
+			);
+		};
+
+		if (key === "backspace") {
+			const currentText = window.typing[item.identifier];
+			if (currentText.length > 0) {
+				const charsToRemove = e.alt ? 2 : 1;
+				window.typing[item.identifier] = currentText.slice(
+					0,
+					-charsToRemove
+				);
+				notifyChange();
+			}
+			return true;
+		}
+
+		if (key === "enter") {
+			item.complete = true;
+			return true;
+		}
+
+		// add it
+		const charToAdd = key === "" ? " " : rawKey;
+
+		if (charToAdd.length !== 1) {
+			return false;
+		}
+
+		window.typing[item.identifier] += charToAdd;
+		notifyChange();
+
+		return true;
+	}
+
 	constructor(
 		public env: Environment,
 		public state: GuiState
 	) {
 		this.#paletteHandler = new PaletteHandler(env, this);
 
-		env.addEventListener("keydown", (e) => {
+		env.addEventListener("keydown", (e: KeyboardEvent | any) => {
+			const rawKey = (e.key || e.name || "").trim();
+			const key = rawKey.toLowerCase();
+			const isAltOrCtrl = e.alt || e.ctrl;
+
 			if (this.paletteVisible) {
-				switch (e.name.trim()) {
-					case "Escape":
-						this.hidePalette();
-						return;
-
-					case "":
-						if (e.alt || e.ctrl) {
-							this.hidePalette();
-							return;
-						}
-						break;
+				if (key === "escape" || (key === "" && isAltOrCtrl)) {
+					this.hidePalette();
+					return;
 				}
-
-				// let it flow on
 			}
 
-			const keyName = e.name.trim().toLowerCase();
-
-			if (keyName == "" && (e.alt || e.ctrl)) {
-				if (this.#showPalette) {
-					this.hidePalette();
-				} else {
-					this.showPalette();
-				}
+			if (key === "" && isAltOrCtrl) {
+				this.#showPalette ? this.hidePalette() : this.showPalette();
 				return;
 			}
 
-			if (e.alt) {
-				const total = this.windowIDs.length;
-				const gridSides = Math.ceil(Math.sqrt(total));
-
-				switch (keyName) {
-					case "arrowup":
-						if (this.windowID - gridSides >= 0) {
-							// allow it
-							this.windowID -= gridSides;
-						}
-						return;
-
-					case "arrowleft":
-						if (this.windowID - 1 >= 0) {
-							// allow it
-							this.windowID -= 1;
-						}
-						return;
-
-					case "arrowdown":
-						if (this.windowID + gridSides <= total - 1) {
-							// allow it
-							this.windowID += gridSides;
-						}
-						return;
-
-					case "arrowright":
-						if (this.windowID + 1 <= total - 1) {
-							// allow it
-							this.windowID += 1;
-						}
-						return;
-
-					case "w":
-					case "∑":
-						this.#currentWindow?.window?.close?.();
-						break;
-				}
-
-				if (keyName == "return") return;
+			if (e.alt && this.#handleAltNavigation(key)) {
+				return;
 			}
 
+			// get active winow
 			const cur = this.#currentWindow;
 			const window = cur?.window;
 
-			if (window) {
-				this.socketManager?.onKeyPress(window, e);
+			if (!window) return;
 
-				switch (keyName) {
-					case "arrowup":
-						if (e.shift) {
-							window.scroll -= 100;
-						} else {
-							if (window.scrollItem - 1 >= 0) {
-								// allow it
-								window.scrollItem -= 1;
-							}
-						}
-
-						return;
-
-					case "arrowdown":
-						if (e.shift) {
-							window.scroll += 100;
-						} else {
-							if (
-								window.scrollItem + 1 <=
-								window.interactables.length - 1
-							) {
-								// allow it
-								window.scrollItem += 1;
-							}
-						}
-						return;
-				}
-
-				const item =
-					window.contents[window.interactables[window.scrollItem]];
-
-				if (item)
-					switch (item.type) {
-						case "button": {
-							if (keyName == "" || keyName == "enter") {
-								// space key
-								this.socketManager?.onButtonPress?.(
-									window,
-									item.identifier
-								);
-								return;
-							}
-							break;
-						}
-
-						case "textBox": {
-							if (!window.typing[item.identifier]) {
-								window.typing[item.identifier] = "";
-							}
-
-							const store: string =
-								window.typing[item.identifier]!;
-
-							const registerChange = () => {
-								this.socketManager?.onTextboxValueChange(
-									window,
-									item.identifier,
-									// @ts-expect-error
-									window.typing[item.identifier]
-								);
-							};
-
-							switch (keyName) {
-								case "control":
-								case "shift":
-								case "meta":
-								case "tab":
-								case "escape":
-								case "delete":
-								case "end":
-								case "pagedown":
-								case "pageup":
-								case "insert":
-								case "home":
-								case "alt":
-									break;
-
-								case "backspace":
-									if (
-										window.typing[item.identifier]
-											?.length == 0
-									)
-										break;
-
-									const backspace = () => {
-										window.typing[item.identifier] =
-											store?.slice(0, store.length - 1);
-									};
-
-									if (e.alt) {
-										const lastWordLength = 2;
-										for (let i = 0; i > lastWordLength; i++)
-											backspace();
-									} else {
-										backspace();
-									}
-
-									registerChange();
-									break;
-
-								case "":
-									window.typing[item.identifier] += " ";
-									registerChange();
-									break;
-
-								case "enter":
-									item.complete = true;
-									break;
-
-								default:
-									window.typing[item.identifier] += e.name;
-									registerChange();
-							}
-						}
-					}
-
-				// not caught - send to current app
-				if (this.socketManager) {
-					this.socketManager.onKeyPress(cur.window, e);
-				}
+			// handle scrolling of window contents
+			if (this.#handleWindowScroll(window, key, e.shift)) {
+				return;
 			}
+
+			// handle interactivity
+			const currentItem =
+				window.contents?.[window.interactables?.[window.scrollItem]];
+
+			if (currentItem) {
+				const handled = this.#handleItemInteraction(
+					window,
+					currentItem,
+					key,
+					rawKey,
+					e
+				);
+				if (handled) return;
+			}
+
+			// send unhandled to focused window
+			this.socketManager?.onKeyPress?.(cur.window, e);
 		});
 	}
 
 	async init() {
 		this.self = await this.env.self();
 
-		await this.#paletteHandler.init();
+		this.#paletteHandler.init();
 	}
 
 	showPalette() {
 		this.refreshPaletteIndex(["/bin/gui"]).then(() =>
 			this.refreshPalette()
 		);
+
+		this.#paletteHandler.resetSearchQuery();
 
 		this.refreshPalette();
 
@@ -292,25 +295,36 @@ export default class WindowManager {
 	}
 
 	reposition() {
-		const total = this.windowIDs.length;
-		const gridSides = Math.ceil(Math.sqrt(total));
+		const padding = 40;
+		const doublePadding = padding * 2;
 
-		const columnWidth = this.state.width / gridSides;
-		const rowHeight = this.state.height / gridSides;
+		const windowHeight = this.state.height - doublePadding;
+		const windowWidth = Math.min(
+			windowHeight,
+			this.state.width - doublePadding
+		);
 
-		let windowID = 0;
+		let x = padding;
+		for (const window of this.windows) {
+			window.width = windowWidth;
+			window.height = windowHeight;
 
-		for (let y = 0; y < gridSides; y++) {
-			for (let x = 0; x < gridSides; x++) {
-				const info = this.windows[windowID++];
-				if (!info) return;
+			window.x = x;
+			window.y = padding;
 
-				info.x = x * columnWidth;
-				info.y = y * rowHeight;
+			x += windowWidth + padding;
+		}
 
-				info.width = columnWidth;
-				info.height = rowHeight;
-			}
+		const focused = this.#currentWindow;
+		if (focused && focused !== this.#palette) {
+			const screenWidth = this.state.width;
+			const screenMiddle = screenWidth / 2;
+
+			const windowHalfWidth = focused.width / 2;
+			const windowLeft = screenMiddle - windowHalfWidth;
+
+			const target = focused.x - windowLeft;
+			this.state.scrollX -= (this.state.scrollX - target) / 10;
 		}
 
 		if (this.#palette) {
@@ -321,7 +335,7 @@ export default class WindowManager {
 			const paletteHalfWidth = paletteWidth / 2;
 			const paletteHalfHeight = paletteHeight / 2;
 
-			this.#palette.x = midWidth - paletteHalfWidth;
+			this.#palette.x = midWidth - paletteHalfWidth + this.state.scrollX;
 			this.#palette.y = midHeight - paletteHalfHeight;
 			this.#palette.width = paletteWidth;
 			this.#palette.height = paletteHeight;
@@ -329,12 +343,13 @@ export default class WindowManager {
 	}
 
 	newWindow(client: Client | undefined, name: string) {
-		const id = this.windowIDs.length;
-
-		const window = new GuiWindow(this, client, id, name);
+		const window = new GuiWindow(this, client, name);
 		window.close = () => {
-			this.windows[window.id] = undefined;
-			this.refreshWindowIDs();
+			if (this.#currentWindow == info) {
+				this.windowID -= 1;
+			}
+
+			this.windows = this.windows.filter((item) => item !== info);
 
 			try {
 				if (this.socketManager) this.socketManager.onWindowExit(window);
@@ -365,11 +380,10 @@ export default class WindowManager {
 		if (isPalette) {
 			this.#palette = info;
 		} else {
-			this.windows[window.id] = info;
-			this.refreshWindowIDs();
+			this.windowID = this.windows.push(info) - 1;
 		}
 
-		return { window, id };
+		return { window };
 	}
 
 	#index: PaletteIndex = [];
@@ -409,16 +423,26 @@ export abstract class Window {
 	interactables: number[] = [];
 
 	typing: Partial<Record<string, string>> = {};
+	images: Partial<
+		Record<
+			string,
+			{ state: "loaded"; bitmap: ImageBitmap } | { state: "loading" }
+		>
+	> = {};
 	scroll: number = 0;
+	lastTime: number = 0;
 
 	constructor(
 		public windowManager: WindowManager,
 		public associatedClient: Client | undefined,
-		public id: number,
 		public name: string,
 		public description?: string
-	) {}
+	) {
+		this.lastTime = performance.now();
+	}
 
+	#oldWidth: number = 0;
+	#oldHeight: number = 0;
 	render(
 		ctx: OffscreenCanvasRenderingContext2D,
 		x: number,
@@ -427,9 +451,23 @@ export abstract class Window {
 		height: number,
 		isFocused: boolean
 	) {
+		const currentTime = performance.now();
+		this.lastTime = currentTime;
+
+		if (this.#oldWidth !== width || this.#oldHeight !== height) {
+			this.#oldWidth = width;
+			this.#oldHeight = height;
+
+			this.windowManager?.socketManager?.onWindowResize?.(
+				this,
+				width,
+				height
+			);
+		}
+
 		if (!debugRendering) {
 			const region = new Path2D();
-			region.rect(x, y, width, height);
+			region.roundRect(x, y, width, height, 7);
 
 			ctx.save();
 			ctx.clip(region, "evenodd");
@@ -447,8 +485,8 @@ export abstract class Window {
 			y,
 			width,
 			height,
-			`rgb(25 25 25)`,
-			isFocused ? `rgb(170 170 170)` : "rgb(150 150 150)"
+			windowFill,
+			isFocused ? focusedWindowStroke : unfocusedWindowStroke
 		);
 
 		// Window header
@@ -581,11 +619,122 @@ export abstract class Window {
 					break;
 				}
 
-				default:
-					text(
+				case "box": {
+					rect(
 						ctx,
 						x + item.x,
 						yRoot + headerHeight + item.y,
+						item.width,
+						item.height,
+						item.fill ?? "rgb(45 45 45)",
+						item.stroke ?? "rgb(55 55 55)"
+					);
+
+					break;
+				}
+
+				case "image": {
+					const ref = `${item.sourceType}:${item.source}`;
+
+					const image = this.images[ref];
+
+					if (!image) {
+						this.images[ref] = { state: "loading" };
+
+						(async () => {
+							switch (item.sourceType) {
+								case "file":
+									const data =
+										await this.windowManager.env.fs.readFile(
+											item.source
+										);
+
+									if (data) {
+										const blob = dataURItoBlob(data);
+
+										const bitmap =
+											await createImageBitmap(blob);
+
+										this.images[ref] = {
+											state: "loaded",
+											bitmap
+										};
+									}
+
+									break;
+
+								case "url":
+									const request =
+										await this.windowManager.env.network.request(
+											"get",
+											item.source,
+											"blob"
+										);
+
+									if (request.isOk) {
+										const blob = request.response;
+
+										const bitmap =
+											await createImageBitmap(blob);
+
+										this.images[ref] = {
+											state: "loaded",
+											bitmap
+										};
+									} else {
+									}
+
+									break;
+
+								default:
+									console.error(
+										`Unhandled image sourceType: '${item.sourceType}'`
+									);
+							}
+						})();
+					}
+
+					switch (image?.state) {
+						case undefined:
+						case "loading":
+							const colour =
+								150 + 37.5 * Math.sin(currentTime / 500);
+
+							rect(
+								ctx,
+								x + item.x,
+								yRoot + headerHeight + item.y,
+								item.width,
+								item.height,
+								`rgb(${colour} ${colour} ${colour})`,
+								"rgb(200 200 200)"
+							);
+
+							break;
+
+						case "loaded":
+							ctx.drawImage(
+								image.bitmap,
+								x + item.x,
+								yRoot + headerHeight + item.y,
+								item.width,
+								item.height
+							);
+
+							break;
+					}
+
+					break;
+				}
+
+				default:
+					text(
+						ctx,
+						// @ts-expect-error
+						x + item.x,
+						// @ts-expect-error
+						yRoot + headerHeight + item.y,
+						// @ts-expect-error
 						`Unknown Component Type: ${item.type}`
 					);
 			}

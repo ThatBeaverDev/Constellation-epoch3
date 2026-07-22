@@ -1,10 +1,15 @@
 import { Environment, SocketConnection } from "../../../util/types/worker";
-import { GUI_SOCKET_PATH } from "./constants";
+import {
+	focusedWindowStroke,
+	GUI_SOCKET_PATH,
+	unfocusedWindowStroke,
+	windowFill
+} from "./constants";
 import { GuiIngoing } from "./types/gui.ingoing";
 import { GuiOutgoing } from "./types/gui.outgoing";
 import { WindowContentItem } from "./types/windowContents";
 
-export default class GraphicalUIManager {
+export default class GuiWindow {
 	#socketConnection?: SocketConnection<GuiIngoing, GuiOutgoing>;
 
 	#textboxes: Partial<
@@ -13,13 +18,23 @@ export default class GraphicalUIManager {
 			{ promise: Promise<string>; resolve: (data: string) => void }
 		>
 	> = {};
+	#dimensionsSent: boolean = false;
+	#dimensions: { width: number; height: number } = { width: 0, height: 0 };
 
 	onTextboxCompletion?: (contents: string, reference: string) => any;
 	onTextboxValueChange?: (contents: string, reference: string) => any;
 	onButtonPress?: (reference: string) => any;
 	onKeyPress?: (event: { name: string; alt: boolean; shift: boolean }) => any;
 
+	static readonly windowFill = windowFill;
+	static readonly focusedWindowStroke = focusedWindowStroke;
+	static readonly unfocusedWindowStroke = unfocusedWindowStroke;
+
 	constructor(public env: Environment) {}
+
+	get dimensions() {
+		return structuredClone(this.#dimensions);
+	}
 
 	async guiAvailable() {
 		const stats = await this.env.fs.stats(GUI_SOCKET_PATH);
@@ -63,12 +78,30 @@ export default class GraphicalUIManager {
 				case "onButtonPress":
 					this.onButtonPress?.(msg.reference);
 					break;
+
+				case "windowResize":
+					this.#dimensionsSent = true;
+					this.#dimensions = { width: msg.width, height: msg.height };
+					break;
+
+				default:
+					// @ts-expect-error
+					console.warn(`Unhandled GUI message intent: ${msg.intent}`);
 			}
 		};
 
 		this.#socketConnection.sendMessage({
 			intent: "newWindow",
 			name: windowName
+		});
+
+		await new Promise<void>((resolve) => {
+			let interval = setInterval(() => {
+				if (this.#dimensionsSent) {
+					clearInterval(interval);
+					resolve();
+				}
+			}, 50);
 		});
 	}
 
@@ -79,7 +112,16 @@ export default class GraphicalUIManager {
 
 		this.#socketConnection?.sendMessage({
 			intent: "setWindowContents",
-			contents
+			contents,
+			windowID: 0
+		});
+	}
+
+	setPointerPosition(pos?: number) {
+		this.#socketConnection?.sendMessage?.({
+			intent: "resetPointer",
+			windowID: 0,
+			pos
 		});
 	}
 
@@ -98,5 +140,14 @@ export default class GraphicalUIManager {
 		}
 
 		return await this.#textboxes[responder].promise;
+	}
+
+	setTextboxContents(reference: string, contents: string) {
+		this.#socketConnection?.sendMessage({
+			intent: "setTextboxContents",
+			reference,
+			contents,
+			windowID: 0
+		});
 	}
 }

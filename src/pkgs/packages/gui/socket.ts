@@ -86,9 +86,21 @@ export default class SocketManager {
 		}
 	}
 
-	async init() {
-		await this.env.fs.mkdir("/data/gui");
+	onWindowResize(window: Window, width: number, height: number) {
+		const client = window.associatedClient;
+		const pid = client?.pid;
 
+		if (pid) {
+			this.socketServer.sendMessage(pid, {
+				intent: "windowResize",
+				windowID: client ? client.windows.indexOf(window) : 0,
+				width,
+				height
+			});
+		}
+	}
+
+	async init() {
 		this.socketServer =
 			await this.env.sockets.createSocket(GUI_SOCKET_PATH);
 
@@ -144,6 +156,20 @@ export default class SocketManager {
 
 					window.interactables = interactables;
 
+					break;
+				}
+
+				case "setTextboxContents": {
+					const window = client.windows[msg.windowID ?? 0];
+
+					window.typing[msg.reference] = "";
+					break;
+				}
+
+				case "resetPointer": {
+					const window = client.windows[msg.windowID ?? 0];
+
+					window.scrollItem = msg.pos ?? 0;
 					break;
 				}
 

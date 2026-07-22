@@ -1,4 +1,4 @@
-import { ArrayLog } from "../../../../util/types/worker";
+import { Log } from "../../../../util/types/worker";
 
 export interface WindowBaseItem {
 	x: number;
@@ -7,7 +7,7 @@ export interface WindowBaseItem {
 
 export interface WindowText extends WindowBaseItem {
 	type: "text";
-	text: string | ArrayLog;
+	text: Log;
 
 	font?: string;
 	fontSize?: number;
@@ -25,7 +25,7 @@ export interface WindowImage extends WindowBaseItem {
 
 export interface WindowButton extends WindowBaseItem {
 	type: "button";
-	text: string;
+	text: Log;
 
 	font?: string;
 	fontSize?: number;
@@ -45,8 +45,14 @@ export interface WindowTextBox extends WindowBaseItem {
 	identifier: string;
 }
 
+export interface WindowBox extends WindowBaseItem {
+	type: "box";
+	width: number;
+	height: number;
+
+	fill?: string;
+	stroke?: string;
+}
+
 export type WindowContentItem =
-	| WindowText
-	| WindowImage
-	| WindowButton
-	| WindowTextBox;
+	WindowText | WindowImage | WindowButton | WindowTextBox | WindowBox;
