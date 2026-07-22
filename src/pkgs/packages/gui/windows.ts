@@ -271,7 +271,7 @@ export default class WindowManager {
 	async init() {
 		this.self = await this.env.self();
 
-		await this.#paletteHandler.init();
+		this.#paletteHandler.init();
 	}
 
 	showPalette() {

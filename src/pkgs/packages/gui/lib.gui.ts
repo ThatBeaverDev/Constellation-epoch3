@@ -13,6 +13,7 @@ export default class GraphicalUIManager {
 			{ promise: Promise<string>; resolve: (data: string) => void }
 		>
 	> = {};
+	#dimensionsSent: boolean = false;
 	#dimensions: { width: number; height: number } = { width: 0, height: 0 };
 
 	onTextboxCompletion?: (contents: string, reference: string) => any;
@@ -70,6 +71,7 @@ export default class GraphicalUIManager {
 					break;
 
 				case "windowResize":
+					this.#dimensionsSent = true;
 					this.#dimensions = { width: msg.width, height: msg.height };
 					break;
 
@@ -82,6 +84,15 @@ export default class GraphicalUIManager {
 		this.#socketConnection.sendMessage({
 			intent: "newWindow",
 			name: windowName
+		});
+
+		await new Promise<void>((resolve) => {
+			let interval = setInterval(() => {
+				if (this.#dimensionsSent) {
+					clearInterval(interval);
+					resolve();
+				}
+			}, 50);
 		});
 	}
 
