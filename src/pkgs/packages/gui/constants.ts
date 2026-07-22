@@ -7,3 +7,7 @@ export const WALLPAPER_SOURCES = [
 ];
 export const DEFAULT_WALLAPER =
 	"https://images.pexels.com/photos/629167/pexels-photo-629167.jpeg";
+
+export const windowFill = "rgb(25 25 25)";
+export const focusedWindowStroke = "rgb(170 170 170)";
+export const unfocusedWindowStroke = "rgb(150 150 150)";

@@ -1,5 +1,5 @@
 import { Environment } from "../../../util/types/worker";
-import GraphicalUIManager from "../gui/lib.gui";
+import GuiWindow from "../gui/lib.gui";
 import { WindowContentItem } from "../gui/types/windowContents";
 
 function header(width: number, path: string) {
@@ -14,7 +14,7 @@ function header(width: number, path: string) {
 }
 
 export default async function* FilesApp(env: Environment) {
-	const lib = new GraphicalUIManager(env);
+	const lib = new GuiWindow(env);
 	await lib.init("Files");
 
 	let path = "/";

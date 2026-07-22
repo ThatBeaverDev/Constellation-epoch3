@@ -1,10 +1,15 @@
 import { Environment, SocketConnection } from "../../../util/types/worker";
-import { GUI_SOCKET_PATH } from "./constants";
+import {
+	focusedWindowStroke,
+	GUI_SOCKET_PATH,
+	unfocusedWindowStroke,
+	windowFill
+} from "./constants";
 import { GuiIngoing } from "./types/gui.ingoing";
 import { GuiOutgoing } from "./types/gui.outgoing";
 import { WindowContentItem } from "./types/windowContents";
 
-export default class GraphicalUIManager {
+export default class GuiWindow {
 	#socketConnection?: SocketConnection<GuiIngoing, GuiOutgoing>;
 
 	#textboxes: Partial<
@@ -20,6 +25,10 @@ export default class GraphicalUIManager {
 	onTextboxValueChange?: (contents: string, reference: string) => any;
 	onButtonPress?: (reference: string) => any;
 	onKeyPress?: (event: { name: string; alt: boolean; shift: boolean }) => any;
+
+	static readonly windowFill = windowFill;
+	static readonly focusedWindowStroke = focusedWindowStroke;
+	static readonly unfocusedWindowStroke = unfocusedWindowStroke;
 
 	constructor(public env: Environment) {}
 

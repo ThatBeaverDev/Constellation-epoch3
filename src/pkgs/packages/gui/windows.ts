@@ -6,6 +6,11 @@ import { drawLog, measureText, rect, text } from "./util/rendering";
 import { WindowContentItem } from "./types/windowContents";
 import { GuiState } from "./gui";
 import { dataURItoBlob } from "../../../util/lib/uri";
+import {
+	focusedWindowStroke,
+	unfocusedWindowStroke,
+	windowFill
+} from "./constants";
 
 export interface WindowInfo {
 	window: Window;
@@ -475,8 +480,8 @@ export abstract class Window {
 			y,
 			width,
 			height,
-			`rgb(25 25 25)`,
-			isFocused ? `rgb(170 170 170)` : "rgb(150 150 150)"
+			windowFill,
+			isFocused ? focusedWindowStroke : unfocusedWindowStroke
 		);
 
 		// Window header

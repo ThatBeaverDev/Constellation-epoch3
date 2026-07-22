@@ -1,6 +1,6 @@
 import Fuse from "fuse.js";
 import { Environment } from "../../../../util/types/worker";
-import GraphicalUIManager from "../lib.gui";
+import GuiWindow from "../lib.gui";
 import { WindowContentItem } from "../types/windowContents";
 import WindowManager, { PaletteIndex } from "../windows";
 
@@ -9,14 +9,14 @@ export const paletteHeight = 750;
 
 const paletteSearchIdentifier = "paletteSearch";
 export default class PaletteHandler {
-	#guiLib: GraphicalUIManager;
+	#guiLib: GuiWindow;
 	#searchTerm: string = "";
 
 	constructor(
 		public env: Environment,
 		public windowSystem: WindowManager
 	) {
-		this.#guiLib = new GraphicalUIManager(env);
+		this.#guiLib = new GuiWindow(env);
 	}
 
 	async init() {
