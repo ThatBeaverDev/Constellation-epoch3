@@ -14,6 +14,7 @@ export interface GuiState {
 	ctx: OffscreenCanvasRenderingContext2D;
 	width: number;
 	height: number;
+	scrollX: number;
 }
 
 export default async function* GraphicalEnvironment(env: Environment) {
@@ -47,7 +48,7 @@ export default async function* GraphicalEnvironment(env: Environment) {
 
 		const ctx = canvas.getContext("2d")!;
 
-		return { ctx, width, height };
+		return { ctx, width, height, scrollX: 0 };
 	}
 
 	const dimensions = await env.terminalDimensions();
@@ -144,7 +145,7 @@ export default async function* GraphicalEnvironment(env: Environment) {
 
 			info?.window?.render?.(
 				state.ctx,
-				info.x,
+				info.x - state.scrollX,
 				info.y,
 				info.width,
 				info.height,

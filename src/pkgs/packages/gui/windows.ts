@@ -296,25 +296,39 @@ export default class WindowManager {
 	}
 
 	reposition() {
-		const total = this.windowIDs.length;
-		const gridSides = Math.ceil(Math.sqrt(total));
+		const padding = 40;
+		const doublePadding = padding * 2;
 
-		const columnWidth = this.state.width / gridSides;
-		const rowHeight = this.state.height / gridSides;
+		const windowHeight = this.state.height - doublePadding;
+		const windowWidth = Math.min(
+			4 * (windowHeight / 3),
+			this.state.width - doublePadding
+		);
 
-		let windowID = 0;
+		let x = padding;
+		for (const id in this.windows) {
+			const window = this.windows[id];
+			if (!window) continue;
 
-		for (let y = 0; y < gridSides; y++) {
-			for (let x = 0; x < gridSides; x++) {
-				const info = this.windows[windowID++];
-				if (!info) return;
+			window.width = windowWidth;
+			window.height = windowHeight;
 
-				info.x = x * columnWidth;
-				info.y = y * rowHeight;
+			window.x = x;
+			window.y = padding;
 
-				info.width = columnWidth;
-				info.height = rowHeight;
-			}
+			x += windowWidth + padding;
+		}
+
+		const focused = this.#currentWindow;
+		if (focused && focused !== this.#palette) {
+			const screenWidth = this.state.width;
+			const screenMiddle = screenWidth / 2;
+
+			const windowHalfWidth = focused.width / 2;
+			const windowLeft = screenMiddle - windowHalfWidth;
+
+			const target = focused.x - windowLeft;
+			this.state.scrollX -= (this.state.scrollX - target) / 10;
 		}
 
 		if (this.#palette) {
