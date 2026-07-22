@@ -66,7 +66,7 @@ export default class WindowManager {
 
 		switch (key) {
 			case "arrowup":
-				console.error("NO_IMPL:WORKSPACE_UP");
+				// TODO: Workspaces
 				return true;
 
 			case "arrowleft":
@@ -74,7 +74,7 @@ export default class WindowManager {
 				return true;
 
 			case "arrowdown":
-				console.error("NO_IMPL:WORKSPACE_DOWN");
+				// TODO: Workspaces
 				return true;
 
 			case "arrowright":
@@ -200,6 +200,11 @@ export default class WindowManager {
 
 		// add it
 		const charToAdd = key === "" ? " " : rawKey;
+
+		if (charToAdd.length !== 1) {
+			return false;
+		}
+
 		window.typing[item.identifier] += charToAdd;
 		notifyChange();
 
