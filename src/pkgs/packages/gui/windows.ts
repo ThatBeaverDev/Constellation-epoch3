@@ -296,7 +296,7 @@ export default class WindowManager {
 
 		const windowHeight = this.state.height - doublePadding;
 		const windowWidth = Math.min(
-			4 * (windowHeight / 3),
+			windowHeight,
 			this.state.width - doublePadding
 		);
 
