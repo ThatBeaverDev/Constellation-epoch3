@@ -14,6 +14,7 @@ export interface GuiState {
 	ctx: OffscreenCanvasRenderingContext2D;
 	width: number;
 	height: number;
+	scrollX: number;
 }
 
 export default async function* GraphicalEnvironment(env: Environment) {
@@ -47,7 +48,7 @@ export default async function* GraphicalEnvironment(env: Environment) {
 
 		const ctx = canvas.getContext("2d")!;
 
-		return { ctx, width, height };
+		return { ctx, width, height, scrollX: 0 };
 	}
 
 	const dimensions = await env.terminalDimensions();
@@ -139,12 +140,11 @@ export default async function* GraphicalEnvironment(env: Environment) {
 			state.ctx.fillStyle = "black";
 			state.ctx.strokeStyle = "white";
 
-			const isFocused =
-				focused || windowManager.windowFocused(info.window.id);
+			const isFocused = focused || windowManager.windowFocused(info);
 
 			info?.window?.render?.(
 				state.ctx,
-				info.x,
+				info.x - state.scrollX,
 				info.y,
 				info.width,
 				info.height,
@@ -152,10 +152,7 @@ export default async function* GraphicalEnvironment(env: Environment) {
 			);
 		};
 
-		for (const id in windowManager.windows) {
-			const info = windowManager.windows[id];
-			if (info == undefined) continue;
-
+		for (const info of windowManager.windows) {
 			drawWindow(info);
 		}
 
