@@ -13,17 +13,24 @@ export interface GuiNewWindowIngoing {
 export interface GuiSetWindowContentsIngoing {
 	intent: "setWindowContents";
 	contents: Partial<WindowContentItem[]>;
-	windowID?: number;
+	windowID: number;
 }
 
 export interface GuiSetTextboxContentsIngoing {
 	intent: "setTextboxContents";
 	reference: string;
 	contents: string;
-	windowID?: number;
+	windowID: number;
+}
+
+export interface GuiResetPointerIngoing {
+	intent: "resetPointer";
+	windowID: number;
+	pos?: number;
 }
 
 export type GuiIngoing =
 	| GuiNewWindowIngoing
 	| GuiSetWindowContentsIngoing
-	| GuiSetTextboxContentsIngoing;
+	| GuiSetTextboxContentsIngoing
+	| GuiResetPointerIngoing;

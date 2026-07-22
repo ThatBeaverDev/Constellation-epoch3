@@ -112,7 +112,16 @@ export default class GuiWindow {
 
 		this.#socketConnection?.sendMessage({
 			intent: "setWindowContents",
-			contents
+			contents,
+			windowID: 0
+		});
+	}
+
+	setPointerPosition(pos?: number) {
+		this.#socketConnection?.sendMessage?.({
+			intent: "resetPointer",
+			windowID: 0,
+			pos
 		});
 	}
 
@@ -137,7 +146,8 @@ export default class GuiWindow {
 		this.#socketConnection?.sendMessage({
 			intent: "setTextboxContents",
 			reference,
-			contents
+			contents,
+			windowID: 0
 		});
 	}
 }

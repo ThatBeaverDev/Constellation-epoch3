@@ -166,6 +166,13 @@ export default class SocketManager {
 					break;
 				}
 
+				case "resetPointer": {
+					const window = client.windows[msg.windowID ?? 0];
+
+					window.scrollItem = msg.pos ?? 0;
+					break;
+				}
+
 				default: {
 					// @ts-expect-error
 					console.warn("Unknown message intent:", msg.intent);
