@@ -5,12 +5,13 @@
 		"test": "tsc && vitest run src"
 	},
 	"dependencies": {
-		"fuse.js": "^7.4.2",
+		"fuse.js": "^7.5.0",
 		"glob": "^13.0.6",
 		"path-browserify": "^1.0.1",
-		"prettier": "^3.9.5",
+		"prettier": "^3.9.6",
 		"readline-promise": "^1.0.5",
 		"rollup": "^4.62.2",
+		"rollup-plugin-web-worker-loader": "^1.7.0",
 		"typescript": "^7.0.2"
 	},
 	"devDependencies": {
@@ -20,7 +21,8 @@
 		"@rollup/plugin-commonjs": "^29.0.3",
 		"@rollup/plugin-node-resolve": "^16.0.3",
 		"@types/node": "^26.1.1",
-		"@types/webworker": "^0.0.78",
+		"@types/path-browserify": "^1.0.3",
+		"@types/webworker": "^0.0.79",
 		"@typescript/lib-webworker": "npm:@types/webworker@^0.0.72",
 		"core-js": "^3.49.0",
 		"fake-indexeddb": "^6.2.5",

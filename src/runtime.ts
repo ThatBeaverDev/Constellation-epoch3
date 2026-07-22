@@ -1,6 +1,6 @@
 import Constellation from "./index";
 import { FilesystemInterface } from "./lib/fs";
-import { newWorker, workerFunction } from "./lib/worker";
+import ConstellationWorker from "web-worker:./lib/worker";
 import { InputConfig, Log, Process } from "./util/types/worker";
 import { implementWorkerFS, mainThreadMessageHandler } from "./lib/workerUtils";
 import {
@@ -203,7 +203,7 @@ export default class Runtime {
 		const workerID = this.#nextWorkerID++;
 		const workerName = `Worker #${workerID} (for ${programDirectory})`;
 
-		const worker = await newWorker(workerFunction, workerName);
+		const worker = new ConstellationWorker();
 
 		const workerStore: WorkerStore = {
 			worker,
@@ -429,6 +429,8 @@ export default class Runtime {
 						case "datauri":
 							result = await blobToDataURL(new Blob([contents]));
 							break;
+						case "blob":
+							result = new Blob([contents]);
 
 						default:
 							throw new Error(
@@ -463,6 +465,10 @@ export default class Runtime {
 							const blob = await request.blob();
 
 							result = await blobToDataURL(blob);
+							break;
+
+						case "blob":
+							result = await request.blob();
 							break;
 
 						default:
