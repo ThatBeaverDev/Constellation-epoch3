@@ -140,8 +140,7 @@ export default async function* GraphicalEnvironment(env: Environment) {
 			state.ctx.fillStyle = "black";
 			state.ctx.strokeStyle = "white";
 
-			const isFocused =
-				focused || windowManager.windowFocused(info.window.id);
+			const isFocused = focused || windowManager.windowFocused(info);
 
 			info?.window?.render?.(
 				state.ctx,
@@ -153,10 +152,7 @@ export default async function* GraphicalEnvironment(env: Environment) {
 			);
 		};
 
-		for (const id in windowManager.windows) {
-			const info = windowManager.windows[id];
-			if (info == undefined) continue;
-
+		for (const info of windowManager.windows) {
 			drawWindow(info);
 		}
 

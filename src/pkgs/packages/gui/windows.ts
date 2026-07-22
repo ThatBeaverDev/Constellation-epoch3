@@ -25,12 +25,7 @@ export type PaletteIndex = { directory: string; name: string }[];
 const headerHeight = 50;
 
 export default class WindowManager {
-	windows: Record<number, WindowInfo | undefined> = {};
-	windowIDs: number[] = [];
-
-	refreshWindowIDs() {
-		this.windowIDs = Object.keys(this.windows).map((item) => Number(item));
-	}
+	windows: WindowInfo[] = [];
 
 	socketManager?: SocketManager;
 	self?: Process;
@@ -50,12 +45,12 @@ export default class WindowManager {
 		return this.#palette;
 	}
 
-	windowFocused(id: number) {
-		if (this.palette !== undefined && id !== this.palette?.window?.id) {
+	windowFocused(info: WindowInfo) {
+		if (this.palette !== undefined && info !== this.palette) {
 			return false;
 		}
 
-		const isFocused = this.#currentWindow == this.windows[id];
+		const isFocused = this.#currentWindow == info;
 
 		return isFocused;
 	}
@@ -67,7 +62,7 @@ export default class WindowManager {
 	}
 
 	#handleAltNavigation(key: string): boolean {
-		const total = this.windowIDs.length;
+		const total = this.windows.length;
 
 		switch (key) {
 			case "arrowup":
@@ -306,10 +301,7 @@ export default class WindowManager {
 		);
 
 		let x = padding;
-		for (const id in this.windows) {
-			const window = this.windows[id];
-			if (!window) continue;
-
+		for (const window of this.windows) {
 			window.width = windowWidth;
 			window.height = windowHeight;
 
@@ -347,12 +339,9 @@ export default class WindowManager {
 	}
 
 	newWindow(client: Client | undefined, name: string) {
-		const id = this.windowIDs.length;
-
-		const window = new GuiWindow(this, client, id, name);
+		const window = new GuiWindow(this, client, name);
 		window.close = () => {
-			this.windows[window.id] = undefined;
-			this.refreshWindowIDs();
+			this.windows = this.windows.filter((item) => item !== info);
 
 			try {
 				if (this.socketManager) this.socketManager.onWindowExit(window);
@@ -383,11 +372,10 @@ export default class WindowManager {
 		if (isPalette) {
 			this.#palette = info;
 		} else {
-			this.windows[window.id] = info;
-			this.refreshWindowIDs();
+			this.windows.push(info);
 		}
 
-		return { window, id };
+		return { window };
 	}
 
 	#index: PaletteIndex = [];
@@ -439,7 +427,6 @@ export abstract class Window {
 	constructor(
 		public windowManager: WindowManager,
 		public associatedClient: Client | undefined,
-		public id: number,
 		public name: string,
 		public description?: string
 	) {
@@ -472,7 +459,7 @@ export abstract class Window {
 
 		if (!debugRendering) {
 			const region = new Path2D();
-			region.rect(x, y, width, height);
+			region.roundRect(x, y, width, height, 7);
 
 			ctx.save();
 			ctx.clip(region, "evenodd");
