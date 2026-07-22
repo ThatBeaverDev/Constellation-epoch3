@@ -431,6 +431,8 @@ export abstract class Window {
 		this.lastTime = performance.now();
 	}
 
+	#oldWidth: number = 0;
+	#oldHeight: number = 0;
 	render(
 		ctx: OffscreenCanvasRenderingContext2D,
 		x: number,
@@ -441,6 +443,17 @@ export abstract class Window {
 	) {
 		const currentTime = performance.now();
 		this.lastTime = currentTime;
+
+		if (this.#oldWidth !== width || this.#oldHeight !== height) {
+			this.#oldWidth = width;
+			this.#oldHeight = height;
+
+			this.windowManager?.socketManager?.onWindowResize?.(
+				this,
+				width,
+				height
+			);
+		}
 
 		if (!debugRendering) {
 			const region = new Path2D();
