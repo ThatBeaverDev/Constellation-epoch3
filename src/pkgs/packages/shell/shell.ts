@@ -161,7 +161,11 @@ export interface Shell_IO {
 	setLogs: (logs: Log[]) => void;
 	terminalDimensions: Environment["terminalDimensions"];
 }
-export async function shellImpl(env: Environment, io: Shell_IO) {
+export async function shellImpl(
+	env: Environment,
+	io: Shell_IO,
+	allowWelcome: boolean = true
+) {
 	const configDirectory = "/config/shell";
 	const welcomeMessage = env.path.resolve(configDirectory, "./welcome.txt");
 
@@ -199,8 +203,10 @@ export async function shellImpl(env: Environment, io: Shell_IO) {
 		return logs;
 	}
 
-	const welcome = await env.fs.readFile(welcomeMessage);
-	if (welcome) newLogSection().push(welcome);
+	if (allowWelcome) {
+		const welcome = await env.fs.readFile(welcomeMessage);
+		if (welcome) newLogSection().push(welcome);
+	}
 
 	redisplayLogs();
 

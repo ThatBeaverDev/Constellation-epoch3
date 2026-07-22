@@ -106,11 +106,15 @@ export default async function* TerminalApp(
 		}
 	};
 
-	const { runCommand, executeCommand } = await shellImpl(env, io);
+	const { runCommand, executeCommand } = await shellImpl(
+		env,
+		io,
+		command == undefined
+	);
 
 	if (command) {
-		const exit = await executeCommand(command);
-		if (exit) return;
+		await executeCommand(command);
+		return;
 	}
 
 	while (true) {
