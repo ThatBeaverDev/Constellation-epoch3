@@ -339,7 +339,7 @@ export default class WindowManager {
 			const paletteHalfWidth = paletteWidth / 2;
 			const paletteHalfHeight = paletteHeight / 2;
 
-			this.#palette.x = midWidth - paletteHalfWidth;
+			this.#palette.x = midWidth - paletteHalfWidth + this.state.scrollX;
 			this.#palette.y = midHeight - paletteHalfHeight;
 			this.#palette.width = paletteWidth;
 			this.#palette.height = paletteHeight;
