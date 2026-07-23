@@ -49,8 +49,10 @@ interface ServiceJSON {
 
 export default async function* initSystem(
 	env: Environment,
-	[devMode]: [string | undefined]
+	[devModeString]: [string | undefined]
 ) {
+	const devMode = devModeString == "true";
+
 	async function startServices(services: Service[]) {
 		for (const service of services) {
 			if (
@@ -63,17 +65,38 @@ export default async function* initSystem(
 			try {
 				let userState: { uid: number; password: string } | undefined =
 					undefined;
+
+				service.running = true;
+
 				if (service.askForUser) {
-					const username = await env.input("Username: ");
+					async function getUsername() {
+						if (devMode) {
+							return "dev";
+						}
+
+						return env.input("Username: ");
+					}
+
+					async function getPassword() {
+						if (devMode) {
+							return "dev";
+						}
+
+						return env.input("Password: ", {
+							hideTyping: true
+						});
+					}
+
+					const username = await getUsername();
+
 					const targetUser = (await usersByName(env, username))[0];
 					if (!targetUser) {
 						env.print(`User '${username}' doesn't exist!`);
+						service.running = false;
 						continue;
 					}
 
-					const password = await env.input("Password: ", {
-						hideTyping: true
-					});
+					const password = await getPassword();
 
 					userState = { uid: targetUser?.UID, password };
 				}
@@ -83,7 +106,7 @@ export default async function* initSystem(
 					service.args,
 					{ handOverDisplay: service.display, user: userState }
 				);
-				service.running = true;
+
 				if (service.restartPolicy == "once") {
 					service.restartPolicy = "never";
 				}
@@ -161,13 +184,9 @@ export default async function* initSystem(
 	}
 
 	// Runs installer to make sure that init isn't lonely
-	const result = await env.execute(
-		"/bin/installd.js",
-		[`${devMode == "true"}`],
-		{
-			outputProxy: PassthroughOutputProxy(env)
-		}
-	);
+	const result = await env.execute("/bin/installd.js", [`${devMode}`], {
+		outputProxy: PassthroughOutputProxy(env)
+	});
 	await result.onExit;
 
 	env.print("Installer has exited. Finding services...");
