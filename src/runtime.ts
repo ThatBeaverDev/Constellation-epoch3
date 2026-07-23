@@ -22,6 +22,7 @@ import { triggerProgramEvent } from "./lib/triggerProgramEvent";
 import { User } from "./util/types/worker";
 import { insurePrivilege } from "./lib/users";
 import { ALLOWED_PROXY_EVENTS } from "./constants";
+import { join } from "path-browserify";
 
 export interface ProgramLog {
 	type: "log" | "warning" | "error";
@@ -249,11 +250,7 @@ export default class Runtime {
 		function reroot(path: string) {
 			const user = getProgram().user;
 
-			if (path[0] == "/") {
-				return user.home + path;
-			} else {
-				return user.home + "/" + path;
-			}
+			return join(user.home, path);
 		}
 
 		handle("program_log", ({ data }) => {
