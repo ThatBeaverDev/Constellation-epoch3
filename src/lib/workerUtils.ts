@@ -218,13 +218,8 @@ export function implementWorkerFS(
 
 			let workingPath = "/";
 			for (const part of parts) {
-				workingPath += part;
-				const isGood = await fs.mkdir(workingPath);
-
-				if (!isGood)
-					throw new Error(
-						"Failed to create part of recursive directory"
-					);
+				workingPath += part + "/";
+				await fs.mkdir(workingPath);
 			}
 
 			return true;
