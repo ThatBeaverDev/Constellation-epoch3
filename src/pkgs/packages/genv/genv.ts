@@ -4,11 +4,11 @@ export default async function* ResolveCommandGui(
 	env: Environment,
 	[name]: [string | undefined]
 ) {
-	const PATH = ["/bin/gui"];
+	const GPATH = ["/bin/gui", "/sbin/gui"];
 
 	if (!name) return "Usage: genv [name]";
 
-	for (const dir of PATH) {
+	for (const dir of GPATH) {
 		try {
 			const contents = await env.fs.readdir(dir);
 
