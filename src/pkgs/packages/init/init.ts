@@ -47,7 +47,10 @@ interface ServiceJSON {
 	fallback?: string;
 }
 
-export default async function* initSystem(env: Environment) {
+export default async function* initSystem(
+	env: Environment,
+	[devMode]: [string | undefined]
+) {
 	async function startServices(services: Service[]) {
 		for (const service of services) {
 			if (
@@ -158,9 +161,13 @@ export default async function* initSystem(env: Environment) {
 	}
 
 	// Runs installer to make sure that init isn't lonely
-	const result = await env.execute("/bin/installd.js", undefined, {
-		outputProxy: PassthroughOutputProxy(env)
-	});
+	const result = await env.execute(
+		"/bin/installd.js",
+		[`${devMode == "true"}`],
+		{
+			outputProxy: PassthroughOutputProxy(env)
+		}
+	);
 	await result.onExit;
 
 	env.print("Installer has exited. Finding services...");

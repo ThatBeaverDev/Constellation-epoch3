@@ -20,7 +20,12 @@ interface InstallationDataFile {
 	packages?: string[];
 }
 
-export default async function* install(env: Environment) {
+export default async function* install(
+	env: Environment,
+	[devModeString]: [string]
+) {
+	const devMode = devModeString == "true";
+
 	const installerData = objectFallback<InstallerData>(
 		await env.fs.readFile("/data/installd/run.json", "json"),
 		installerDataFallback
@@ -99,11 +104,17 @@ export default async function* install(env: Environment) {
 			await pkgExec.onExit;
 		}
 
-		// setup user
-		env.print(" ");
-		env.print("User Setup");
-		const username = await env.input("Username: ");
+		async function getUsername(): Promise<string> {
+			if (devMode) return "dev";
+
+			const username = await env.input("Username: ");
+
+			return username;
+		}
+
 		async function getPassword(): Promise<string> {
+			if (devMode) return "dev";
+
 			const pass1 = await env.input("Password: ", {
 				hideTyping: true,
 				leaveInputOnCompletion: false
@@ -119,6 +130,11 @@ export default async function* install(env: Environment) {
 
 			return pass1;
 		}
+
+		// setup user
+		env.print(" ");
+		env.print("User Setup");
+		const username = await getUsername();
 
 		const exec = await env.execute("/sbin/useradd.js", [
 			username,

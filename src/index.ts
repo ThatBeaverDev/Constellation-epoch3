@@ -1,4 +1,4 @@
-import { nodeJs } from "./lib/config";
+import { devMode, nodeJs } from "./lib/config";
 import Fs, { FilesystemInterface } from "./lib/fs";
 import applyStringPrototypes from "./lib/strings";
 import UsersManager from "./lib/users";
@@ -67,7 +67,9 @@ export default class Constellation {
 			const root = await this.users.userByUID(0);
 			if (!root) throw new Error("Users did not provide a root user.");
 
-			await this.runtime.executeProgram("/bin/init.js", undefined, root);
+			await this.runtime.executeProgram("/bin/init.js", undefined, root, [
+				`${devMode}`
+			]);
 		} catch (e) {
 			this.panic("init", e instanceof Error ? e : new Error(String(e)));
 		}

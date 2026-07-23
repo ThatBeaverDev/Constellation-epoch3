@@ -7,6 +7,7 @@ import { UiManager } from "../ui/ui";
 import { FilesystemInterface } from "./fs";
 import { Group, SemiRecord, User, UsersFile } from "../util/types/worker";
 import { ProgramStore } from "../runtime";
+import { devMode } from "./config";
 
 type UsersStore = SemiRecord<number, User>;
 type PasswordAlgorithms = "SHA-512";
@@ -54,6 +55,8 @@ export default class UsersManager {
 	) {}
 
 	async #getRootPasswordChoice(): Promise<string> {
+		if (devMode) return "dev";
+
 		const inputRequest1 = await this.ui.input("Select a root password: ", {
 			hideTyping: true,
 			initialText: "",

@@ -3,5 +3,10 @@ export const deleteFS =
 		"delete"
 	) !== null;
 
+export const devMode =
+	new URL(globalThis?.location?.href ?? "https://node.js").searchParams.get(
+		"dev"
+	) !== null;
+
 // @ts-expect-error
 export const nodeJs = typeof process !== "undefined";
