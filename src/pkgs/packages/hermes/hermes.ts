@@ -20,7 +20,13 @@ export default async function* HermesTranslator(
 	if (!file) {
 		return `Usage: hermes [file] [...programArgs]`;
 	}
-	file = env.path.resolve(env.workingDirectory, file);
+	if (file == "run") {
+		file = env.path.resolve(
+			HERMES_CASTOREA_DISK,
+			"./System/apps/utils",
+			args[0]
+		);
+	} else file = env.path.resolve(env.workingDirectory, file);
 
 	// @ts-expect-error
 	self.fetch = async (url: string) => {
@@ -111,20 +117,25 @@ export default async function* HermesTranslator(
 			undefined
 		);
 
-		if (rigging.init) {
-			await rigging.init(args);
+		try {
+			if (rigging.init) {
+				await rigging.init(args);
 
-			env.setLogs([stdio.out]);
-		}
-
-		while (true) {
-			if (rigging.frame) {
-				await rigging.frame(args);
 				env.setLogs([stdio.out]);
-				yield;
-			} else {
-				return;
 			}
+
+			while (true) {
+				if (rigging.frame) {
+					await rigging.frame(args);
+					env.setLogs([stdio.out]);
+					yield;
+				} else {
+					return;
+				}
+			}
+		} catch (e) {
+			env.error("Translated program error: " + e);
+			env.print("Memory dump:\n" + JSON.stringify(memory, null, 4));
 		}
 	}
 
@@ -261,12 +272,12 @@ export default async function* HermesTranslator(
 		await env.fs.writeFile(HERMES_SETUP_FILE, "");
 	}
 
-	//const code = await env.fs.readFile(file);
+	//const code = await env.fs.readFile(file)
 	const code = await env.fs.readFile(file);
 	if (!code) {
-		return `File not found: ${code}`;
+		return `File not found: ${file}`;
 	}
 
 	env.workingDirectory = parent(file);
-	yield* executeCastorea(code, args);
+	yield* executeCastorea(code, file == "run" ? args.slice(1) : args);
 }
