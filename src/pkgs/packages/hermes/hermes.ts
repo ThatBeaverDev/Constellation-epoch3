@@ -1,3 +1,4 @@
+import { parent } from "../../../lib/fs";
 import { Environment } from "../../../util/types/worker";
 import { compileCastoreaSourceCode } from "./castorea/compile";
 import castoreaCalls from "./castorea/syscalls";
@@ -16,10 +17,10 @@ export default async function* HermesTranslator(
 	[file, ...args]: string[],
 	stdin?: string
 ) {
-	//if (!file) {
-	//	return `Usage: hermes [file] [...programArgs]`;
-	//}
-	//file = env.path.resolve(env.workingDirectory, file);
+	if (!file) {
+		return `Usage: hermes [file] [...programArgs]`;
+	}
+	file = env.path.resolve(env.workingDirectory, file);
 
 	// @ts-expect-error
 	self.fetch = async (url: string) => {
@@ -63,7 +64,7 @@ export default async function* HermesTranslator(
 	await env.fs.mkdir(HERMES_SAHARA_ARES_DISK);
 
 	async function* executeCastorea(code: string, args: any[]) {
-		const transformed = compileCastoreaSourceCode(code);
+		const transformed = await compileCastoreaSourceCode(code);
 
 		const fn = new Function(
 			"local",
@@ -203,19 +204,24 @@ export default async function* HermesTranslator(
 				"yes",
 				"su",
 				"sudo",
-				"pgext",
-				"yak",
+				"pgext"
+				/*"yak",
 				"zip",
-				//"nimbus",
-				//"wallpaperPack-1080p",
+				"nimbus",
+				"wallpaperPack-1080p",
 				"textedit"
-				//"systemfonts"
+				"systemfonts"*/
 			]
 		};
 
 		for (const dir of index.folders) {
 			await env.fs.mkdir(env.path.join(HERMES_CASTOREA_DISK, dir));
 		}
+
+		await env.fs.createAlias(
+			env.path.join(HERMES_CASTOREA_DISK, "HOST"),
+			"/"
+		);
 
 		await env.fs.writeFile(
 			env.path.join(HERMES_CASTOREA_DISK, "/System/users.json"),
@@ -241,11 +247,6 @@ export default async function* HermesTranslator(
 		yield* executeCastorea(auroraRequest.response, [
 			"sources",
 			"add",
-			"http://localhost:5079"
-		]);
-		yield* executeCastorea(auroraRequest.response, [
-			"sources",
-			"add",
 			"https://aurora-pkgs.vercel.app"
 		]);
 		yield* executeCastorea(auroraRequest.response, ["index"]);
@@ -261,10 +262,11 @@ export default async function* HermesTranslator(
 	}
 
 	//const code = await env.fs.readFile(file);
-	const code = await env.fs.readFile(CASTOREA_AURORA_PATH);
+	const code = await env.fs.readFile(file);
 	if (!code) {
 		return `File not found: ${code}`;
 	}
 
+	env.workingDirectory = parent(file);
 	yield* executeCastorea(code, args);
 }
