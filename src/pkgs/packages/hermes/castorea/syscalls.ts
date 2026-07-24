@@ -1,7 +1,14 @@
 import { Environment } from "../../../../util/types/worker";
-import { HERMES_CASTOREA_DISK } from "../constants";
+import { HERMES_CASTOREA_DISK, HERMES_CASTOREA_TYPE_TAG } from "../constants";
 
 type FileAttribute = "contents" | "children" | "permissions" | string;
+
+enum MetadataTypes {
+	object = "obj",
+	string = "str",
+	number = "num",
+	boolean = "bool"
+}
 
 export default function castoreaCalls(env: Environment, _: string[]) {
 	const debugging = true;
@@ -52,16 +59,67 @@ export default function castoreaCalls(env: Environment, _: string[]) {
 				throw new Error("Not supported.");
 			}
 
-			const obj = await env.fs.readFile(dir);
+			const contents = await env.fs.readFile(dir);
 
-			return obj;
+			if (contents) {
+				const type = await env.fs.getMetadataEntry(
+					dir,
+					HERMES_CASTOREA_TYPE_TAG
+				);
+
+				switch (type) {
+					case MetadataTypes.string:
+						return contents;
+
+					case MetadataTypes.number:
+						return Number(contents);
+
+					case MetadataTypes.boolean:
+						return Boolean(contents);
+
+					case MetadataTypes.object:
+						return JSON.parse(contents);
+
+					default:
+						return contents;
+				}
+			}
 		},
 
-		write: async (directory: string, content: any) => {
+		write: async (
+			directory: string,
+			content: string | number | boolean | Object
+		) => {
 			debug(`write ${directory}`, JSON.stringify(content));
 			const dir = fullDirectory(env.workingDirectory, directory);
 
-			await env.fs.writeFile(dir, content);
+			await env.fs.writeFile(
+				dir,
+				typeof content == "object"
+					? JSON.stringify(content)
+					: `${content}`
+			);
+
+			let type: MetadataTypes;
+			switch (typeof content) {
+				case "string":
+					type = MetadataTypes.string;
+					break;
+
+				case "number":
+					type = MetadataTypes.number;
+					break;
+
+				case "boolean":
+					type = MetadataTypes.boolean;
+					break;
+
+				case "object":
+					type = MetadataTypes.object;
+					break;
+			}
+
+			await env.fs.setMetadataEntry(dir, HERMES_CASTOREA_TYPE_TAG, type);
 
 			return 0;
 		},

@@ -2,6 +2,7 @@ export const HERMES_DATA = "/data/hermes";
 export const HERMES_SETUP_FILE = `${HERMES_DATA}/setup`;
 
 export const HERMES_CASTOREA_DISK = `${HERMES_DATA}/castorea_disk`;
+export const HERMES_CASTOREA_TYPE_TAG = "hermes_castorea_type";
 export const CASTOREA_UTILS_PATH = `${HERMES_CASTOREA_DISK}/System/apps/utils`;
 export const CASTOREA_AURORA_PATH = `${CASTOREA_UTILS_PATH}/aurora.js`;
 
