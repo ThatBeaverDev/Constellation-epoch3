@@ -1,7 +1,7 @@
 export function compileCastoreaSourceCode(src: string) {
 	const lines = src.split("\n");
 
-	const shebang = lines[0].trim().startsWith("#!");
+	const hasShebang = lines[0].trim().startsWith("#!");
 	const after = `\n\n\n
 let SYS_INIT_EXPORT;
 let SYS_FRAME_EXPORT;
@@ -19,8 +19,24 @@ return {
     terminate: SYS_TERMINATE_EXPORT
 };`;
 
-	if (shebang) {
-		return lines.splice(1).join("\n") + after;
+	if (hasShebang) {
+		const shebang = lines[0].trim().substring(2).trim();
+		let compiler;
+
+		switch (shebang) {
+			case "/System/apps/compilers/node":
+			case "/System/apps/compilers/js":
+			case "/System/js":
+				compiler = (code: string) => code + after;
+				break;
+
+			default:
+				compiler = async (_: string) => {
+					return "throw new Error('External Compilers are not supported!')";
+				};
+		}
+
+		return compiler(lines.splice(1).join("\n"));
 	} else {
 		return src + after;
 	}
