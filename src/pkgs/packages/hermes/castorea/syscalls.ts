@@ -3,12 +3,7 @@ import { HERMES_CASTOREA_DISK } from "../constants";
 
 type FileAttribute = "contents" | "children" | "permissions" | string;
 
-interface File {
-	contents?: any;
-	[key: string]: any;
-}
-
-export default function castoreaCalls(env: Environment, args: string[]) {
+export default function castoreaCalls(env: Environment, _: string[]) {
 	const debugging = true;
 
 	function debug(...text: string[]) {
@@ -53,18 +48,20 @@ export default function castoreaCalls(env: Environment, args: string[]) {
 			debug(`read ${directory}`);
 			const dir = fullDirectory(env.workingDirectory, directory);
 
-			const obj = await env.fs.readFile<File>(dir, "json");
-			if (!obj) return undefined;
+			if (attribute !== "contents") {
+				throw new Error("Not supported.");
+			}
 
-			return obj[attribute];
+			const obj = await env.fs.readFile(dir);
+
+			return obj;
 		},
 
 		write: async (directory: string, content: any) => {
 			debug(`write ${directory}`, JSON.stringify(content));
 			const dir = fullDirectory(env.workingDirectory, directory);
 
-			const obj: File = { contents: content };
-			await env.fs.writeFile(dir, JSON.stringify(obj));
+			await env.fs.writeFile(dir, content);
 
 			return 0;
 		},
@@ -123,6 +120,7 @@ export default function castoreaCalls(env: Environment, args: string[]) {
 		},
 
 		chdir: async (target: string) => {
+			debug(`chdir ${target}`);
 			try {
 				const newDir = fullDirectory(env.workingDirectory, target);
 				env.workingDirectory = newDir;
@@ -133,6 +131,7 @@ export default function castoreaCalls(env: Environment, args: string[]) {
 		},
 
 		getcwd: () => {
+			debug(`getcwd`);
 			return String(env.workingDirectory);
 		},
 
@@ -141,12 +140,16 @@ export default function castoreaCalls(env: Environment, args: string[]) {
 			directory: string,
 			execArgs: string[] = [],
 			stdin?: any,
-			options: { username?: string; password?: string } = {}
+			_: { username?: string; password?: string } = {}
 		) => {
-			const dir = fullDirectory(env.workingDirectory, directory);
-			return await env.execute(dir, execArgs, {
-				input: stdin
-			});
+			debug(`exec ${directory} ${JSON.stringify(execArgs)}`);
+			return await env.execute(
+				(await env.self()).directory,
+				[directory, ...execArgs],
+				{
+					input: stdin
+				}
+			);
 		},
 
 		getpid: async () => {
