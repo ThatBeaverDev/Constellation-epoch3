@@ -32,7 +32,7 @@ return {
 
 			default:
 				compiler = async (_: string) => {
-					return "throw new Error('External Compilers are not supported!')";
+					return `throw new Error("External Compilers are not supported! (Compiler '${shebang}')")`;
 				};
 		}
 
