@@ -93,6 +93,8 @@ export default function castoreaCalls(env: Environment, _: string[]) {
 			debug(`write ${directory}`, JSON.stringify(content));
 			const dir = fullDirectory(env.workingDirectory, directory);
 
+			console.debug(dir, content);
+
 			await env.fs.writeFile(
 				dir,
 				typeof content == "object"
@@ -158,13 +160,6 @@ export default function castoreaCalls(env: Environment, _: string[]) {
 
 				case "permissions":
 					throw new Error("Permissions attribute is not supported");
-
-				default:
-					const raw = await env.fs.readFile<Record<string, any>>(
-						dir,
-						"json"
-					);
-					return raw ? raw[attribute] : undefined;
 			}
 		},
 
@@ -254,16 +249,13 @@ export default function castoreaCalls(env: Environment, _: string[]) {
 		},
 
 		gethostname: async () => {
-			const content = await env.fs.readFile(
-				"/System/info/hostname",
-				"text"
-			);
+			const content = await calls.read("/System/info/hostname", "text");
 			return content ? String(content) : "constellation";
 		},
 
 		sethostname: async (hostname: string) => {
 			try {
-				await env.fs.writeFile("/System/info/hostname", hostname);
+				await calls.write("/System/info/hostname", hostname);
 				return 0;
 			} catch (e) {
 				return -1;
