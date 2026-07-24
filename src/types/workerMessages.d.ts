@@ -161,6 +161,18 @@ interface WorkerMessageDataTypes {
 		data: { path: string };
 		return: void;
 	};
+	fs_get_metadata_entry: {
+		data: { path: string; entry: string };
+		return: string | void;
+	};
+	fs_set_metadata_entry: {
+		data: { path: string; entry: string; value: string | undefined };
+		return: void;
+	};
+	fs_list_metadata_entries: {
+		data: { path: string };
+		return: string[] | void;
+	};
 	fs_mkdir: {
 		data: { path: string; options?: { recursive?: boolean } };
 		return: boolean;

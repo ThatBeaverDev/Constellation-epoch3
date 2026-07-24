@@ -483,6 +483,29 @@ export interface EnvironmentFilesystem {
 	writeFile(path: string, contents: string): Promise<any>;
 	unlink(path: string): Promise<void>;
 
+	/**
+	 * Reads the contents of a metadata tag from a file
+	 * @param path The file to read from
+	 * @param entry The metadata tag to read from
+	 */
+	getMetadataEntry(path: string, entry: string): Promise<string | void>;
+	/**
+	 * Lists the metadata tags from a file
+	 * @param path The file to read from
+	 */
+	listMetadataEntries(path: string): Promise<string[] | void>;
+	/**
+	 * Sets the contents of a metadata tag from a file
+	 * @param path The file to write to
+	 * @param entry The entry to read to
+	 * @param value The value to write to the entry
+	 */
+	setMetadataEntry(
+		path: string,
+		entry: string,
+		value: string | undefined
+	): Promise<void>;
+
 	mkdir(path: string, options?: { recursive?: boolean }): Promise<boolean>;
 	createAlias(path: string, targetPath: string): Promise<boolean>;
 	readdir(path: string): Promise<string[]>;

@@ -14,6 +14,7 @@ import { type WorkerEnv_Network_Get } from "../types/workerMessages.js";
 import path from "path-browserify";
 import { WorkerFS, workerMessageHandler } from "./workerUtils.js";
 import { ALLOWED_PROXY_EVENTS } from "../constants.js";
+import { blobToUrl } from "../util/lib/uri.js";
 
 /// <reference path="@typescript/lib-webworker@npm:@types/webworker" />
 
@@ -506,17 +507,6 @@ async function worker() {
 			workingDirectory,
 			input
 		}) => {
-			// from src/util/lib/uri.ts
-			async function blobToUrl(blob: Blob) {
-				const url = URL.createObjectURL(blob);
-
-				setTimeout(() => {
-					URL.revokeObjectURL(url);
-				}, 5000);
-
-				return url;
-			}
-
 			if (!directory) throw new Error("Directory is required!");
 			if (!pid) throw new Error("PID is required!");
 
@@ -526,7 +516,7 @@ async function worker() {
 				);
 
 			const blob = new Blob([contents], { type: "text/javascript" });
-			const url = await blobToUrl(blob);
+			const url = blobToUrl(blob);
 
 			const exports = await import(url);
 			const program = exports.default as ConstellationProgram;
