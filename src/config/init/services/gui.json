@@ -2,5 +2,6 @@
 	"directory": "/bin/gui.js",
 	"restart": "always",
 	"display": true,
-	"fallback": "/bin/shell.js"
+	"fallback": "/bin/shell.js",
+	"askForUser": true
 }

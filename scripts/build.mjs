@@ -43,7 +43,8 @@ async function main() {
 		"init",
 		"shell",
 		"gui",
-		"desktop"
+		"desktop",
+		"users"
 	];
 
 	const json = JSON.stringify(file, null, 4);

@@ -8,9 +8,11 @@ import {
 	WorkerMessageIntent,
 	WorkerMessageMap
 } from "../types/workerMessages";
-import { EnvironmentFilesystem, FileStats } from "../util/types/worker";
+import { EnvironmentFilesystem, FileStats, User } from "../util/types/worker";
 import { nodeJs } from "./config";
 import { FilesystemInterface } from "./fs";
+import { tryReadFile, tryWriteFile } from "./permissions";
+import UsersManager from "./users";
 
 type WorkerRequest = {
 	kind: "request";
@@ -25,6 +27,7 @@ type WorkerResponse = {
 	success: boolean;
 	result?: any;
 	error?: string;
+	errorName: string;
 };
 
 type WorkerEvent = {
@@ -65,8 +68,14 @@ export async function mainThreadMessageHandler(
 
 			pendingMessages.delete(msg.id);
 
-			if (msg.success) pending.resolve(msg.result);
-			else pending.reject(new Error(msg.error ?? "Unknown error"));
+			if (msg.success) {
+				pending.resolve(msg.result);
+			} else {
+				const error = new Error(msg.error ?? "Unknown error");
+				error.name = msg.errorName;
+
+				pending.reject(error);
+			}
 
 			return;
 		}
@@ -109,7 +118,8 @@ export async function mainThreadMessageHandler(
 					kind: "response",
 					id: msg.id,
 					success: false,
-					error: err?.message ?? "Unknown error"
+					error: err?.message ?? "Unknown error",
+					errorName: err?.name ?? "Error"
 				});
 			}
 
@@ -200,15 +210,36 @@ export function implementWorkerFS(
 			WorkerMessageDataTypes[Intent]["return"]
 		>
 	) => void,
-	fs: FilesystemInterface
+	fs: FilesystemInterface,
+	users: UsersManager,
+	getUser: () => User
 ) {
+	function reroot(path: string) {
+		const user = getUser();
+
+		if (path[0] == "/") {
+			return user.home + path;
+		} else {
+			return user.home + "/" + path;
+		}
+	}
+
 	handle("fs_readFile", async ({ path, format }) => {
+		path = reroot(path);
+		await tryReadFile(path, users, getUser());
+
 		return await fs.readFile(path, format);
 	});
 	handle("fs_writeFile", async ({ path, contents }) => {
+		path = reroot(path);
+		await tryWriteFile(path, users, getUser());
+
 		return await fs.writeFile(path, contents);
 	});
 	handle("fs_unlink", async ({ path }) => {
+		path = reroot(path);
+		await tryWriteFile(path, users, getUser());
+
 		return await fs.unlink(path);
 	});
 
@@ -223,6 +254,9 @@ export function implementWorkerFS(
 	});
 
 	handle("fs_mkdir", async ({ path, options }) => {
+		path = reroot(path);
+		await tryWriteFile(path, users, getUser());
+
 		if (options?.recursive) {
 			const parts = path.split("/").filter((item) => item.trim() !== "");
 
@@ -236,28 +270,43 @@ export function implementWorkerFS(
 		} else return await fs.mkdir(path);
 	});
 	handle("fs_createAlias", async ({ path, targetPath }) => {
+		path = reroot(path);
 		return await fs.createAlias(path, targetPath);
 	});
 	handle("fs_readdir", async ({ path }) => {
+		path = reroot(path);
+		await tryReadFile(path, users, getUser());
+
 		return await fs.readdir(path);
 	});
 	handle("fs_rmdir", async ({ path }) => {
+		path = reroot(path);
+		await tryWriteFile(path, users, getUser());
+
 		return await fs.rmdir(path);
 	});
 
 	handle("fs_rm", async ({ path }) => {
+		path = reroot(path);
+		await tryWriteFile(path, users, getUser());
+
 		return await fs.rm(path);
 	});
 
 	handle("fs_isdir", async ({ path }) => {
+		path = reroot(path);
 		return await fs.isDir(path);
 	});
 
 	handle("fs_exists", async ({ path }) => {
+		path = reroot(path);
 		return await fs.exists(path);
 	});
 
 	handle("fs_stats", async ({ path }) => {
+		path = reroot(path);
+		await tryReadFile(path, users, getUser());
+
 		return await fs.stats(path);
 	});
 }

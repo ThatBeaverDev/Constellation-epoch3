@@ -1,3 +1,4 @@
+import { User } from "../util/types/worker";
 import { transferrableMarkerSymbol } from "../lib/workerUtils";
 import {
 	EventMap,
@@ -29,7 +30,17 @@ interface WorkerMessageDataTypes {
 	};
 
 	env_exec: {
-		data: WorkerEnv_Exec;
+		data: {
+			path: string;
+			args?: string[];
+			input?: Log[];
+
+			handoverDisplayPid?: number;
+			outputProxy: boolean;
+
+			workingDirectory: string;
+			user?: { uid: number; password: string };
+		};
 		return: { pid: number };
 	};
 	env_processes: {
@@ -194,21 +205,19 @@ interface WorkerMessageDataTypes {
 		data: { path: string };
 		return: FileStats | undefined;
 	};
+
+	change_password: {
+		data: { uid: number; newPassword: string };
+		return: boolean;
+	};
+	validate_password: {
+		data: { uid: number; password: string };
+		return: boolean;
+	};
 }
 
 export type WorkerMessageMap = WorkerMessageDataTypes;
 export type WorkerMessageIntent = keyof WorkerMessageMap;
-
-export interface WorkerEnv_Exec {
-	path: string;
-	args?: string[];
-	input?: Log[];
-
-	handoverDisplayPid?: number;
-	outputProxy: boolean;
-
-	workingDirectory: string;
-}
 
 export interface WorkerEnv_Input {
 	message: string;

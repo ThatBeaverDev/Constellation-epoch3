@@ -1,5 +1,6 @@
 import { Environment } from "../../../util/types/worker";
 import { objectFallback } from "../../../util/lib/object";
+import { USER_FOLDERS } from "../../../constants";
 
 interface InstallerData {
 	installed: number | boolean;
@@ -19,7 +20,12 @@ interface InstallationDataFile {
 	packages?: string[];
 }
 
-export default async function* install(env: Environment) {
+export default async function* install(
+	env: Environment,
+	[devModeString]: [string]
+) {
+	const devMode = devModeString == "true";
+
 	const installerData = objectFallback<InstallerData>(
 		await env.fs.readFile("/data/installd/run.json", "json"),
 		installerDataFallback
@@ -29,13 +35,11 @@ export default async function* install(env: Environment) {
 		env.print("Installing system...");
 
 		// basic directories
-		await env.fs.mkdir("/bin");
-
-		await env.fs.mkdir("/data");
-		await env.fs.mkdir("/config");
-
-		await env.fs.mkdir("/user");
+		for (const name of USER_FOLDERS) {
+			await env.fs.mkdir(`/${name}`);
+		}
 		await env.fs.mkdir("/users");
+		await env.fs.createAlias("/sbin", "/bin");
 
 		let installerJSON: InstallationDataFile;
 		try {
@@ -57,13 +61,8 @@ export default async function* install(env: Environment) {
 		}
 
 		installerData.files = [];
-		installerData.directories = [
-			"/bin",
-			"/data",
-			"/config",
-			"/user",
-			"/users"
-		];
+		// already created standard USER_FOLDERS for root.
+		installerData.directories = [...USER_FOLDERS, "/users"];
 
 		env.print("Creating directories...");
 		for (const directory of installerJSON.directories) {
@@ -96,7 +95,7 @@ export default async function* install(env: Environment) {
 		await env.fs.writeFile("/bin/pkg.js", pkgSrc);
 
 		if (installerJSON.packages) {
-			const pkgExec = await env.execute("/bin/pkg.js", [
+			const pkgExec = await env.execute("/sbin/pkg.js", [
 				"install",
 				...installerJSON.packages
 			]);
@@ -104,6 +103,45 @@ export default async function* install(env: Environment) {
 			// don't care about result
 			await pkgExec.onExit;
 		}
+
+		async function getUsername(): Promise<string> {
+			if (devMode) return "dev";
+
+			const username = await env.input("Username: ");
+
+			return username;
+		}
+
+		async function getPassword(): Promise<string> {
+			if (devMode) return "dev";
+
+			const pass1 = await env.input("Password: ", {
+				hideTyping: true,
+				leaveInputOnCompletion: false
+			});
+			const pass2 = await env.input("Repeat password: ", {
+				hideTyping: true,
+				leaveInputOnCompletion: false
+			});
+
+			if (pass1 !== pass2) {
+				return getPassword();
+			}
+
+			return pass1;
+		}
+
+		// setup user
+		env.print(" ");
+		env.print("User Setup");
+		const username = await getUsername();
+
+		const exec = await env.execute("/sbin/useradd.js", [
+			username,
+			await getPassword()
+		]);
+
+		await exec.onExit;
 
 		installerData.installed = Date.now();
 		installerData.shipNum = 1;
@@ -113,7 +151,7 @@ export default async function* install(env: Environment) {
 		env.print("Updating packages...");
 
 		// update system
-		const pkgExec = await env.execute("/bin/pkg.js", ["update"]);
+		const pkgExec = await env.execute("/sbin/pkg.js", ["update"]);
 
 		// wait for it to finish
 		await pkgExec.onExit;

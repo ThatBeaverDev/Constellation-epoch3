@@ -1,6 +1,7 @@
-import { nodeJs } from "./lib/config";
+import { devMode, nodeJs } from "./lib/config";
 import Fs, { FilesystemInterface } from "./lib/fs";
 import applyStringPrototypes from "./lib/strings";
+import UsersManager from "./lib/users";
 import Runtime from "./runtime";
 import { UiManager } from "./ui/ui";
 import { Log } from "./util/types/worker";
@@ -9,6 +10,8 @@ export default class Constellation {
 	ui: UiManager;
 	fs: FilesystemInterface;
 	runtime: Runtime;
+	users: UsersManager;
+
 	#onInstallReady: (fs: FilesystemInterface) => Promise<void> | void;
 	#execInterval?: number;
 	readonly start: number = Date.now();
@@ -41,6 +44,8 @@ export default class Constellation {
 
 			this.fs
 		);
+
+		this.users = new UsersManager(this.fs, this.ui);
 	}
 
 	async init() {
@@ -50,10 +55,21 @@ export default class Constellation {
 			if (this.fs.init) await this.fs.init();
 			await this.fs.waitForReady();
 
+			// TODO: Create user zones
+			await this.fs.mkdir("/data");
+			await this.fs.mkdir("/config");
+
+			await this.users.init();
+
 			await this.#onInstallReady(this.fs);
 
 			// start init
-			await this.runtime.executeProgram("/bin/init.js");
+			const root = await this.users.userByUID(0);
+			if (!root) throw new Error("Users did not provide a root user.");
+
+			await this.runtime.executeProgram("/bin/init.js", undefined, root, [
+				`${devMode}`
+			]);
 		} catch (e) {
 			this.panic("init", e instanceof Error ? e : new Error(String(e)));
 		}

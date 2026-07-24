@@ -4,7 +4,7 @@ export default async function* ResolveCommand(
 	env: Environment,
 	[name]: [string | undefined]
 ) {
-	const PATH = ["/bin"];
+	const PATH = ["/bin", "/sbin"];
 
 	if (!name) return "Usage: env [name]";
 

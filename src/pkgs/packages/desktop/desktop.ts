@@ -3,7 +3,7 @@ import { Environment } from "../../../util/types/worker";
 import GuiWindow from "../gui/lib.gui";
 
 export default async function* DesktopEnv(env: Environment) {
-	await env.execute("/bin/gui.js", undefined, { handOverDisplay: true });
+	await env.execute("/sbin/gui.js", undefined, { handOverDisplay: true });
 
 	// let socket init
 	// TODO: Make less 'flimsy'

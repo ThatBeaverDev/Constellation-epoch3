@@ -275,7 +275,7 @@ export default class WindowManager {
 	}
 
 	showPalette() {
-		this.refreshPaletteIndex(["/bin/gui"]).then(() =>
+		this.refreshPaletteIndex(["/bin/gui", "/sbin/gui"]).then(() =>
 			this.refreshPalette()
 		);
 
@@ -390,23 +390,43 @@ export default class WindowManager {
 	async refreshPaletteIndex(directories: string[]) {
 		const index: PaletteIndex = [];
 
+		const names = new Set<string>();
+
 		for (const directory of directories) {
-			const contents = await this.env.fs.readdir(directory);
-
-			for (const child of contents) {
-				if (!child.endsWith(".js")) continue;
-
-				const fullPath = this.env.path.join(directory, child);
-
-				const stats = await this.env.fs.stats(fullPath);
-				if (!stats) continue;
-
-				if (stats.type == "file") {
-					index.push({
-						directory: fullPath,
-						name: child.substring(0, child.length - 3)
-					});
+			try {
+				let contents: string[];
+				try {
+					contents = await this.env.fs.readdir(directory);
+				} catch {
+					continue; // directory doesn't exist, just skip it
 				}
+
+				for (const child of contents) {
+					if (!child.endsWith(".js")) continue;
+
+					const fullPath = this.env.path.join(directory, child);
+					const name = child.substring(0, child.length - 3);
+
+					if (names.has(name)) {
+						continue;
+					}
+
+					const stats = await this.env.fs.stats(fullPath);
+					if (!stats) continue;
+
+					if (stats.type == "file") {
+						names.add(name);
+
+						index.push({
+							directory: fullPath,
+							name: name
+						});
+					}
+				}
+			} catch (e) {
+				this.env.warn(
+					e instanceof Error ? (e.stack ?? `${e}`) : `${e}`
+				);
 			}
 		}
 

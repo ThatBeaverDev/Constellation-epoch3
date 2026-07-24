@@ -172,6 +172,16 @@ async function worker() {
 			fs,
 			path,
 
+			users: {
+				changePassword(uid, newPassword) {
+					return sendMessage("change_password", { uid, newPassword });
+				},
+
+				validatePassword(uid, password) {
+					return sendMessage("validate_password", { uid, password });
+				}
+			},
+
 			triggerEvent(name, data) {
 				const callbacks = eventsMap[name];
 
@@ -203,6 +213,7 @@ async function worker() {
 					handOverDisplay?: boolean;
 					input?: Log[];
 					outputProxy?: WorkerOutputProxy;
+					user?: { uid: number; password: string };
 				}
 			) {
 				const { pid: executedPID } = await sendMessage("env_exec", {
@@ -213,7 +224,8 @@ async function worker() {
 						: undefined,
 					workingDirectory: this.workingDirectory,
 					input: config?.input,
-					outputProxy: config?.outputProxy !== undefined
+					outputProxy: config?.outputProxy !== undefined,
+					user: config?.user
 				});
 
 				if (config?.outputProxy) {
@@ -488,6 +500,7 @@ async function worker() {
 		"executeProgram",
 		async ({
 			directory,
+			code: contents,
 			pid,
 
 			args,
@@ -497,7 +510,6 @@ async function worker() {
 			if (!directory) throw new Error("Directory is required!");
 			if (!pid) throw new Error("PID is required!");
 
-			const contents = await fs.readFile(directory);
 			if (!contents)
 				throw new Error(
 					`File '${directory}' to execute does not exist!`
@@ -624,7 +636,11 @@ async function worker() {
 				// kill it.
 				terminateProgram(program, [
 					{
-						text: String(err instanceof Error ? err.stack : err),
+						text: String(
+							err instanceof Error
+								? `${err.name}: ${err.message}`
+								: err
+						),
 						colour: "#ff0000"
 					}
 				]);

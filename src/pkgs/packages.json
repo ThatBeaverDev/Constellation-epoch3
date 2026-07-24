@@ -44,6 +44,39 @@
 				"files.js": "/bin/gui/files.js"
 			}
 		},
+		"users": {
+			"author": "ThatBeaverDev",
+			"published": 0,
+			"dependencies": [
+				"passwd",
+				"useradd",
+				"userlist",
+				"userdel",
+				"whoami"
+			],
+			"main": false
+		},
+
+		"passwd": {
+			"author": "ThatBeaverDev",
+			"published": 0
+		},
+		"useradd": {
+			"author": "ThatBeaverDev",
+			"published": 0
+		},
+		"userlist": {
+			"author": "ThatBeaverDev",
+			"published": 0
+		},
+		"userdel": {
+			"author": "ThatBeaverDev",
+			"published": 0
+		},
+		"whoami": {
+			"author": "ThatBeaverDev",
+			"published": 0
+		},
 		"genv": {
 			"author": "ThatBeaverDev",
 			"published": 0

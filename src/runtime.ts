@@ -19,7 +19,10 @@ import { nodeJs } from "./lib/config";
 import { blobToDataURL } from "./util/lib/uri";
 import { logToString } from "./util/lib/logs";
 import { triggerProgramEvent } from "./lib/triggerProgramEvent";
+import { User } from "./util/types/worker";
+import { insurePrivilege } from "./lib/users";
 import { ALLOWED_PROXY_EVENTS } from "./constants";
+import { join } from "path-browserify";
 
 export interface ProgramLog {
 	type: "log" | "warning" | "error";
@@ -33,14 +36,15 @@ export interface ProgramInputLog {
 }
 
 export interface ProgramStore {
-	worker: WorkerStore;
+	readonly worker: WorkerStore;
 
 	parent?: ProgramStore;
 	children: Set<ProgramStore>;
 
-	pid: number;
-	directory: string;
-	startTime: Date;
+	readonly pid: number;
+	readonly user: User;
+	readonly directory: string;
+	readonly startTime: Date;
 
 	onExit: (data?: any) => void;
 
@@ -76,6 +80,13 @@ export interface WorkerStore {
 		data: RuntimeMessageMap[Intent]["data"]
 	) => void;
 	exit(): void;
+}
+
+interface ProgramConfig {
+	displayHandover?: { oldOwner?: number };
+	workingDirectory: string;
+	input?: Log[];
+	outputProxy?: number;
 }
 
 export default class Runtime {
@@ -229,7 +240,18 @@ export default class Runtime {
 			return __program;
 		};
 
-		implementWorkerFS(handle, this.#fs);
+		implementWorkerFS(
+			handle,
+			this.#fs,
+			this.#kernel.users,
+			() => getProgram().user
+		);
+
+		function reroot(path: string) {
+			const user = getProgram().user;
+
+			return join(user.home, path);
+		}
 
 		handle("program_log", ({ data }) => {
 			const program = getProgram();
@@ -255,16 +277,47 @@ export default class Runtime {
 				handoverDisplayPid: executingProgramPid,
 				workingDirectory,
 				input,
-				outputProxy
+				outputProxy,
+				user: loginInfo
 			}) => {
 				const parent = getProgram();
 
-				const program = await this.executeProgram(path, parent, args, {
-					displayHandover: { oldOwner: executingProgramPid },
-					workingDirectory,
-					input,
-					outputProxy: outputProxy ? parent.pid : undefined
-				});
+				if (loginInfo) {
+					const user = await this.#kernel.users.userByUID(
+						loginInfo.uid
+					);
+
+					if (!user)
+						throw new Error(
+							`No user exists by UID ${loginInfo?.uid}`
+						);
+
+					const isValid = await this.#kernel.users.verifyPassword(
+						user,
+						loginInfo.password
+					);
+
+					if (!isValid) {
+						throw new Error("Password is incorrect.");
+					}
+				}
+
+				let user = loginInfo
+					? await this.#kernel.users.userByUID(loginInfo.uid)
+					: parent.user;
+
+				const program = await this.executeProgram(
+					reroot(path),
+					parent,
+					user,
+					args,
+					{
+						displayHandover: { oldOwner: executingProgramPid },
+						workingDirectory,
+						input,
+						outputProxy: outputProxy ? parent.pid : undefined
+					}
+				);
 
 				return { pid: program.pid };
 			}
@@ -273,10 +326,10 @@ export default class Runtime {
 		function sessionToProgram(session: ProgramStore): Process {
 			return {
 				pid: session.pid,
-				directory: session.directory,
+				name: session.directory.textAfterAll("/"),
 
 				startTime: session.startTime,
-				core: session.worker.id
+				UID: session.user.UID
 			};
 		}
 
@@ -485,7 +538,11 @@ export default class Runtime {
 
 		handle("env_sound_play", async ({ config }) => {
 			const program = getProgram();
-			const sound = await this.#kernel.ui.playSound?.(config);
+			const sound = await this.#kernel.ui.playSound?.(
+				"file" in config
+					? { ...config, file: reroot(config.file) }
+					: config
+			);
 
 			const id = this.#nextSoundID++;
 
@@ -537,7 +594,10 @@ export default class Runtime {
 		handle("Sockets/Client/newConnection", (packet) => {
 			const client = getProgram();
 
-			return this.#sockets.newClientConnection(client, packet);
+			return this.#sockets.newClientConnection(client, {
+				...packet,
+				socketDirectory: reroot(packet.socketDirectory)
+			});
 		});
 		handle("Sockets/Client/endConnection", (packet) => {
 			const disconnectingClient = getProgram();
@@ -556,7 +616,10 @@ export default class Runtime {
 		handle("Sockets/Server/newServer", (packet) => {
 			const server = getProgram();
 
-			return this.#sockets.newServerInstance(server, packet);
+			return this.#sockets.newServerInstance(server, {
+				...packet,
+				socketDirectory: reroot(packet.socketDirectory)
+			});
 		});
 		handle("Sockets/Server/endServer", (packet) => {
 			const server = getProgram();
@@ -606,6 +669,20 @@ export default class Runtime {
 
 				triggerProgramEvent(target, msg.eventName, msg.data);
 			}
+		});
+
+		handle("change_password", async (msg) => {
+			await insurePrivilege(getProgram(), this.#kernel.users);
+
+			return this.#kernel.users.changePassword(msg.uid, msg.newPassword);
+		});
+
+		handle("validate_password", async (msg) => {
+			const user = await this.#kernel.users.userByUID(msg.uid);
+			if (!user)
+				throw new Error(`User by UID ${msg.uid} does not exist.`);
+
+			return this.#kernel.users.verifyPassword(user, msg.password);
 		});
 
 		this.workers.push(workerStore);
@@ -727,15 +804,25 @@ export default class Runtime {
 
 	async executeProgram(
 		directory: string,
-		parent?: ProgramStore,
+		parent: undefined,
+		user: User,
 		args?: string[],
-		config?: {
-			displayHandover?: { oldOwner?: number };
-			workingDirectory: string;
-			input?: Log[];
-			outputProxy?: number;
-		}
-	) {
+		config?: ProgramConfig
+	): Promise<ProgramStore>;
+	async executeProgram(
+		directory: string,
+		parent: ProgramStore,
+		user?: User,
+		args?: string[],
+		config?: ProgramConfig
+	): Promise<ProgramStore>;
+	async executeProgram(
+		directory: string,
+		parent: ProgramStore | undefined,
+		user?: User,
+		args?: string[],
+		config?: ProgramConfig
+	): Promise<ProgramStore> {
 		this.#log("Executing program from " + directory);
 
 		const pid = this.#nextPID++;
@@ -746,11 +833,15 @@ export default class Runtime {
 			? this.programByPid(config?.outputProxy)
 			: undefined;
 
+		const programUser = user ?? parent?.user;
+		if (!programUser) throw new Error();
+
 		const program: ProgramStore = {
 			worker: worker,
 
 			parent,
 			children: new Set(),
+			user: programUser,
 
 			directory,
 			pid,
@@ -981,8 +1072,15 @@ export default class Runtime {
 		if (parent) parent.children.add(program);
 		this.programs.push(program);
 
+		const code = await this.#fs.readFile(directory);
+		if (!code)
+			throw new Error(
+				`File at ${directory} cannot be executed because it does not exist.`
+			);
+
 		const ok = await worker.sendMessage("executeProgram", {
 			directory,
+			code,
 			pid,
 
 			args,

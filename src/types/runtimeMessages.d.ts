@@ -93,6 +93,7 @@ export interface RuntimeExecLoopResponse {
 
 export interface RuntimeExecuteProgram {
 	directory: string;
+	code: string;
 	pid: number;
 
 	args?: string[];

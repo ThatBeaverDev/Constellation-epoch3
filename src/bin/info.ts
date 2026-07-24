@@ -21,7 +21,7 @@ export default async function* getInfo(env: Environment) {
 		? Object.keys(pkgdPackagesJson.packages).length
 		: 0;
 
-	const shell = (await env.parent())?.directory;
+	const shell = (await env.parent())?.name;
 
 	const screen = "Unknown";
 

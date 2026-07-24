@@ -1,5 +1,7 @@
 import { type Environment } from "../../../util/types/worker.js";
 import { objectFallback } from "../../../util/lib/object.js";
+import { PassthroughOutputProxy } from "../../../util/lib/io.js";
+import { usersByName } from "../../../util/lib/users.js";
 
 interface Service {
 	running: boolean;
@@ -11,6 +13,7 @@ interface Service {
 	fallback?: string;
 	args: string[];
 	display: boolean;
+	askForUser: boolean;
 }
 
 interface ServiceJSON {
@@ -35,12 +38,21 @@ interface ServiceJSON {
 	display?: boolean;
 
 	/**
+	 * Whether `init` should request username and password from the user.
+	 */
+	askForUser?: boolean;
+	/*
 	 * Path to the file to execute in the case of a failure
 	 */
 	fallback?: string;
 }
 
-export default async function* initSystem(env: Environment) {
+export default async function* initSystem(
+	env: Environment,
+	[devModeString]: [string | undefined]
+) {
+	const devMode = devModeString == "true";
+
 	async function startServices(services: Service[]) {
 		for (const service of services) {
 			if (
@@ -51,12 +63,50 @@ export default async function* initSystem(env: Environment) {
 				continue;
 
 			try {
+				let userState: { uid: number; password: string } | undefined =
+					undefined;
+
+				service.running = true;
+
+				if (service.askForUser) {
+					async function getUsername() {
+						if (devMode) {
+							return "dev";
+						}
+
+						return env.input("Username: ");
+					}
+
+					async function getPassword() {
+						if (devMode) {
+							return "dev";
+						}
+
+						return env.input("Password: ", {
+							hideTyping: true
+						});
+					}
+
+					const username = await getUsername();
+
+					const targetUser = (await usersByName(env, username))[0];
+					if (!targetUser) {
+						env.print(`User '${username}' doesn't exist!`);
+						service.running = false;
+						continue;
+					}
+
+					const password = await getPassword();
+
+					userState = { uid: targetUser?.UID, password };
+				}
+
 				const exec = await env.execute(
 					service.directory,
 					service.args,
-					{ handOverDisplay: service.display }
+					{ handOverDisplay: service.display, user: userState }
 				);
-				service.running = true;
+
 				if (service.restartPolicy == "once") {
 					service.restartPolicy = "never";
 				}
@@ -123,7 +173,8 @@ export default async function* initSystem(env: Environment) {
 
 				restartPolicy: serviceJSON.restart,
 				args: serviceJSON.args ?? [],
-				display: serviceJSON.display ?? false
+				display: serviceJSON.display ?? false,
+				askForUser: serviceJSON.askForUser ?? false
 			};
 
 			services.push(service);
@@ -133,7 +184,9 @@ export default async function* initSystem(env: Environment) {
 	}
 
 	// Runs installer to make sure that init isn't lonely
-	const result = await env.execute("/bin/installd.js");
+	const result = await env.execute("/bin/installd.js", [`${devMode}`], {
+		outputProxy: PassthroughOutputProxy(env)
+	});
 	await result.onExit;
 
 	env.print("Installer has exited. Finding services...");
