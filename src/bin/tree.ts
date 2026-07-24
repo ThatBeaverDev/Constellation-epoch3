@@ -18,7 +18,7 @@ export default async function* tree(
 		dirs: 0
 	};
 
-	await treeWalk(env, dir, "", Infinity, 0, counts);
+	await treeWalk(env, dir, "", 50, 0, counts);
 
 	env.print(`${counts.dirs} directories, ${counts.files} files`);
 }
@@ -31,6 +31,11 @@ async function treeWalk(
 	depth: number,
 	counts: { files: number; dirs: number }
 ) {
+	console.debug(maxDepth, depth);
+	if (depth >= maxDepth) {
+		return;
+	}
+
 	let contents: string[];
 	try {
 		contents = await env.fs.readdir(directory);
