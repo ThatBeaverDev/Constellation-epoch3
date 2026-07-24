@@ -42,6 +42,29 @@ export interface FilesystemInterface {
 	unlink(path: string): Promise<void>;
 
 	/**
+	 * Reads the contents of a metadata tag from a file
+	 * @param path The file to read from
+	 * @param entry The metadata tag to read from
+	 */
+	getMetadataEntry(path: string, entry: string): Promise<string | void>;
+	/**
+	 * Lists the metadata tags from a file
+	 * @param path The file to read from
+	 */
+	listMetadataEntries(path: string): Promise<string[] | void>;
+	/**
+	 * Sets the contents of a metadata tag from a file
+	 * @param path The file to write to
+	 * @param entry The entry to read to
+	 * @param value The value to write to the entry
+	 */
+	setMetadataEntry(
+		path: string,
+		entry: string,
+		value: string | undefined
+	): Promise<void>;
+
+	/**
 	 * Creates a directory, dependent on the parent's existence.
 	 * @param path Directory to create
 	 */
@@ -88,31 +111,42 @@ export interface FilesystemInterface {
 	stats(path: string): Promise<FileStats | undefined>;
 }
 
-interface DomFsFile {
-	store: number;
-	size: number;
+type DomFsMetadata = Partial<Record<string, string>>;
+
+interface BaseDomFsFile {
+	metadata?: DomFsMetadata;
+
 	creation: number;
 	modified: number;
-	type: "file" | "directory";
 }
 
-interface DomFsAlias {
+interface DomFsFile extends BaseDomFsFile {
+	type: "file";
 	store: number;
 	size: number;
-	creation: number;
-	modified: number;
+}
+
+interface DomFsDirectory extends BaseDomFsFile {
+	type: "directory";
+}
+
+interface DomFsAlias extends BaseDomFsFile {
 	type: "alias";
+	size: number;
 	targetDirectory: string;
 }
 
-interface DomFsSocket {
-	socketId: number;
-	creation: number;
-	modified: number;
+interface DomFsSocket extends BaseDomFsFile {
 	type: "socket";
+	socketId: number;
 }
 
-type FilesystemStore = DomFsFile | DomFsAlias | DomFsSocket;
+interface IDBFile {
+	id: number;
+	contents: string;
+}
+
+type FilesystemStore = DomFsFile | DomFsDirectory | DomFsAlias | DomFsSocket;
 
 export function normalise(path: string): string {
 	if (path == undefined) {
@@ -160,7 +194,7 @@ class DomFs implements FilesystemInterface {
 	#panic: Constellation["panic"];
 	socketManager?: SocketManager;
 
-	#index: Record<string, FilesystemStore> = {};
+	#index: Partial<Record<string, FilesystemStore>> = {};
 	#db?: IDBDatabase;
 
 	// tab-across syncronisation
@@ -312,9 +346,7 @@ class DomFs implements FilesystemInterface {
 		if (!this.#index["/"]) {
 			const now = Date.now();
 
-			const root: DomFsFile = {
-				store: -1,
-				size: 0,
+			const root: DomFsDirectory = {
 				creation: now,
 				modified: now,
 				type: "directory"
@@ -405,9 +437,7 @@ class DomFs implements FilesystemInterface {
 
 		const now = Date.now();
 
-		const entry: DomFsFile = {
-			store: -1,
-			size: 0,
+		const entry: DomFsDirectory = {
 			creation: now,
 			modified: now,
 			type: "directory"
@@ -443,7 +473,6 @@ class DomFs implements FilesystemInterface {
 		const now = Date.now();
 
 		const entry: DomFsAlias = {
-			store: -1,
 			size: 0,
 			creation: now,
 			modified: now,
@@ -523,7 +552,7 @@ class DomFs implements FilesystemInterface {
 		const store = transaction.objectStore("files");
 
 		return new Promise((resolve, reject) => {
-			const req = store.get(file.store);
+			const req: IDBRequest<IDBFile> = store.get(file.store);
 
 			req.onsuccess = () => {
 				const contents: string | void = req.result?.contents;
@@ -584,7 +613,7 @@ class DomFs implements FilesystemInterface {
 			transaction.objectStore("files").put({
 				id: existing.store,
 				contents
-			});
+			} as IDBFile);
 
 			const updated: DomFsFile = {
 				...existing,
@@ -633,6 +662,81 @@ class DomFs implements FilesystemInterface {
 		});
 
 		this.#index[path] = entry;
+	}
+
+	async getMetadataEntry(
+		path: string,
+		entry: string
+	): Promise<string | undefined> {
+		path = await this.resolve(path);
+		await this.#loadIndex();
+
+		const file = this.#index[path];
+		if (!file || file.type !== "file") return undefined;
+
+		const metadata = file.metadata;
+		if (!metadata) return undefined;
+
+		return metadata[entry];
+	}
+
+	async listMetadataEntries(path: string) {
+		path = await this.resolve(path);
+		await this.#loadIndex();
+
+		const file = this.#index[path];
+		if (!file || file.type !== "file") return undefined;
+
+		const metadata = file.metadata;
+		if (!metadata) return [];
+
+		return Object.keys(metadata);
+	}
+
+	async setMetadataEntry(
+		path: string,
+		entry: string,
+		value: string
+	): Promise<void> {
+		path = await this.resolve(path);
+		await this.#loadIndex();
+
+		const parentDir = parent(path);
+		const parentEntry = this.#index[parentDir];
+
+		if (!parentEntry || parentEntry.type !== "directory")
+			throw new Error(
+				`Parent directory does not exist (writeFile ${path})`
+			);
+
+		const now = Date.now();
+		const existing = this.#index[path];
+
+		// MODIFY
+		if (existing) {
+			if (existing.type !== "file")
+				throw new Error(`Cannot write to metadata of ${existing.type}`);
+
+			const transaction = this.#db!.transaction(["index"], "readwrite");
+
+			const updated: DomFsFile = {
+				...existing,
+				modified: now,
+				metadata: {
+					...existing.metadata,
+					[entry]: value
+				}
+			};
+
+			transaction.objectStore("index").put({ path, entry: updated });
+
+			this.#index[path] = updated;
+			this.#sync.postMessage({
+				type: "writeMetadata",
+				path
+			});
+			return;
+		}
 	}
 
 	async unlink(path: string) {

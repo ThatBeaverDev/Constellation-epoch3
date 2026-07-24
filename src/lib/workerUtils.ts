@@ -212,6 +212,16 @@ export function implementWorkerFS(
 		return await fs.unlink(path);
 	});
 
+	handle("fs_get_metadata_entry", async ({ path, entry }) => {
+		return await fs.getMetadataEntry(path, entry);
+	});
+	handle("fs_set_metadata_entry", async ({ path, entry, value }) => {
+		return await fs.setMetadataEntry(path, entry, value);
+	});
+	handle("fs_list_metadata_entries", async ({ path }) => {
+		return await fs.listMetadataEntries(path);
+	});
+
 	handle("fs_mkdir", async ({ path, options }) => {
 		if (options?.recursive) {
 			const parts = path.split("/").filter((item) => item.trim() !== "");
@@ -446,6 +456,33 @@ export class WorkerFS implements EnvironmentFilesystem {
 		if (typeof path !== "string") throw new Error("Path must be string");
 
 		return await this.#sendMessage("fs_unlink", { path });
+	}
+
+	async getMetadataEntry(path: string, entry: string) {
+		if (typeof path !== "string") throw new Error("Path must be string");
+
+		return await this.#sendMessage("fs_get_metadata_entry", {
+			path,
+			entry
+		});
+	}
+	async listMetadataEntries(path: string) {
+		if (typeof path !== "string") throw new Error("Path must be string");
+
+		return await this.#sendMessage("fs_list_metadata_entries", { path });
+	}
+	async setMetadataEntry(
+		path: string,
+		entry: string,
+		value: string | undefined
+	) {
+		if (typeof path !== "string") throw new Error("Path must be string");
+
+		return await this.#sendMessage("fs_set_metadata_entry", {
+			path,
+			entry,
+			value
+		});
 	}
 
 	async mkdir(
