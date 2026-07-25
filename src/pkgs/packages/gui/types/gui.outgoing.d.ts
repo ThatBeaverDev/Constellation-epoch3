@@ -31,6 +31,7 @@ export interface GuiTextboxValueChangeOutgoing {
 export interface GuiButtonPressOutgoing {
 	intent: "onButtonPress";
 	windowID: number;
+	triggerMethod: "enter" | "space";
 
 	reference: string;
 }

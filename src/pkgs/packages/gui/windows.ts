@@ -126,7 +126,11 @@ export default class WindowManager {
 	): boolean {
 		if (item.type === "button") {
 			if (key === "" || key === "enter" || key === " ") {
-				this.socketManager?.onButtonPress?.(window, item.identifier);
+				this.socketManager?.onButtonPress?.(
+					window,
+					rawKey == "enter" ? "enter" : "space",
+					item.identifier
+				);
 				return true;
 			}
 		}

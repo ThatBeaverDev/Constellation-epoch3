@@ -1,7 +1,11 @@
 import { Environment, SocketServer } from "../../../util/types/worker";
 import { GUI_SOCKET_PATH } from "./constants";
 import { GuiIngoing } from "./types/gui.ingoing";
-import { GuiKeypressOutgoing, GuiOutgoing } from "./types/gui.outgoing";
+import {
+	GuiButtonPressOutgoing,
+	GuiKeypressOutgoing,
+	GuiOutgoing
+} from "./types/gui.outgoing";
 import { WindowContentItem } from "./types/windowContents";
 import WindowManager, { Window } from "./windows";
 
@@ -73,7 +77,11 @@ export default class SocketManager {
 		}
 	}
 
-	onButtonPress(window: Window, reference: string) {
+	onButtonPress(
+		window: Window,
+		triggerMethod: GuiButtonPressOutgoing["triggerMethod"],
+		reference: string
+	) {
 		const client = window.associatedClient;
 		const pid = client?.pid;
 
@@ -81,7 +89,8 @@ export default class SocketManager {
 			this.socketServer.sendMessage(pid, {
 				intent: "onButtonPress",
 				windowID: client ? client.windows.indexOf(window) : 0,
-				reference
+				reference,
+				triggerMethod
 			});
 		}
 	}
