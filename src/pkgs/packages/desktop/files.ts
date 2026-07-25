@@ -1,4 +1,4 @@
-import { logToString } from "../../../util/lib/logs";
+import { execGuiName } from "../../../util/lib/exec";
 import { Environment } from "../../../util/types/worker";
 import GuiWindow from "../gui/lib.gui";
 import { WindowContentItem } from "../gui/types/windowContents";
@@ -55,15 +55,7 @@ export default async function* FilesApp(env: Environment) {
 
 				case "file":
 					if (buttonPath.endsWith(".js")) {
-						const genvExec = await env.execute("/bin/genv.js", [
-							"terminal"
-						]);
-
-						const { return: result } = await genvExec.onExit;
-						if (!result) return;
-
-						const terminalPath = logToString(result);
-						await env.execute(terminalPath, [buttonPath]);
+						await execGuiName(env, "terminal", [buttonPath]);
 					}
 
 					break;

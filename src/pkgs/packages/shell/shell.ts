@@ -4,8 +4,9 @@ import {
 	EventName,
 	Log
 } from "../../../util/types/worker";
-import { logsToString, logToString } from "../../../util/lib/logs";
+import { logsToString } from "../../../util/lib/logs";
 import { user, usersByName } from "../../../util/lib/users";
+import { execName } from "../../../util/lib/exec";
 
 export interface ShellCommand {
 	name: string;
@@ -354,22 +355,9 @@ export async function shellImpl(
 			}
 
 			default:
-				const envExec = await env.execute("/sbin/env.js", [
-					command.name
-				]);
-				const { return: programDirectory } = await envExec.onExit;
-				if (!programDirectory) {
-					const log: Log = [
-						{ text: "shell: ", colour: "#888888" },
-						{ text: "command not found: " },
-						{ text: command.name }
-					];
-					result.push(log);
-					break;
-				}
-
-				const programExec = await env.execute(
-					logToString(programDirectory),
+				const programExec = await execName(
+					env,
+					command.name,
 					command.args,
 					{
 						input,
