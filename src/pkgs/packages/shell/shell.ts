@@ -355,41 +355,59 @@ export async function shellImpl(
 			}
 
 			default:
-				const programExec = await execName(
-					env,
-					command.name,
-					command.args,
-					{
-						input,
-						outputProxy: {
-							onLog(_, log) {
-								logs.push(log);
+				let programExec: Awaited<ReturnType<typeof execName>>;
 
-								io.print(log);
-							},
-							async onInput(message, config) {
-								const result = await io.input(message, config);
+				try {
+					programExec = await execName(
+						env,
+						command.name,
+						command.args,
+						{
+							input,
+							outputProxy: {
+								onLog(_, log) {
+									logs.push(log);
 
-								if (config?.leaveInputOnCompletion ?? true) {
-									logs.push(`${message}${result}`);
+									io.print(log);
+								},
+								async onInput(message, config) {
+									const result = await io.input(
+										message,
+										config
+									);
+
+									if (
+										config?.leaveInputOnCompletion ??
+										true
+									) {
+										logs.push(`${message}${result}`);
+									}
+
+									return result;
+								},
+
+								onSetLogs(newLogs) {
+									logs.splice(0, Infinity, ...newLogs);
+
+									redisplayLogs();
+								},
+
+								getDimensions() {
+									return io.terminalDimensions();
 								}
-
-								return result;
 							},
-
-							onSetLogs(newLogs) {
-								logs.splice(0, Infinity, ...newLogs);
-
-								redisplayLogs();
-							},
-
-							getDimensions() {
-								return io.terminalDimensions();
-							}
-						},
-						user: overrideUser ?? execUser
-					}
-				);
+							user: overrideUser ?? execUser
+						}
+					);
+				} catch (e) {
+					const log: Log = [
+						{ text: "shell: ", colour: "#888888" },
+						{ text: "command not found: " },
+						{ text: command.name }
+					];
+					result.push(log);
+					break;
+				}
 
 				const eventHandlers: Partial<
 					Record<EventName, (data: EventMap[EventName]) => void>
