@@ -7,7 +7,7 @@ import { logToString } from "../../../util/lib/logs";
 import { sleep } from "../../../util/lib/time";
 import { Environment, Log } from "../../../util/types/worker";
 import GuiWindow from "../gui/lib.gui";
-import { WindowContentItem } from "../gui/types/windowContents";
+import { WindowContentItem, WindowText } from "../gui/types/windowContents";
 
 async function getData(env: Environment, file?: string, input?: Log) {
 	if (file) {
@@ -76,9 +76,17 @@ export default async function* previewFile(
 		const { width, height } = gui.dimensions;
 
 		switch (type) {
-			case "text":
-				gui.setContents([{ type: "text", x: 5, y: 5, text: data }]);
+			case "text": {
+				let y = 5;
+				gui.setContents([
+					...data.split("\n").map((item): WindowText => {
+						y += 20;
+
+						return { type: "text", x: 5, y: y - 20, text: item };
+					})
+				]);
 				break;
+			}
 
 			case "image":
 				if (file) {
