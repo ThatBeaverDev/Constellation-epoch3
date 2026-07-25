@@ -2,6 +2,7 @@ import { Environment } from "../util/types/worker";
 import {
 	directoryColour,
 	executableColour,
+	socketColour,
 	structureColour
 } from "../util/lib/colours";
 
@@ -61,7 +62,8 @@ async function treeWalk(
 			//	dispFile = asDir;
 			//};
 
-			const isDir = await env.fs.isDirectory(asDir);
+			const stats = await env.fs.stats(asDir);
+			const isDir = stats?.type == "directory";
 
 			if (isDir) {
 				env.print([
@@ -85,7 +87,9 @@ async function treeWalk(
 						text: dispFile,
 						colour: dispFile.endsWith(".js")
 							? executableColour
-							: undefined
+							: stats?.type == "socket"
+								? socketColour
+								: undefined
 					}
 				]);
 				//};
