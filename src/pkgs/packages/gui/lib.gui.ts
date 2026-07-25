@@ -23,7 +23,10 @@ export default class GuiWindow {
 
 	onTextboxCompletion?: (contents: string, reference: string) => any;
 	onTextboxValueChange?: (contents: string, reference: string) => any;
-	onButtonPress?: (reference: string) => any;
+	onButtonPress?: (
+		reference: string,
+		triggerMethod: "space" | "enter"
+	) => any;
 	onKeyPress?: (event: { name: string; alt: boolean; shift: boolean }) => any;
 
 	static readonly windowFill = windowFill;
@@ -76,7 +79,7 @@ export default class GuiWindow {
 					break;
 
 				case "onButtonPress":
-					this.onButtonPress?.(msg.reference);
+					this.onButtonPress?.(msg.reference, msg.triggerMethod);
 					break;
 
 				case "windowResize":
