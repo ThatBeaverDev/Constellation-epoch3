@@ -41,7 +41,8 @@
 			"directories": ["/bin/gui"],
 			"fileMap": {
 				"cli.js": "/bin/gui/terminal.js",
-				"files.js": "/bin/gui/files.js"
+				"files.js": "/bin/gui/files.js",
+				"preview.js": "/bin/gui/preview.js"
 			}
 		},
 		"users": {

@@ -1,3 +1,8 @@
+import {
+	directoryColour,
+	executableColour,
+	socketColour
+} from "../../../util/lib/colours";
 import { execGuiName } from "../../../util/lib/exec";
 import { Environment } from "../../../util/types/worker";
 import GuiWindow from "../gui/lib.gui";
@@ -22,17 +27,17 @@ export default async function* FilesApp(env: Environment) {
 
 		switch (stats.type) {
 			case "directory":
-				return "rgb(255 255 0)";
+				return directoryColour;
 
 			case "file":
 				if (path.endsWith(".js")) {
-					return "rgb(138, 150, 255)";
+					return executableColour;
 				} else {
 					return "rgb(255 255 255)";
 				}
 
 			case "socket":
-				return "rgb(130, 161, 130)";
+				return socketColour;
 		}
 	}
 
@@ -41,9 +46,14 @@ export default async function* FilesApp(env: Environment) {
 
 	let path = "/";
 
-	lib.onButtonPress = async (reference) => {
+	lib.onButtonPress = async (reference, triggerMethod) => {
 		if (reference.startsWith("button:/")) {
 			const buttonPath = reference.substring(7);
+
+			if (triggerMethod == "space") {
+				await execGuiName(env, "preview", [buttonPath]);
+				return;
+			}
 
 			const stats = await env.fs.stats(buttonPath);
 
