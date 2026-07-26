@@ -169,6 +169,7 @@
 		"media-utils": {
 			"author": "ThatBeaverDev",
 			"published": 0,
+			"main": false,
 			"dependencies": ["display", "paint"]
 		},
 		"display": {
