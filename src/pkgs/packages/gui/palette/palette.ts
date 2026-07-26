@@ -29,10 +29,7 @@ export default class PaletteHandler {
 					this.update();
 
 					const top = this.#topResult;
-					if (!top?.directory) return;
-
-					this.env.execute(top.directory);
-					this.windowSystem.hidePalette();
+					if (top?.directory) this.#handleTriggerEntry(top.directory);
 					break;
 			}
 		};
@@ -47,18 +44,29 @@ export default class PaletteHandler {
 		};
 
 		this.#guiLib.onButtonPress = (reference) => {
-			const entry = this.#indexCache?.find?.(
-				(item) => item.directory == reference
-			);
-
-			if (!entry) return;
-
-			this.env.execute(entry.directory);
-
-			this.windowSystem.hidePalette();
+			this.#handleTriggerEntry(reference);
 		};
 
 		this.#guiLib.onKeyPress = () => {};
+	}
+
+	#handleTriggerEntry(reference: string) {
+		switch (reference) {
+			case "gui://showHelp":
+				this.windowSystem.showHelp?.();
+				break;
+
+			default:
+				const entry = this.#indexCache?.find?.(
+					(item) => item.directory == reference
+				);
+
+				if (!entry) return;
+
+				this.env.execute(entry.directory);
+		}
+
+		this.windowSystem.hidePalette();
 	}
 
 	resetSearchQuery() {
@@ -87,11 +95,14 @@ export default class PaletteHandler {
 		const lineHeight = 25;
 		let y = 5;
 
-		const searcher = new Fuse(index, {
-			keys: ["name", "directory"],
-			isCaseSensitive: false,
-			includeScore: true
-		});
+		const searcher = new Fuse(
+			[...index, { name: "Help", directory: "gui://showHelp" }],
+			{
+				keys: ["name", "directory"],
+				isCaseSensitive: false,
+				includeScore: true
+			}
+		);
 
 		const results = searcher.search(this.#searchTerm);
 		this.#topResult = results[0]?.item;
@@ -112,6 +123,7 @@ export default class PaletteHandler {
 			);
 		}
 
+		this.#guiLib.setPointerPosition(0);
 		this.#guiLib.setContents(items);
 	}
 }

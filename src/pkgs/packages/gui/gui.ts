@@ -1,11 +1,15 @@
 import { Environment } from "../../../util/types/worker";
 import {
 	DEFAULT_WALLAPER,
+	focusedWindowStroke,
 	GUI_DATA_PATH,
+	headerHeight,
 	WALLPAPER_INDEX_PATH,
-	WALLPAPER_SOURCES
+	WALLPAPER_SOURCES,
+	windowFill
 } from "./constants";
 import SocketManager from "./socket";
+import { drawLog, measureText, rect, text } from "./util/rendering";
 import WindowManager, { WindowInfo } from "./windows";
 
 const lineGap = 15;
@@ -18,7 +22,7 @@ export interface GuiState {
 }
 
 export default async function* GraphicalEnvironment(env: Environment) {
-	await env.fs.mkdir(GUI_DATA_PATH);
+	const isNew = await env.fs.mkdir(GUI_DATA_PATH);
 	await env.fs.mkdir(WALLPAPER_INDEX_PATH);
 
 	async function renderCanvas(
@@ -68,7 +72,15 @@ export default async function* GraphicalEnvironment(env: Environment) {
 	windowManager.socketManager = socketManager;
 
 	await socketManager.init();
-	await windowManager.init();
+	let renderNew = Boolean(isNew);
+	await windowManager.init(
+		() => {
+			renderNew = true;
+		},
+		() => {
+			renderNew = false;
+		}
+	);
 
 	let bitmap: ImageBitmap | undefined = undefined;
 	async function setFilesystemWallpaper(path: string) {
@@ -131,6 +143,68 @@ export default async function* GraphicalEnvironment(env: Environment) {
 		}
 	}
 
+	function renderHelp() {
+		const ctx = state.ctx;
+		const x = 5;
+		const y = 5;
+
+		const width = state.width - 10;
+		const height = 330;
+
+		const region = new Path2D();
+		region.roundRect(x, y, width, height, 7);
+
+		ctx.save();
+		ctx.clip(region, "evenodd");
+
+		// Window box
+		rect(ctx, x, y, width, height, windowFill, focusedWindowStroke);
+
+		drawLog(
+			ctx,
+			[
+				{
+					text: "Constellation is keyboard-only, so we're going to run you through the controls. Here, the "
+				},
+				{ text: "Navigator Key", colour: "#ff0000" },
+				{ text: " is Control or Alt, whichever suits you.\n" },
+				{
+					text: "Within apps, up/down arrow keys are used to navigate and enter/space can\nbe pressed to activate buttons. Space/enter may have different results, Enter is the primary.\n\n"
+				},
+				{
+					text: "To switch windows within a workspace, hold the Navigator key and press the right or left arrows.\n"
+				},
+				{
+					text: "To open the palette from which you will open apps, hold the Navigator key and press the space key.\n\n"
+				},
+				{
+					text: 'This prompt will close once you press escape or interact with a window and can be re-summoned from the palette under "Help".'
+				}
+			],
+			x + 15,
+			y + headerHeight + 15
+		);
+
+		// draw header
+		rect(ctx, x, y, width, headerHeight, `rgb(95 95 95)`);
+
+		const name = "New to Constellation?";
+		const headerDimensions = measureText(ctx, name, "monospace", 20);
+		const padding = (headerHeight - headerDimensions.height) / 2;
+
+		text(
+			ctx,
+			x + padding,
+			y + padding,
+			name,
+			"rgb(255 255 255)",
+			"monospace",
+			20
+		);
+
+		ctx.restore();
+	}
+
 	while (true) {
 		windowManager.reposition();
 
@@ -159,6 +233,8 @@ export default async function* GraphicalEnvironment(env: Environment) {
 		if (windowManager.palette !== undefined) {
 			drawWindow(windowManager.palette, true);
 		}
+
+		if (renderNew) renderHelp();
 
 		yield;
 	}

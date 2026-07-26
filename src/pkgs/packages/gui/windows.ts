@@ -39,6 +39,8 @@ export default class WindowManager {
 
 	#paletteHandler: PaletteHandler;
 	#palette?: WindowInfo;
+	showHelp?: () => void;
+	hideHelp?: () => void;
 	get palette() {
 		if (!this.#showPalette) return;
 
@@ -67,23 +69,28 @@ export default class WindowManager {
 		switch (key) {
 			case "arrowup":
 				// TODO: Workspaces
+				this.hideHelp?.();
 				return true;
 
 			case "arrowleft":
 				this.windowID = Math.max(0, this.windowID - 1);
+				this.hideHelp?.();
 				return true;
 
 			case "arrowdown":
 				// TODO: Workspaces
+				this.hideHelp?.();
 				return true;
 
 			case "arrowright":
 				this.windowID = Math.min(total - 1, this.windowID + 1);
+				this.hideHelp?.();
 				return true;
 
 			case "w":
 			case "∑":
 				this.#currentWindow?.window?.close?.();
+				this.hideHelp?.();
 				return true;
 
 			case "return":
@@ -225,6 +232,10 @@ export default class WindowManager {
 			const key = rawKey.toLowerCase();
 			const isAltOrCtrl = e.alt || e.ctrl;
 
+			if (key === "escape") {
+				this.hideHelp?.();
+			}
+
 			if (this.paletteVisible) {
 				if (key === "escape" || (key === "" && isAltOrCtrl)) {
 					this.hidePalette();
@@ -272,8 +283,11 @@ export default class WindowManager {
 		});
 	}
 
-	async init() {
+	async init(showHelp: () => void, hideHelp: () => void) {
 		this.self = await this.env.self();
+
+		this.showHelp = showHelp;
+		this.hideHelp = hideHelp;
 
 		this.#paletteHandler.init();
 	}
@@ -348,6 +362,8 @@ export default class WindowManager {
 
 	newWindow(client: Client | undefined, name: string) {
 		const window = new GuiWindow(this, client, name);
+		this.hideHelp?.();
+
 		window.close = () => {
 			if (this.#currentWindow == info) {
 				this.windowID -= 1;
