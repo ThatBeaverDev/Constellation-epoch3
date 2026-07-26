@@ -1,6 +1,6 @@
-import { ArrayLog, Environment } from "../util/types/worker";
-import { decodeBase64, encodeBase64 } from "../util/lib/base64";
-import { unimportantColour } from "../util/lib/colours";
+import { ArrayLog, Environment } from "../../../util/types/worker";
+import { decodeBase64, encodeBase64 } from "../../../util/lib/base64";
+import { unimportantColour } from "../../../util/lib/colours";
 
 export default async function* base64Util(
 	env: Environment,
