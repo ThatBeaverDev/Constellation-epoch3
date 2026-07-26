@@ -13,7 +13,6 @@ export interface RemotePackage {
 	published?: number;
 
 	directories?: string[];
-	fileMap?: Record<string, string>;
 	main?: boolean;
 }
 
@@ -245,36 +244,11 @@ export default async function* packageInstall(
 						}
 					}
 
-					if (packageInfo.fileMap) {
-						env.print(
-							`Downloading ${Object.entries(packageInfo.fileMap).length} extra files...`
-						);
-
-						for (const name in packageInfo.fileMap) {
-							const fileUrl =
-								url +
-								`/packages/${packageName}/${name[0] == "/" ? name.substring(1) : name}`;
-							const fileRequest = await fetch(fileUrl);
-
-							if (fileRequest.isOk) {
-								await env.fs.writeFile(
-									packageInfo.fileMap[name],
-									fileRequest.response
-								);
-							} else {
-								env.warn(
-									`Failed to download extra file from ${fileUrl} (${fileRequest.statusCode}: ${fileRequest.statusText})`
-								);
-							}
-						}
-					}
-
 					const pkg: Package = {
 						...packageInfo,
-						files: [
-							main ? binpath : undefined,
-							...Object.keys(packageInfo.fileMap ?? {})
-						].filter((item) => item !== undefined),
+						files: [main ? binpath : undefined].filter(
+							(item) => item !== undefined
+						),
 						directories: packageInfo.directories
 					};
 
