@@ -1,7 +1,11 @@
 npx tsc -b
 
 cp src/ui/styles.css build/ui/styles.css
-npx rollup -c
 cp src/pkgs/packages.json dist/pkgs/packages.json
+
+mkdir ./dist
+mkdir ./dist/bin
+
+npx rollup -c
 
 node ./scripts/build.mjs

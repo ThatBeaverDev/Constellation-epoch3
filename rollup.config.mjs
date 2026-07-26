@@ -21,8 +21,6 @@ const plugins = [
 	})
 ];
 
-mkdirSync("./dist/bin");
-
 const programConfigs = globSync("./build/bin/*.js").map((file) => {
 	const name = path.basename(file, ".js");
 
