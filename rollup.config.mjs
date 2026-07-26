@@ -4,6 +4,7 @@ import commonjs from "@rollup/plugin-commonjs";
 import { nodeResolve } from "@rollup/plugin-node-resolve";
 import { string } from "rollup-plugin-string";
 import webWorkerLoader from "rollup-plugin-web-worker-loader";
+import { mkdirSync } from "fs";
 
 const plugins = [
 	nodeResolve({

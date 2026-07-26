@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { basicNetworkGetSuccess, createMockEnv } from "./mock.js";
-import wget from "../../bin/wget.js";
+import wget from "../../pkgs/packages/wget/wget.js";
 import applyStringPrototypes from "../../lib/strings.js";
 
 describe("Wget tests", () => {
@@ -11,12 +11,10 @@ describe("Wget tests", () => {
 	it("fetches and writes file", async () => {
 		const env = createMockEnv();
 
-		env.network.request = vi
-			.fn()
-			.mockResolvedValue({
-				...basicNetworkGetSuccess,
-				response: "file contents"
-			});
+		env.network.request = vi.fn().mockResolvedValue({
+			...basicNetworkGetSuccess,
+			response: "file contents"
+		});
 
 		const gen = wget(env, ["http://example.com/file.txt", "file.txt"]);
 		await gen.next();

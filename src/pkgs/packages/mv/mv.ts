@@ -1,7 +1,7 @@
-import { Environment } from "../util/types/worker";
-import { copyFiles } from "../util/lib/files";
+import { Environment } from "../../../util/types/worker";
+import { moveFiles } from "../../../util/lib/files";
 
-export default async function* copyFilesUtility(
+export default async function* moveFilesUtility(
 	env: Environment,
 	[oldPath, newPath]: [string | undefined, string | undefined]
 ) {
@@ -11,5 +11,5 @@ export default async function* copyFilesUtility(
 	oldPath = env.path.resolve(env.workingDirectory, oldPath);
 	newPath = env.path.resolve(env.workingDirectory, newPath);
 
-	await copyFiles(env, oldPath, newPath);
+	await moveFiles(env, oldPath, newPath);
 }

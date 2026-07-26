@@ -1,10 +1,10 @@
-import { Environment } from "../util/types/worker";
+import { Environment } from "../../../util/types/worker";
 import {
 	directoryColour,
 	executableColour,
 	socketColour,
 	structureColour
-} from "../util/lib/colours";
+} from "../../../util/lib/colours";
 
 export default async function* tree(
 	env: Environment,

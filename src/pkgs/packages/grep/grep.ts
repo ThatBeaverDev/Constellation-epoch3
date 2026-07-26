@@ -1,5 +1,5 @@
-import { Environment, Log } from "../util/types/worker";
-import { logsToString } from "../util/lib/logs";
+import { Environment, Log } from "../../../util/types/worker";
+import { logsToString } from "../../../util/lib/logs";
 
 export default function grep(
 	env: Environment,

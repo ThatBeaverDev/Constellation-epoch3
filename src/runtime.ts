@@ -834,7 +834,7 @@ export default class Runtime {
 			: undefined;
 
 		const programUser = user ?? parent?.user;
-		if (!programUser) throw new Error();
+		if (!programUser) throw new Error("No user to execute with was agiven");
 
 		const program: ProgramStore = {
 			worker: worker,

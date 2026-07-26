@@ -1,5 +1,5 @@
-import { Environment, Log } from "../util/types/worker";
-import { directoryColour, executableColour } from "../util/lib/colours";
+import { Environment, Log } from "../../../util/types/worker";
+import { directoryColour, executableColour } from "../../../util/lib/colours";
 
 export default async function* ListDirectory(
 	env: Environment,

@@ -1,7 +1,7 @@
-import { Environment } from "../util/types/worker";
-import { formatTable } from "../util/lib/table";
-import { user } from "../util/lib/users";
-import { readableTime } from "../util/lib/time";
+import { Environment } from "../../../util/types/worker";
+import { formatTable } from "../../../util/lib/table";
+import { user } from "../../../util/lib/users";
+import { readableTime } from "../../../util/lib/time";
 
 export default async function* ps(env: Environment) {
 	const programs = await env.processes();
