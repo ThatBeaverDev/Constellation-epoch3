@@ -84,6 +84,24 @@
 		"b64": {
 			"author": "ThatBeaverDev",
 			"published": 1785078483910
+		},
+		"constellation-core": {
+			"author": "ThatBeaverDev",
+			"published": 0,
+			"main": false,
+			"dependencies": [
+				"pkg",
+				"find",
+				"installd",
+				"env",
+				"init",
+				"shell",
+				"gui",
+				"desktop",
+				"users",
+				"constellation-core",
+				"b64"
+			]
 		}
 	}
 }
