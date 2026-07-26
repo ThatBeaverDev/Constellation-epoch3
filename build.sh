@@ -3,8 +3,7 @@ npx tsc -b
 cp src/ui/styles.css build/ui/styles.css
 cp src/pkgs/packages.json dist/pkgs/packages.json
 
-mkdir ./dist
-mkdir ./dist/bin
+mkdir -p ./dist/bin
 
 npx rollup -c
 
