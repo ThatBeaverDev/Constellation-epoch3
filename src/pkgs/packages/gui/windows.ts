@@ -293,7 +293,7 @@ export default class WindowManager {
 	}
 
 	showPalette() {
-		this.refreshPaletteIndex(["/bin/gui", "/sbin/gui"]).then(() =>
+		this.refreshPaletteIndex(["/bin", "/sbin"]).then(() =>
 			this.refreshPalette()
 		);
 
@@ -422,7 +422,8 @@ export default class WindowManager {
 				}
 
 				for (const child of contents) {
-					if (!child.endsWith(".js")) continue;
+					if (!child.startsWith("gui-") || !child.endsWith(".js"))
+						continue;
 
 					const fullPath = this.env.path.join(directory, child);
 					const name = child.substring(0, child.length - 3);
@@ -435,11 +436,11 @@ export default class WindowManager {
 					if (!stats) continue;
 
 					if (stats.type == "file") {
-						names.add(name);
+						names.add(name.substring(4));
 
 						index.push({
 							directory: fullPath,
-							name: name
+							name: name.substring(4)
 						});
 					}
 				}

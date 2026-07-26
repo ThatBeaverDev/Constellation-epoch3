@@ -39,6 +39,22 @@ for (const file of stagedFiles) {
 
 // update package published times, throw if new package present
 for (const pkgName of modifiedPackages) {
+	const pkgPath = `${PACKAGES_DIRECTORY}${pkgName}`;
+	const existsOnDisk = fs.existsSync(pkgPath);
+
+	// doesn't exist but registered
+	if (!existsOnDisk) {
+		if (packagesFile.packages[pkgName]) {
+			delete packagesFile.packages[pkgName];
+			updated = true;
+			console.log(
+				`[Git Hook] Removed package from manifest: "${pkgName}"`
+			);
+		}
+		continue;
+	}
+
+	// exists but not registered
 	if (!packagesFile.packages[pkgName]) {
 		console.error(
 			`\n[Git Hook Error]: The package "${pkgName}" is staged but does not exist in ${PACKAGES_JSON}.\n` +

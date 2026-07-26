@@ -28,7 +28,7 @@ export async function execGuiName(
 	args?: string[],
 	config?: Parameters<Environment["execute"]>[2]
 ) {
-	const envExec = await env.execute("/sbin/genv.js", [name]);
+	const envExec = await env.execute("/sbin/env.js", [`gui-${name}`]);
 	const { return: programDirectory } = await envExec.onExit;
 	if (!programDirectory) {
 		throw new Error(`Not found: ${name}`);

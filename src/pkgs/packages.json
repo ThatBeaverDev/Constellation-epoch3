@@ -1,16 +1,22 @@
 {
 	"packages": {
-		"find": {
+		"constellation-core": {
 			"author": "ThatBeaverDev",
-			"published": 1780671292247
+			"published": 0,
+			"main": false,
+			"dependencies": [
+				"pkg",
+				"init",
+				"core-utils",
+				"users",
+				"media-utils",
+				"constellation-gui"
+			]
 		},
-		"alias": {
+		"init": {
 			"author": "ThatBeaverDev",
-			"published": 1784549753751
-		},
-		"env": {
-			"author": "ThatBeaverDev",
-			"published": 1780383996872
+			"published": 1780401763208,
+			"dependencies": ["installd"]
 		},
 		"installd": {
 			"author": "ThatBeaverDev",
@@ -20,30 +26,113 @@
 			"author": "ThatBeaverDev",
 			"published": 1780671181792
 		},
-		"init": {
+		"core-utils": {
 			"author": "ThatBeaverDev",
-			"published": 1780401763208,
-			"dependencies": ["installd"]
+			"published": 0,
+			"main": false,
+			"dependencies": [
+				"alias",
+				"b64",
+				"cat",
+				"cp",
+				"echo",
+				"env",
+				"exec",
+				"find",
+				"grep",
+				"info",
+				"ls",
+				"mkdir",
+				"mv",
+				"origin",
+				"ps",
+				"pwd",
+				"rm",
+				"shell",
+				"tree",
+				"wget"
+			]
+		},
+		"alias": {
+			"author": "ThatBeaverDev",
+			"published": 1784549753751
+		},
+		"b64": {
+			"author": "ThatBeaverDev",
+			"published": 1785078483910
+		},
+		"cat": {
+			"author": "ThatBeaverDev",
+			"published": 1785081174582
+		},
+		"cp": {
+			"author": "ThatBeaverDev",
+			"published": 1785081174582
+		},
+		"echo": {
+			"author": "ThatBeaverDev",
+			"published": 1785081174582
+		},
+		"env": {
+			"author": "ThatBeaverDev",
+			"published": 1780383996872
+		},
+		"exec": {
+			"author": "ThatBeaverDev",
+			"published": 1785081174582
+		},
+		"find": {
+			"author": "ThatBeaverDev",
+			"published": 1780671292247
+		},
+		"grep": {
+			"author": "ThatBeaverDev",
+			"published": 1785081174582
+		},
+		"info": {
+			"author": "ThatBeaverDev",
+			"published": 1785081174582
+		},
+		"ls": {
+			"author": "ThatBeaverDev",
+			"published": 1785081174582
+		},
+		"mkdir": {
+			"author": "ThatBeaverDev",
+			"published": 1785081174582
+		},
+		"mv": {
+			"author": "ThatBeaverDev",
+			"published": 1785081174582
+		},
+		"origin": {
+			"author": "ThatBeaverDev",
+			"published": 1785081174582
+		},
+		"ps": {
+			"author": "ThatBeaverDev",
+			"published": 1785081174582
+		},
+		"pwd": {
+			"author": "ThatBeaverDev",
+			"published": 1785081174582
+		},
+		"rm": {
+			"author": "ThatBeaverDev",
+			"published": 1785081174582
 		},
 		"shell": {
 			"author": "ThatBeaverDev",
 			"published": 1780401763208,
 			"dependencies": ["env"]
 		},
-		"gui": {
+		"tree": {
 			"author": "ThatBeaverDev",
-			"published": 0
+			"published": 1785081174582
 		},
-		"desktop": {
+		"wget": {
 			"author": "ThatBeaverDev",
-			"published": 0,
-			"dependencies": ["gui", "genv"],
-			"directories": ["/bin/gui"],
-			"fileMap": {
-				"cli.js": "/bin/gui/terminal.js",
-				"files.js": "/bin/gui/files.js",
-				"preview.js": "/bin/gui/preview.js"
-			}
+			"published": 1785081174582
 		},
 		"users": {
 			"author": "ThatBeaverDev",
@@ -77,31 +166,41 @@
 			"author": "ThatBeaverDev",
 			"published": 0
 		},
-		"genv": {
+		"media-utils": {
 			"author": "ThatBeaverDev",
-			"published": 0
+			"published": 0,
+			"dependencies": ["display", "paint"]
 		},
-		"b64": {
+		"display": {
 			"author": "ThatBeaverDev",
-			"published": 1785078483910
+			"published": 1785081174582
 		},
-		"constellation-core": {
+		"paint": {
+			"author": "ThatBeaverDev",
+			"published": 1785081174582
+		},
+		"constellation-gui": {
 			"author": "ThatBeaverDev",
 			"published": 0,
 			"main": false,
-			"dependencies": [
-				"pkg",
-				"find",
-				"installd",
-				"env",
-				"init",
-				"shell",
-				"gui",
-				"desktop",
-				"users",
-				"constellation-core",
-				"b64"
-			]
+			"dependencies": ["gui", "gui-terminal", "gui-files", "gui-preview"]
+		},
+		"gui": {
+			"author": "ThatBeaverDev",
+			"published": 1785081174582
+		},
+		"gui-terminal": {
+			"author": "ThatBeaverDev",
+			"published": 1785081174582
+		},
+		"gui-files": {
+			"author": "ThatBeaverDev",
+			"published": 1785081174582,
+			"dependencies": ["gui-preview"]
+		},
+		"gui-preview": {
+			"author": "ThatBeaverDev",
+			"published": 1785081174582
 		}
 	}
 }
