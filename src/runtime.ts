@@ -795,11 +795,22 @@ export default class Runtime {
 		}
 	}
 
-	switchToProgram(pid: number) {
-		const program = this.programByPid(pid);
+	#rootLog(program: ProgramStore, log: Log) {
+		if (typeof log == "string") return log;
 
-		this.#kernel.ui.controller = program;
-		this.#switchLogs(program);
+		const workingLog = structuredClone(log);
+
+		for (const part of workingLog) {
+			switch (part.type) {
+				case "image":
+					if ("dir" in part) {
+						part.dir = program.user.home + part.dir;
+					}
+					break;
+			}
+		}
+
+		return workingLog;
 	}
 
 	async executeProgram(
@@ -860,14 +871,16 @@ export default class Runtime {
 			},
 
 			onLog: (type, data) => {
-				program.logs.push({ type, data: data });
+				const rootedData = this.#rootLog(program, data);
+
+				program.logs.push({ type, data: rootedData });
 
 				if (proxyOwner) {
 					proxyOwner.worker.emit("proxy_log", {
 						handlerPid: proxyOwner.pid,
 						subjectPid: program.pid,
 
-						log: { type, data }
+						log: { type, data: rootedData }
 					});
 				}
 
