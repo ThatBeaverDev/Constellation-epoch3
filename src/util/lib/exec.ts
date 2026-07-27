@@ -1,6 +1,14 @@
 import { Environment } from "../types/worker";
 import { logToString } from "./logs";
 
+class SearchError extends Error {
+	constructor(e: string) {
+		super(e);
+
+		this.name = "SearchError";
+	}
+}
+
 export async function execName(
 	env: Environment,
 	name: string,
@@ -10,7 +18,7 @@ export async function execName(
 	const envExec = await env.execute("/sbin/env.js", [name]);
 	const { return: programDirectory } = await envExec.onExit;
 	if (!programDirectory) {
-		throw new Error(`Not found: ${name}`);
+		throw new SearchError(`Not found: ${name}`);
 	}
 
 	const programExec = env.execute(
@@ -31,7 +39,7 @@ export async function execGuiName(
 	const envExec = await env.execute("/sbin/env.js", [`gui-${name}`]);
 	const { return: programDirectory } = await envExec.onExit;
 	if (!programDirectory) {
-		throw new Error(`Not found: ${name}`);
+		throw new SearchError(`Not found: ${name}`);
 	}
 
 	const programExec = env.execute(

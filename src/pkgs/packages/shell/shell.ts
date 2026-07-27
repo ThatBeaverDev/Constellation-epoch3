@@ -327,27 +327,36 @@ export async function shellImpl(
 					leaveInputOnCompletion: false
 				});
 
-				try {
-					return await executeCommand(
-						{
-							name: command.args[0],
-							args: command.args.slice(1),
-							output: command.output
-						},
-						input,
-						{ uid: 0, password }
-					);
-				} catch (e) {
-					if (
-						e instanceof Error &&
-						e.message.includes("Password is incorrect")
-					) {
-						result.push([
-							{ text: "sudo: ", colour: "#888888" },
-							{ text: "Incorrect password" }
-						]);
-					} else {
-						result.push(`${e}`);
+				const correct = await env.users.validatePassword(0, password);
+
+				if (!correct) {
+					result.push([
+						{ text: "sudo: ", colour: "#888888" },
+						{ text: "Incorrect password" }
+					]);
+				} else {
+					try {
+						return await executeCommand(
+							{
+								name: command.args[0],
+								args: command.args.slice(1),
+								output: command.output
+							},
+							input,
+							{ uid: 0, password }
+						);
+					} catch (e) {
+						if (
+							e instanceof Error &&
+							e.message.includes("Password is incorrect")
+						) {
+							result.push([
+								{ text: "sudo: ", colour: "#888888" },
+								{ text: "Incorrect password" }
+							]);
+						} else {
+							result.push(`${e}`);
+						}
 					}
 				}
 
@@ -400,12 +409,21 @@ export async function shellImpl(
 						}
 					);
 				} catch (e) {
-					const log: Log = [
-						{ text: "shell: ", colour: "#888888" },
-						{ text: "command not found: " },
-						{ text: command.name }
-					];
-					result.push(log);
+					if (e instanceof Error && e.name == "SearchError") {
+						const log: Log = [
+							{ text: "shell: ", colour: "#888888" },
+							{ text: "command not found: " },
+							{ text: command.name }
+						];
+						result.push(log);
+					} else {
+						const log: Log = [
+							{ text: "shell: ", colour: "#888888" },
+							{ text: e instanceof Error ? e.message : `${e}` }
+						];
+						result.push(log);
+					}
+
 					break;
 				}
 
