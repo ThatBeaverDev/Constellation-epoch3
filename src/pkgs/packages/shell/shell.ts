@@ -444,7 +444,10 @@ export async function shellImpl(
 				passEvent("resize");
 
 				// logs were already added live
-				const { return: programResult } = await programExec.onExit;
+				const { return: programResult, logs: liveLogs } =
+					await programExec.onExit;
+
+				if (liveLogs) result.push(...liveLogs);
 
 				for (const name in eventHandlers) {
 					// @ts-expect-error
@@ -458,7 +461,10 @@ export async function shellImpl(
 
 				const returnLogs = programResult;
 
-				if (returnLogs) result.push(returnLogs);
+				if (returnLogs) {
+					io.print(returnLogs);
+					result.push(returnLogs);
+				}
 		}
 
 		if (command.output) {
@@ -477,7 +483,7 @@ export async function shellImpl(
 
 					break;
 			}
-		} else return result;
+		}
 	}
 
 	function inputQuery() {
