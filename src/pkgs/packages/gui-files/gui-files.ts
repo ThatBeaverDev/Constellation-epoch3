@@ -5,8 +5,8 @@ import {
 } from "../../../util/lib/colours";
 import { execGuiName } from "../../../util/lib/exec";
 import { Environment } from "../../../util/types/worker";
-import GuiWindow from "../gui/lib.gui";
 import { WindowContentItem } from "../gui/types/windowContents";
+import include from "../../../util/lib/include";
 
 // @app-name: Files
 
@@ -42,6 +42,8 @@ export default async function* FilesApp(env: Environment) {
 				return socketColour;
 		}
 	}
+
+	const { default: GuiWindow } = await include(env, "lib-gui");
 
 	const lib = new GuiWindow(env);
 	await lib.init("Files");

@@ -6,8 +6,8 @@ import {
 import { logToString } from "../../../util/lib/logs";
 import { sleep } from "../../../util/lib/time";
 import { Environment, Log } from "../../../util/types/worker";
-import GuiWindow from "../gui/lib.gui";
 import { WindowContentItem, WindowText } from "../gui/types/windowContents";
+import include from "../../../util/lib/include";
 
 // @app-name: Preview
 // @app-palette-show: false
@@ -65,6 +65,8 @@ export default async function* previewFile(
 	input?: Log
 ) {
 	const windowName = file ? file.textAfterAll("/") : "Preview";
+
+	const { default: GuiWindow } = await include(env, "lib-gui");
 
 	const gui = new GuiWindow(env);
 	const guiInit = gui.init(windowName);

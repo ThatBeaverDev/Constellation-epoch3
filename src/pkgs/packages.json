@@ -20,11 +20,11 @@
 		},
 		"installd": {
 			"author": "ThatBeaverDev",
-			"published": 1780599559483
+			"published": 1785140266261
 		},
 		"pkg": {
 			"author": "ThatBeaverDev",
-			"published": 1785081517410
+			"published": 1785140266261
 		},
 		"core-utils": {
 			"author": "ThatBeaverDev",
@@ -152,7 +152,7 @@
 		},
 		"useradd": {
 			"author": "ThatBeaverDev",
-			"published": 0
+			"published": 1785140266261
 		},
 		"userlist": {
 			"author": "ThatBeaverDev",
@@ -188,20 +188,27 @@
 		},
 		"gui": {
 			"author": "ThatBeaverDev",
-			"published": 1785135630257
+			"published": 1785140266261,
+			"dependencies": ["lib-gui"]
+		},
+		"lib-gui": {
+			"author": "ThatBeaverDev",
+			"published": 1785140266261
 		},
 		"gui-terminal": {
 			"author": "ThatBeaverDev",
-			"published": 1785135630257
+			"published": 1785140266261,
+			"dependencies": ["lib-gui"]
 		},
 		"gui-files": {
 			"author": "ThatBeaverDev",
-			"published": 1785135630257,
-			"dependencies": ["gui-preview"]
+			"published": 1785140266261,
+			"dependencies": ["lib-gui", "gui-preview"]
 		},
 		"gui-preview": {
 			"author": "ThatBeaverDev",
-			"published": 1785135630257
+			"published": 1785140266261,
+			"dependencies": ["lib-gui"]
 		}
 	}
 }

@@ -1,6 +1,6 @@
+import include from "../../../util/lib/include";
 import { logToArrayLog, logToString } from "../../../util/lib/logs";
 import { ArrayLog, Environment, InputConfig } from "../../../util/types/worker";
-import GuiWindow from "../gui/lib.gui";
 import { WindowText, WindowTextBox } from "../gui/types/windowContents";
 import { Shell_IO, shellImpl } from "../shell/shell";
 
@@ -10,6 +10,8 @@ export default async function* TerminalApp(
 	env: Environment,
 	[command]: [string | undefined]
 ) {
+	const { default: GuiWindow } = await include(env, "lib-gui");
+
 	const lib = new GuiWindow(env);
 	await lib.init("Terminal");
 

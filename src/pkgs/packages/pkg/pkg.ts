@@ -32,6 +32,14 @@ export interface Package extends RemotePackage {
 	files: string[];
 }
 
+function getMainPath(name: string) {
+	if (name.startsWith("lib-")) {
+		return `/lib/${name}.js`;
+	}
+
+	return `/bin/${name}.js`;
+}
+
 export default async function* packageInstall(
 	env: Environment,
 	[command, subcommand, ...finalParams]: Partial<string[]>
@@ -209,7 +217,7 @@ export default async function* packageInstall(
 					);
 
 					const main = packageInfo.main ?? true;
-					const binpath = `/bin/${packageName}.js`;
+					const binpath = getMainPath(packageName);
 					if (main) {
 						let sourceRequest = await fetch(
 							url + `/packages/${packageName}/${packageName}.js`
@@ -556,7 +564,7 @@ export default async function* packageInstall(
 					continue;
 				}
 
-				const binpath = `/bin/${packageName}.js`;
+				const binpath = getMainPath(packageName);
 
 				await env.fs.writeFile(binpath, source);
 

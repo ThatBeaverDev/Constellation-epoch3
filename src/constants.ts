@@ -17,5 +17,5 @@ export const WORKER_READ_BLACKLIST: Set<string> = new Set([
 	...WORKER_READ_ROOT_BLACKLIST
 ]);
 
-export const USER_FOLDERS = ["data", "config", "bin"];
+export const USER_FOLDERS = ["data", "config", "bin", "lib"];
 export const ALLOWED_PROXY_EVENTS = new Set(["keyup", "keydown", "resize"]);

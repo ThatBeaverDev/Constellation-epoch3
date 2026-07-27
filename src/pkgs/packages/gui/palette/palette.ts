@@ -1,27 +1,29 @@
 import Fuse from "fuse.js";
 import { Environment } from "../../../../util/types/worker";
-import GuiWindow from "../lib.gui";
+import type GuiWindow from "../../lib-gui/lib-gui";
 import { WindowContentItem } from "../types/windowContents";
 import WindowManager, { PaletteIndex } from "../windows";
 import { AppMetadata, getAppMetadata } from "../../../../util/lib/appMetadata";
 import { flatPromiseMap } from "../../../../util/lib/arrays";
+import include from "../../../../util/lib/include";
 
 export const paletteWidth = 500;
 export const paletteHeight = 750;
 
 const paletteSearchIdentifier = "paletteSearch";
 export default class PaletteHandler {
-	#guiLib: GuiWindow;
+	#guiLib?: GuiWindow;
 	#searchTerm: string = "";
 
 	constructor(
 		public env: Environment,
 		public windowSystem: WindowManager
-	) {
-		this.#guiLib = new GuiWindow(env);
-	}
+	) {}
 
 	async init() {
+		const { default: GuiWindow } = await include(this.env, "lib-gui");
+
+		this.#guiLib = new GuiWindow(this.env);
 		await this.#guiLib.init("Palette");
 
 		this.#guiLib.onTextboxCompletion = (contents, reference) => {
@@ -72,6 +74,8 @@ export default class PaletteHandler {
 	}
 
 	resetSearchQuery() {
+		if (!this.#guiLib) return;
+
 		this.#guiLib.setTextboxContents(paletteSearchIdentifier, "");
 	}
 
@@ -195,6 +199,8 @@ export default class PaletteHandler {
 				))
 			);
 		}
+
+		if (!this.#guiLib) return;
 
 		this.#guiLib.setPointerPosition(0);
 		this.#guiLib.setContents(items);

@@ -40,6 +40,7 @@ export default async function* install(
 		}
 		await env.fs.mkdir("/users");
 		await env.fs.createAlias("/sbin", "/bin");
+		await env.fs.createAlias("/slib", "/lib");
 
 		let installerJSON: InstallationDataFile;
 		try {

@@ -4,10 +4,10 @@ import {
 	GUI_SOCKET_PATH,
 	unfocusedWindowStroke,
 	windowFill
-} from "./constants";
-import { GuiIngoing } from "./types/gui.ingoing";
-import { GuiOutgoing } from "./types/gui.outgoing";
-import { WindowContentItem } from "./types/windowContents";
+} from "../gui/constants";
+import { GuiIngoing } from "../gui/types/gui.ingoing";
+import { GuiOutgoing } from "../gui/types/gui.outgoing";
+import { WindowContentItem } from "../gui/types/windowContents";
 
 export default class GuiWindow {
 	#socketConnection?: SocketConnection<GuiIngoing, GuiOutgoing>;
