@@ -3,6 +3,8 @@ import { Environment } from "../../../../util/types/worker";
 import GuiWindow from "../lib.gui";
 import { WindowContentItem } from "../types/windowContents";
 import WindowManager, { PaletteIndex } from "../windows";
+import { AppMetadata, getAppMetadata } from "../../../../util/lib/appMetadata";
+import { flatPromiseMap } from "../../../../util/lib/arrays";
 
 export const paletteWidth = 500;
 export const paletteHeight = 750;
@@ -75,7 +77,25 @@ export default class PaletteHandler {
 
 	#indexCache?: PaletteIndex;
 	#topResult?: PaletteIndex[0];
-	update(idx?: PaletteIndex) {
+	#appMetadataCache: Record<string, AppMetadata | null | void> = {};
+	async #appMetadata(directory: string) {
+		const cacheValue = this.#appMetadataCache[directory];
+		if (cacheValue || (cacheValue == null && cacheValue !== undefined)) {
+			return this.#appMetadataCache[directory];
+		}
+
+		const metadata = await getAppMetadata(this.env, directory);
+
+		if (metadata) {
+			this.#appMetadataCache[directory] = metadata;
+		} else {
+			this.#appMetadataCache[directory] = null;
+		}
+
+		return metadata;
+	}
+
+	async update(idx?: PaletteIndex) {
 		const items: WindowContentItem[] = [];
 
 		const index = idx ?? this.#indexCache;
@@ -107,19 +127,72 @@ export default class PaletteHandler {
 		const results = searcher.search(this.#searchTerm);
 		this.#topResult = results[0]?.item;
 
+		const baseY = y;
 		if (this.#searchTerm.trim().length > 2) {
 			items.push(
-				...results.map((result): WindowContentItem => {
-					y += lineHeight;
+				...(await flatPromiseMap(
+					results,
+					async (result, i): Promise<WindowContentItem[] | void> => {
+						const y = baseY + (i + 1) * lineHeight;
 
-					return {
-						type: "button",
-						text: result.item?.name,
-						x: 5,
-						y: y,
-						identifier: result.item?.directory
-					};
-				})
+						const metadata = await this.#appMetadata(
+							result.item.directory
+						);
+
+						if (metadata?.["app-palette-show"] == "false") {
+							return undefined;
+						}
+
+						return [
+							{
+								type: "button",
+								text:
+									metadata?.["app-name"] ?? result.item?.name,
+								x: 5,
+								y: y,
+								identifier: result.item?.directory
+							}
+						];
+					}
+				))
+			);
+		} else {
+			y += lineHeight * 3;
+
+			const baseY = y;
+			items.push(
+				{
+					type: "text",
+					text: "Apps",
+					x: 5,
+					y: y - lineHeight,
+					fontSize: 30
+				},
+
+				...(await flatPromiseMap(
+					index,
+					async (item, i): Promise<WindowContentItem[] | void> => {
+						const y = baseY + (i + 1) * lineHeight;
+
+						const metadata = await this.#appMetadata(
+							item.directory
+						);
+
+						if (metadata?.["app-palette-show"] == "false") {
+							return undefined;
+						}
+
+						return [
+							{
+								type: "button",
+								text: metadata?.["app-name"] ?? item?.name,
+								x: 5,
+								y: y,
+								identifier: item?.directory
+							}
+						];
+					}
+				))
 			);
 		}
 

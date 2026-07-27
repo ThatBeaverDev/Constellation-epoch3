@@ -8,6 +8,8 @@ import { Environment } from "../../../util/types/worker";
 import GuiWindow from "../gui/lib.gui";
 import { WindowContentItem } from "../gui/types/windowContents";
 
+// @app-name: Files
+
 function header(width: number, path: string) {
 	const height = 50;
 

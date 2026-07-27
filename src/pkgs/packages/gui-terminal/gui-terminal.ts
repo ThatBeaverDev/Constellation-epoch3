@@ -4,6 +4,8 @@ import GuiWindow from "../gui/lib.gui";
 import { WindowText, WindowTextBox } from "../gui/types/windowContents";
 import { Shell_IO, shellImpl } from "../shell/shell";
 
+// @app-name: Terminal
+
 export default async function* TerminalApp(
 	env: Environment,
 	[command]: [string | undefined]

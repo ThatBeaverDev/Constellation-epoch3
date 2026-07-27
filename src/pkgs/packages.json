@@ -188,20 +188,20 @@
 		},
 		"gui": {
 			"author": "ThatBeaverDev",
-			"published": 1785081174582
+			"published": 1785135630257
 		},
 		"gui-terminal": {
 			"author": "ThatBeaverDev",
-			"published": 1785081174582
+			"published": 1785135630257
 		},
 		"gui-files": {
 			"author": "ThatBeaverDev",
-			"published": 1785081174582,
+			"published": 1785135630257,
 			"dependencies": ["gui-preview"]
 		},
 		"gui-preview": {
 			"author": "ThatBeaverDev",
-			"published": 1785081174582
+			"published": 1785135630257
 		}
 	}
 }

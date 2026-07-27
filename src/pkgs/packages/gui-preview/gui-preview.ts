@@ -9,6 +9,9 @@ import { Environment, Log } from "../../../util/types/worker";
 import GuiWindow from "../gui/lib.gui";
 import { WindowContentItem, WindowText } from "../gui/types/windowContents";
 
+// @app-name: Preview
+// @app-palette-show: false
+
 async function getData(env: Environment, file?: string, input?: Log) {
 	if (file) {
 		return await env.fs.readFile(file);
