@@ -1,4 +1,6 @@
-import { Environment } from "../../../util/types/worker";
+import { execName } from "../../../util/lib/exec";
+import { sleep } from "../../../util/lib/time";
+import { Environment, KeyPressData } from "../../../util/types/worker";
 import {
 	DEFAULT_WALLAPER,
 	focusedWindowStroke,
@@ -24,6 +26,27 @@ export interface GuiState {
 export default async function* GraphicalEnvironment(env: Environment) {
 	const isNew = await env.fs.mkdir(GUI_DATA_PATH);
 	await env.fs.mkdir(WALLPAPER_INDEX_PATH);
+
+	let shell = false;
+	function onPress(key: KeyPressData) {
+		if (key.name == "s") {
+			shell = true;
+		}
+	}
+
+	env.addEventListener("keydown", onPress);
+
+	env.print([{ text: "Loading GUI..." }]);
+	await sleep(500);
+	env.removeEventListener("keydown", onPress);
+
+	if (shell) {
+		const exec = await execName(env, "shell", undefined, {
+			handOverDisplay: true
+		});
+
+		await exec.onExit;
+	}
 
 	async function renderCanvas(
 		widthPx: number,
