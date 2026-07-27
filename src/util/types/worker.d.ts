@@ -306,6 +306,22 @@ export interface Environment {
 			data: EventMap[K]
 		): void;
 	}>;
+	execute(
+		path: string,
+		args?: string[],
+		config?: {
+			handOverDisplay?: boolean;
+			input?: Log[];
+			outputProxy?: WorkerOutputProxy;
+			user?: { uid: number; password: string };
+		}
+	): Promise<{
+		onExit: Promise<{ return?: Log; logs: Log[] }>;
+		triggerProxyEvent<K extends "keydown" | "keyup" | "resize">(
+			name: K,
+			data: EventMap[K]
+		): void;
+	}>;
 
 	/**
 	 * Provides a list of processes and basic information
