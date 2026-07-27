@@ -188,12 +188,12 @@
 		},
 		"gui": {
 			"author": "ThatBeaverDev",
-			"published": 1785140266261,
+			"published": 1785153500067,
 			"dependencies": ["lib-gui"]
 		},
 		"lib-gui": {
 			"author": "ThatBeaverDev",
-			"published": 1785140266261
+			"published": 1785153500067
 		},
 		"gui-terminal": {
 			"author": "ThatBeaverDev",

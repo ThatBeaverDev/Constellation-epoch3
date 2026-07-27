@@ -88,7 +88,6 @@ export default class GuiWindow {
 					break;
 
 				default:
-					// @ts-expect-error
 					console.warn(`Unhandled GUI message intent: ${msg.intent}`);
 			}
 		};

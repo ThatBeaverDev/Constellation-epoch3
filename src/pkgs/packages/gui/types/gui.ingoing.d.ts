@@ -29,8 +29,13 @@ export interface GuiResetPointerIngoing {
 	pos?: number;
 }
 
+export interface GuiScreenInfoIngoing {
+	intent: "screenInfo";
+}
+
 export type GuiIngoing =
 	| GuiNewWindowIngoing
 	| GuiSetWindowContentsIngoing
 	| GuiSetTextboxContentsIngoing
-	| GuiResetPointerIngoing;
+	| GuiResetPointerIngoing
+	| GuiScreenInfoIngoing;

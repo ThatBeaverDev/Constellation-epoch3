@@ -44,10 +44,17 @@ export interface GuiWindowResizeOutgoing {
 	height: number;
 }
 
+export interface GuiScreenInfoOutgoing {
+	intent: "screenInfo";
+	width: number;
+	height: number;
+}
+
 export type GuiOutgoing =
 	| GuiKeypressOutgoing
 	| GuiWindowCloseOutgoing
 	| GuiTextboxCompleteOutgoing
 	| GuiTextboxValueChangeOutgoing
 	| GuiButtonPressOutgoing
-	| GuiWindowResizeOutgoing;
+	| GuiWindowResizeOutgoing
+	| GuiScreenInfoOutgoing;

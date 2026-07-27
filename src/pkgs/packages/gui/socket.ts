@@ -182,6 +182,16 @@ export default class SocketManager {
 					break;
 				}
 
+				case "screenInfo": {
+					this.socketServer.sendMessage(client.pid, {
+						intent: "screenInfo",
+
+						width: this.windowManager.state.width,
+						height: this.windowManager.state.height
+					});
+					break;
+				}
+
 				default: {
 					// @ts-expect-error
 					console.warn("Unknown message intent:", msg.intent);
