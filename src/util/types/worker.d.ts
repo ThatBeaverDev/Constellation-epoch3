@@ -419,17 +419,19 @@ export interface Environment {
 	exit(): void;
 }
 
+export type SocketClient = { pid: number };
+
 export interface SocketServer<
 	OutgoingType extends Object = any,
 	IncomingType extends Object = any
 > {
 	directory: string;
 
-	onClientConnect?: (client: { pid: number }) => any;
-	onClientDisconnect?: (client: { pid: number }) => any;
+	onClientConnect?: (client: SocketClient) => any;
+	onClientDisconnect?: (client: SocketClient) => any;
 
 	onMessage:
-		undefined | ((client: { pid: number }, payload: IncomingType) => any);
+		undefined | ((client: SocketClient, payload: IncomingType) => any);
 	sendMessage(clientPid: number, payload: OutgoingType): void;
 
 	exit(): void;
