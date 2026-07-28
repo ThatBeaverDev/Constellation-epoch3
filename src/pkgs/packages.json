@@ -188,7 +188,7 @@
 		},
 		"gui": {
 			"author": "ThatBeaverDev",
-			"published": 1785225919822,
+			"published": 1785225949574,
 			"dependencies": ["lib-gui"]
 		},
 		"lib-gui": {
@@ -197,17 +197,17 @@
 		},
 		"gui-terminal": {
 			"author": "ThatBeaverDev",
-			"published": 1785140266261,
+			"published": 1785225949574,
 			"dependencies": ["lib-gui"]
 		},
 		"gui-files": {
 			"author": "ThatBeaverDev",
-			"published": 1785140266261,
+			"published": 1785225949574,
 			"dependencies": ["lib-gui", "gui-preview"]
 		},
 		"gui-preview": {
 			"author": "ThatBeaverDev",
-			"published": 1785140266261,
+			"published": 1785225949574,
 			"dependencies": ["lib-gui"]
 		}
 	}

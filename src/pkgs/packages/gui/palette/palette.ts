@@ -1,7 +1,12 @@
 import Fuse from "fuse.js";
 import { Environment } from "../../../../util/types/worker";
 import type GuiWindow from "../../lib-gui/lib-gui";
-import { WindowContentItem } from "../types/windowContents";
+import {
+	WindowBox,
+	WindowContentItem,
+	WindowImage,
+	WindowText
+} from "../types/windowContents";
 import WindowManager, { PaletteIndex } from "../windows";
 import { AppMetadata, getAppMetadata } from "../../../../util/lib/appMetadata";
 import { flatPromiseMap } from "../../../../util/lib/arrays";
@@ -116,7 +121,7 @@ export default class PaletteHandler {
 			y: 5
 		});
 
-		const lineHeight = 25;
+		const lineHeight = 30;
 		let y = 5;
 
 		const searcher = new Fuse(
@@ -131,6 +136,49 @@ export default class PaletteHandler {
 		const results = searcher.search(this.#searchTerm);
 		this.#topResult = results[0]?.item;
 
+		const appPaletteEntry = async (
+			y: number,
+			item: { directory: string; name: string }
+		) => {
+			const metadata = await this.#appMetadata(item.directory);
+
+			if (metadata?.["app-palette-show"] == "false") {
+				return undefined;
+			}
+
+			const icon = metadata?.["app-icon"];
+			const name = metadata?.["app-name"] ?? item?.name;
+
+			return [
+				{
+					type: "box",
+					x: 5,
+					y: y - 5,
+					width: (this.#guiLib?.dimensions.width ?? 100) - 10,
+					height: lineHeight,
+
+					identifier: item?.directory
+				} as WindowBox,
+				{
+					type: "text",
+					text: name,
+					x: icon ? 35 : 5,
+					y: y
+				} as WindowText,
+				icon
+					? ({
+							type: "image",
+							x: 10,
+							y: y - 1,
+							width: 20,
+							height: 20,
+							sourceType: "url",
+							source: icon
+						} as WindowImage)
+					: undefined
+			].filter((item) => item !== undefined);
+		};
+
 		const baseY = y;
 		if (this.#searchTerm.trim().length > 2) {
 			items.push(
@@ -139,24 +187,7 @@ export default class PaletteHandler {
 					async (result, i): Promise<WindowContentItem[] | void> => {
 						const y = baseY + (i + 1) * lineHeight;
 
-						const metadata = await this.#appMetadata(
-							result.item.directory
-						);
-
-						if (metadata?.["app-palette-show"] == "false") {
-							return undefined;
-						}
-
-						return [
-							{
-								type: "button",
-								text:
-									metadata?.["app-name"] ?? result.item?.name,
-								x: 5,
-								y: y,
-								identifier: result.item?.directory
-							}
-						];
+						return await appPaletteEntry(y, result.item);
 					}
 				))
 			);
@@ -178,23 +209,7 @@ export default class PaletteHandler {
 					async (item, i): Promise<WindowContentItem[] | void> => {
 						const y = baseY + (i + 1) * lineHeight;
 
-						const metadata = await this.#appMetadata(
-							item.directory
-						);
-
-						if (metadata?.["app-palette-show"] == "false") {
-							return undefined;
-						}
-
-						return [
-							{
-								type: "button",
-								text: metadata?.["app-name"] ?? item?.name,
-								x: 5,
-								y: y,
-								identifier: item?.directory
-							}
-						];
+						return await appPaletteEntry(y, item);
 					}
 				))
 			);

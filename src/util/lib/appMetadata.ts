@@ -1,10 +1,11 @@
 import { Environment } from "../types/worker";
 
-const metadataKeys = new Set(["app-name", "app-palette-show"]);
+const metadataKeys = new Set(["app-name", "app-palette-show", "app-icon"]);
 
 export interface AppMetadata {
 	"app-name"?: string;
 	"app-palette-show"?: string;
+	"app-icon"?: string;
 }
 
 export async function getAppMetadata(
