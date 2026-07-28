@@ -9,44 +9,25 @@ class SearchError extends Error {
 	}
 }
 
-export async function execName(
-	env: Environment,
-	name: string,
-	args?: string[],
-	config?: Parameters<Environment["execute"]>[2]
-) {
+export async function resolveName(env: Environment, name: string) {
 	const envExec = await env.execute("/sbin/env.js", [name]);
 	const { return: programDirectory } = await envExec.onExit;
 	if (!programDirectory) {
 		throw new SearchError(`Not found: ${name}`);
 	}
 
-	const programExec = env.execute(
-		logToString(programDirectory),
-		args,
-		config
-	);
-
-	return programExec;
+	return logToString(programDirectory);
 }
 
-export async function execGuiName(
+export async function execName(
 	env: Environment,
 	name: string,
 	args?: string[],
 	config?: Parameters<Environment["execute"]>[2]
 ) {
-	const envExec = await env.execute("/sbin/env.js", [`gui-${name}`]);
-	const { return: programDirectory } = await envExec.onExit;
-	if (!programDirectory) {
-		throw new SearchError(`Not found: ${name}`);
-	}
+	const programDirectory = await resolveName(env, name);
 
-	const programExec = env.execute(
-		logToString(programDirectory),
-		args,
-		config
-	);
+	const programExec = env.execute(programDirectory, args, config);
 
 	return programExec;
 }

@@ -3,7 +3,7 @@ import {
 	executableColour,
 	socketColour
 } from "../../../util/lib/colours";
-import { execGuiName } from "../../../util/lib/exec";
+import { execName } from "../../../util/lib/exec";
 import { Environment } from "../../../util/types/worker";
 import { WindowContentItem } from "../gui/types/windowContents";
 import include from "../../../util/lib/include";
@@ -56,7 +56,7 @@ export default async function* FilesApp(env: Environment) {
 			const buttonPath = reference.substring(7);
 
 			if (triggerMethod == "space") {
-				await execGuiName(env, "preview", [buttonPath]);
+				await execName(env, "gui-preview", [buttonPath]);
 				return;
 			}
 
@@ -70,7 +70,7 @@ export default async function* FilesApp(env: Environment) {
 
 				case "file":
 					if (buttonPath.endsWith(".js")) {
-						await execGuiName(env, "terminal", [buttonPath]);
+						await execName(env, "gui-terminal", [buttonPath]);
 					}
 
 					break;

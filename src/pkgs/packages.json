@@ -184,7 +184,13 @@
 			"author": "ThatBeaverDev",
 			"published": 0,
 			"main": false,
-			"dependencies": ["gui", "gui-terminal", "gui-files", "gui-preview"]
+			"dependencies": [
+				"gui",
+				"gui-terminal",
+				"gui-files",
+				"gui-preview",
+				"gui-rotur"
+			]
 		},
 		"gui": {
 			"author": "ThatBeaverDev",
@@ -202,13 +208,23 @@
 		},
 		"gui-files": {
 			"author": "ThatBeaverDev",
-			"published": 1785235949195,
+			"published": 1785268742160,
 			"dependencies": ["lib-gui", "gui-preview"]
 		},
 		"gui-preview": {
 			"author": "ThatBeaverDev",
 			"published": 1785234420972,
 			"dependencies": ["lib-gui"]
+		},
+		"lib-rotur": {
+			"author": "ThatBeaverDev",
+			"published": 0,
+			"dependencies": ["roturd"]
+		},
+		"gui-rotur": {
+			"author": "ThatBeaverDev",
+			"published": 0,
+			"dependencies": ["lib-rotur"]
 		}
 	}
 }
