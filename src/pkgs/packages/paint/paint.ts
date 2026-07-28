@@ -56,12 +56,16 @@ export default async function* microsoftPaint(
 	env: Environment,
 	[file = ".__non_entered"]: [string]
 ) {
-	const canvasWidth = 1000;
-	const canvasHeight = 1000;
+	const canvasWidth = 1024;
+	const canvasHeight = 1024;
 
-	const canvasPenScaling = 50;
-	const canvasIncrementX = canvasWidth / canvasPenScaling;
-	const canvasIncrementY = canvasHeight / canvasPenScaling;
+	const sides = Number(await env.input("Side lengths: "));
+	if (isNaN(sides)) {
+		return "Side length must be a number.";
+	}
+
+	const canvasIncrementX = canvasWidth / sides;
+	const canvasIncrementY = canvasHeight / sides;
 
 	const drawingCanvas = new OffscreenCanvas(canvasWidth, canvasHeight);
 	const drawingCtx = drawingCanvas.getContext("2d");
@@ -106,6 +110,7 @@ export default async function* microsoftPaint(
 
 	let input = false;
 	let allowNext = 0;
+	const blanks = new Set(["transparent", "blank", "none"]);
 	env.addEventListener("keydown", async (event) => {
 		if (input) return;
 		const now = Date.now();
@@ -114,16 +119,16 @@ export default async function* microsoftPaint(
 
 		switch (event.name) {
 			case "w":
-				penY = clamp(penY - 1, 0, 50);
+				penY = clamp(penY - 1, 0, sides - 1);
 				break;
 			case "a":
-				penX = clamp(penX - 1, 0, 50);
+				penX = clamp(penX - 1, 0, sides - 1);
 				break;
 			case "s":
-				penY = clamp(penY + 1, 0, 50);
+				penY = clamp(penY + 1, 0, sides - 1);
 				break;
 			case "d":
-				penX = clamp(penX + 1, 0, 50);
+				penX = clamp(penX + 1, 0, sides - 1);
 				break;
 
 			case "q":
@@ -135,7 +140,9 @@ export default async function* microsoftPaint(
 
 			case "c":
 				input = true;
-				const newColour = await env.input("Enter a hex colour: ");
+				const newColour = await env.input("Enter a hex colour: ", {
+					leaveInputOnCompletion: false
+				});
 				input = false;
 				penColour = newColour;
 				break;
@@ -176,12 +183,21 @@ export default async function* microsoftPaint(
 			const penCanvasX = penX * canvasIncrementX;
 			const penCanvasY = penY * canvasIncrementX;
 
-			rect(
-				drawingCtx,
-				penColour,
-				[penCanvasX, penCanvasY],
-				[canvasIncrementX, canvasIncrementX]
-			);
+			if (blanks.has(penColour)) {
+				drawingCtx.clearRect(
+					penCanvasX,
+					penCanvasY,
+					canvasIncrementX,
+					canvasIncrementY
+				);
+			} else {
+				rect(
+					drawingCtx,
+					penColour,
+					[penCanvasX, penCanvasY],
+					[canvasIncrementX, canvasIncrementY]
+				);
+			}
 		}
 
 		/* ----- Ready display canvas to be displayed ----- */
@@ -248,13 +264,22 @@ export default async function* microsoftPaint(
 		]);
 	});
 
-	env.print([
-		{
-			text: "Commands:\n\n- W: Move cursor up by one\n- A: Move cursor left by one\n- S: Move cursor down by one\n- D: Move cursor right by one\n\n- Q - Move Brush Down (start drawing)\n- E - Move Brush Up (stop drawing)\n- C - Set colour\n\n- X - Exit\n- R - Save image.\n"
-		},
-		{ type: "liveCanvas", id: canvasId, width: 50, height: 50 }
-	]);
+	env.addEventListener("resize", async (dimensions) => {
+		env.clearLogs();
+		env.print([
+			{
+				text: "Commands:\n\n- W: Move cursor up by one\n- A: Move cursor left by one\n- S: Move cursor down by one\n- D: Move cursor right by one\n\n- Q - Move Brush Down (start drawing)\n- E - Move Brush Up (stop drawing)\n- C - Set colour\n\n- X - Exit\n- R - Save image.\n"
+			},
+			{
+				type: "liveCanvas",
+				id: canvasId,
+				width: dimensions.width / 15,
+				height: dimensions.height / 15 - 13
+			}
+		]);
+	});
 
+	env.triggerEvent("resize", await env.terminalDimensions());
 	env.triggerEvent("keydown", {
 		name: "e",
 		alt: false,
