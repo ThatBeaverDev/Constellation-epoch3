@@ -212,18 +212,9 @@ export function implementWorkerFS(
 	) => void,
 	fs: FilesystemInterface,
 	users: UsersManager,
-	getUser: () => User
+	getUser: () => User,
+	reroot: (path: string) => string
 ) {
-	function reroot(path: string) {
-		const user = getUser();
-
-		if (path[0] == "/") {
-			return user.home + path;
-		} else {
-			return user.home + "/" + path;
-		}
-	}
-
 	handle("fs_readFile", async ({ path, format }) => {
 		path = reroot(path);
 		await tryReadFile(path, users, getUser());

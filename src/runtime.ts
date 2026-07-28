@@ -240,18 +240,27 @@ export default class Runtime {
 			return __program;
 		};
 
+		function reroot(path: string) {
+			if (path.split("/").at(-1)?.trim?.() == "§") {
+				const rerooted = getProgram().directory;
+
+				return rerooted;
+			} else {
+				const user = getProgram().user;
+
+				const rerooted = join(user.home, path);
+
+				return rerooted;
+			}
+		}
+
 		implementWorkerFS(
 			handle,
 			this.#fs,
 			this.#kernel.users,
-			() => getProgram().user
+			() => getProgram().user,
+			reroot
 		);
-
-		function reroot(path: string) {
-			const user = getProgram().user;
-
-			return join(user.home, path);
-		}
 
 		handle("program_log", ({ data }) => {
 			const program = getProgram();
