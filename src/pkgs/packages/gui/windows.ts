@@ -11,7 +11,7 @@ import {
 	unfocusedWindowStroke,
 	windowFill
 } from "./constants";
-import { AppMetadata } from "../../../util/lib/appMetadata";
+import { AppMetadata, getAppMetadata } from "../../../util/lib/appMetadata";
 
 export interface WindowInfo {
 	window: Window;
@@ -21,7 +21,11 @@ export interface WindowInfo {
 	height: number;
 }
 
-export type PaletteIndex = { directory: string; name: string }[];
+export type PaletteIndex = {
+	directory: string;
+	name: string;
+	metadata: AppMetadata;
+}[];
 
 const headerHeight = 50;
 
@@ -456,10 +460,18 @@ export default class WindowManager {
 					if (stats.type == "file") {
 						names.add(name.substring(4));
 
-						index.push({
-							directory: fullPath,
-							name: name.substring(4)
-						});
+						const metadata = await getAppMetadata(
+							this.env,
+							fullPath
+						);
+
+						if (metadata["app-palette-show"] !== "false") {
+							index.push({
+								directory: fullPath,
+								name: name.substring(4),
+								metadata
+							});
+						}
 					}
 				}
 			} catch (e) {

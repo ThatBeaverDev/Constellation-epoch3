@@ -49,3 +49,7 @@ export async function getAppMetadata(
 
 	return result;
 }
+
+export async function fallbackAppMetadata() {
+	return { "app-icon": fallbackIcon };
+}

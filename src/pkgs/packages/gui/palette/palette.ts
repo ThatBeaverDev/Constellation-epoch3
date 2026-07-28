@@ -8,7 +8,7 @@ import {
 	WindowText
 } from "../types/windowContents";
 import WindowManager, { PaletteIndex } from "../windows";
-import { AppMetadata, getAppMetadata } from "../../../../util/lib/appMetadata";
+import { fallbackAppMetadata } from "../../../../util/lib/appMetadata";
 import { flatPromiseMap } from "../../../../util/lib/arrays";
 import include from "../../../../util/lib/include";
 
@@ -89,24 +89,6 @@ export default class PaletteHandler {
 
 	#indexCache?: PaletteIndex;
 	#topResult?: PaletteIndex[0];
-	#appMetadataCache: Record<string, AppMetadata | null | void> = {};
-	async #appMetadata(directory: string) {
-		const cacheValue = this.#appMetadataCache[directory];
-		if (cacheValue || (cacheValue == null && cacheValue !== undefined)) {
-			return this.#appMetadataCache[directory];
-		}
-
-		const metadata = await getAppMetadata(this.env, directory);
-
-		if (metadata) {
-			this.#appMetadataCache[directory] = metadata;
-		} else {
-			this.#appMetadataCache[directory] = null;
-		}
-
-		return metadata;
-	}
-
 	async update(idx?: PaletteIndex) {
 		const items: WindowContentItem[] = [];
 
@@ -128,7 +110,14 @@ export default class PaletteHandler {
 		let y = 5;
 
 		const searcher = new Fuse(
-			[...index, { name: "Help", directory: "gui://showHelp" }],
+			[
+				...index,
+				{
+					name: "Help",
+					directory: "gui://showHelp",
+					metadata: await fallbackAppMetadata()
+				}
+			],
 			{
 				keys: ["name", "directory"],
 				isCaseSensitive: false,
@@ -139,18 +128,13 @@ export default class PaletteHandler {
 		const results = searcher.search(this.#searchTerm);
 		this.#topResult = results[0]?.item;
 
-		const appPaletteEntry = async (
-			y: number,
-			item: { directory: string; name: string }
-		) => {
-			const metadata = await this.#appMetadata(item.directory);
-
-			if (metadata?.["app-palette-show"] == "false") {
+		const appPaletteEntry = async (y: number, item: PaletteIndex[0]) => {
+			if (item.metadata?.["app-palette-show"] == "false") {
 				return undefined;
 			}
 
-			const icon = metadata?.["app-icon"];
-			const name = metadata?.["app-name"] ?? item?.name;
+			const icon = item.metadata?.["app-icon"];
+			const name = item.metadata?.["app-name"] ?? item?.name;
 
 			return [
 				{
