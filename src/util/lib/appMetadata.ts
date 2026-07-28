@@ -47,7 +47,5 @@ export async function getAppMetadata(
 		"app-icon": partial["app-icon"] ?? fallbackIcon
 	};
 
-	console.error(directory, partial, result);
-
 	return result;
 }
