@@ -142,6 +142,15 @@ export default class WindowManager {
 			}
 		}
 
+		if (item.type === "box" && new Set(["", " ", "enter"]).has(key)) {
+			this.socketManager?.onButtonPress?.(
+				window,
+				key == "enter" ? "enter" : "space",
+				item.identifier
+			);
+			return true;
+		}
+
 		if (item.type === "textBox") {
 			return this.#handleTextBoxInput(window, item, key, rawKey, e);
 		}
@@ -670,6 +679,17 @@ export abstract class Window {
 						item.fill ?? "rgb(45 45 45)",
 						item.stroke ?? "rgb(55 55 55)"
 					);
+
+					if (itemFocused && item.identifier !== undefined) {
+						rect(
+							ctx,
+							x + item.x,
+							yRoot + headerHeight + item.y,
+							item.width,
+							item.height,
+							"rgba(255, 255, 255, 0.1)"
+						);
+					}
 
 					break;
 				}

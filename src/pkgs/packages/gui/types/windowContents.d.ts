@@ -52,6 +52,7 @@ export interface WindowBox extends WindowBaseItem {
 
 	fill?: string;
 	stroke?: string;
+	identifier?: string;
 }
 
 export type WindowContentItem =
