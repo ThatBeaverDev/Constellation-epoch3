@@ -14,7 +14,7 @@ export default async function* TerminalApp(
 	const { default: GuiWindow } = await include(env, "lib-gui");
 
 	const lib = new GuiWindow(env);
-	await lib.init("Terminal");
+	await lib.init();
 
 	const logs: ArrayLog[] = [];
 	let input:

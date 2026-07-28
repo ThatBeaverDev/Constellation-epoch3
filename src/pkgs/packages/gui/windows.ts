@@ -11,6 +11,7 @@ import {
 	unfocusedWindowStroke,
 	windowFill
 } from "./constants";
+import { AppMetadata } from "../../../util/lib/appMetadata";
 
 export interface WindowInfo {
 	window: Window;
@@ -369,8 +370,14 @@ export default class WindowManager {
 		}
 	}
 
-	newWindow(client: Client | undefined, name: string) {
-		const window = new GuiWindow(this, client, name);
+	async newWindow(
+		client: Client | undefined,
+		name?: string,
+		metadata?: AppMetadata
+	) {
+		const windowName = name ?? metadata?.["app-name"] ?? "Unknown Window";
+
+		const window = new GuiWindow(this, client, windowName, metadata);
 		this.hideHelp?.();
 
 		window.close = () => {
@@ -405,6 +412,8 @@ export default class WindowManager {
 			width: isPalette ? paletteWidth : 0,
 			height: isPalette ? paletteHeight : 0
 		};
+
+		await window.init();
 
 		if (isPalette) {
 			this.#palette = info;
@@ -486,9 +495,22 @@ export abstract class Window {
 		public windowManager: WindowManager,
 		public associatedClient: Client | undefined,
 		public name: string,
+		public metadata?: AppMetadata,
 		public description?: string
 	) {
 		this.lastTime = performance.now();
+	}
+
+	icon?: ImageBitmap;
+	async init() {
+		const icon = this.metadata?.["app-icon"];
+		if (icon) {
+			const blob = dataURItoBlob(icon);
+
+			const bitmap = await createImageBitmap(blob);
+
+			this.icon = bitmap;
+		}
 	}
 
 	#oldWidth: number = 0;
@@ -811,9 +833,21 @@ export abstract class Window {
 			isFocused ? `rgb(95 95 95)` : `rgb(75 75 75)`
 		);
 
+		const iconSides = headerHeight - padding;
+		const iconLeft = x + padding / 2;
+
+		if (this.icon)
+			ctx.drawImage(
+				this.icon,
+				iconLeft,
+				y + padding / 2,
+				iconSides,
+				iconSides
+			);
+
 		text(
 			ctx,
-			x + padding,
+			this.icon ? iconLeft + iconSides + padding / 2 : x + padding,
 			y + padding,
 			this.name,
 			isFocused ? "rgb(255 255 255)" : "rgb(200 200 200)",

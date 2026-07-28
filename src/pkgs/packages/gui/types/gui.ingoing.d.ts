@@ -1,3 +1,4 @@
+import { AppMetadata } from "../../../../util/lib/appMetadata";
 import { WindowContentItem } from "./windowContents";
 
 export interface GuiBaseIngoing {
@@ -7,7 +8,8 @@ export interface GuiBaseIngoing {
 export interface GuiNewWindowIngoing {
 	intent: "newWindow";
 
-	name: string;
+	name?: string;
+	metadata?: AppMetadata;
 }
 
 export interface GuiSetWindowContentsIngoing {

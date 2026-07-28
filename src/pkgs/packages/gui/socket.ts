@@ -114,7 +114,10 @@ export default class SocketManager {
 			await this.env.sockets.createSocket(GUI_SOCKET_PATH);
 
 		this.socketServer.onClientConnect = (client) => {
-			this.clients[client.pid] = { pid: client.pid, windows: [] };
+			this.clients[client.pid] = {
+				pid: client.pid,
+				windows: []
+			};
 		};
 
 		this.socketServer.onClientDisconnect = ({ pid }) => {
@@ -129,14 +132,15 @@ export default class SocketManager {
 			delete this.clients[pid];
 		};
 
-		this.socketServer.onMessage = ({ pid }, msg) => {
+		this.socketServer.onMessage = async ({ pid }, msg) => {
 			const client = this.clients[pid];
 
 			switch (msg.intent) {
 				case "newWindow": {
-					const { window } = this.windowManager.newWindow(
+					const { window } = await this.windowManager.newWindow(
 						client,
-						msg.name
+						msg.name,
+						msg.metadata
 					);
 
 					client.windows.push(window);

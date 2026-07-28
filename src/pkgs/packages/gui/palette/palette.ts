@@ -29,7 +29,7 @@ export default class PaletteHandler {
 		const { default: GuiWindow } = await include(this.env, "lib-gui");
 
 		this.#guiLib = new GuiWindow(this.env);
-		await this.#guiLib.init("Palette");
+		await this.#guiLib.init("Search");
 
 		this.#guiLib.onTextboxCompletion = (contents, reference) => {
 			switch (reference) {

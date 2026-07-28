@@ -47,7 +47,7 @@ export default async function* FilesApp(env: Environment) {
 	const { default: GuiWindow } = await include(env, "lib-gui");
 
 	const lib = new GuiWindow(env);
-	await lib.init("Files");
+	await lib.init();
 
 	let path = "/";
 

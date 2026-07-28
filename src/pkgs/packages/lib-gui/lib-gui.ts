@@ -1,3 +1,4 @@
+import { getAppMetadata } from "../../../util/lib/appMetadata";
 import { Environment, SocketConnection } from "../../../util/types/worker";
 import {
 	focusedWindowStroke,
@@ -45,7 +46,7 @@ export default class GuiWindow {
 		return stats?.type == "socket";
 	}
 
-	async init(windowName: string) {
+	async init(name?: string) {
 		const isOk = await this.guiAvailable();
 		if (!isOk) {
 			console.warn("GUI not running.");
@@ -94,7 +95,8 @@ export default class GuiWindow {
 
 		this.#socketConnection.sendMessage({
 			intent: "newWindow",
-			name: windowName
+			name,
+			metadata: await getAppMetadata(this.env, "§")
 		});
 
 		await new Promise<void>((resolve) => {
