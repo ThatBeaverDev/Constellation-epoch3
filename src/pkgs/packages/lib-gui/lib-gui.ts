@@ -154,4 +154,8 @@ export default class GuiWindow {
 			windowID: 0
 		});
 	}
+
+	close() {
+		this.#socketConnection?.exit?.();
+	}
 }
