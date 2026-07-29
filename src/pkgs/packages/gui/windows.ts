@@ -8,6 +8,7 @@ import { GuiState } from "./gui";
 import { dataURItoBlob } from "../../../util/lib/uri";
 import {
 	focusedWindowStroke,
+	sidebarWidth,
 	unfocusedWindowStroke,
 	windowFill
 } from "./constants";
@@ -491,6 +492,7 @@ export abstract class Window {
 	#currentItemHeight?: number;
 
 	contents: Partial<WindowContentItem[]> = [];
+	hasSidebar: boolean = false;
 	interactables: number[] = [];
 
 	typing: Partial<Record<string, string>> = {};
@@ -579,7 +581,8 @@ export abstract class Window {
 
 		// rendered last so it can't be drawn over
 
-		const yRoot = y - this.scroll;
+		const xRoot = x + (this.hasSidebar ? sidebarWidth : 0);
+		const yRoot = y - this.scroll + headerHeight;
 
 		// dynamic content
 		for (const i in this.contents) {
@@ -604,8 +607,8 @@ export abstract class Window {
 
 						rect(
 							ctx,
-							x + item.x - 3,
-							yRoot + headerHeight + item.y - 3,
+							xRoot + item.x - 3,
+							yRoot + item.y - 3,
 							measurements.width + 6,
 							measurements.height + 6,
 							"rgb(65 65 65)"
@@ -618,8 +621,8 @@ export abstract class Window {
 					drawLog(
 						ctx,
 						item.text,
-						x + item.x,
-						yRoot + headerHeight + item.y,
+						xRoot + item.x,
+						yRoot + item.y,
 						item.font,
 						item.fontSize
 					);
@@ -648,8 +651,8 @@ export abstract class Window {
 
 						rect(
 							ctx,
-							x + item.x - 3,
-							yRoot + headerHeight + item.y - 3,
+							xRoot + item.x - 3,
+							yRoot + item.y - 3,
 							measurements.width + 6,
 							measurements.height + 6,
 							"rgb(65 65 65)",
@@ -660,12 +663,7 @@ export abstract class Window {
 							item.y + measurements.height + 6;
 					}
 
-					text(
-						ctx,
-						x + item.x,
-						yRoot + headerHeight + item.y,
-						displayText
-					);
+					text(ctx, xRoot + item.x, yRoot + item.y, displayText);
 
 					break;
 				}
@@ -682,8 +680,8 @@ export abstract class Window {
 
 					rect(
 						ctx,
-						x + item.x - 3,
-						yRoot + headerHeight + item.y - 3,
+						xRoot + item.x - 3,
+						yRoot + item.y - 3,
 						measurements.width + 6,
 						measurements.height + 6,
 						itemFocused ? "rgb(100 100 100)" : "rgb(75 75 75)"
@@ -694,8 +692,8 @@ export abstract class Window {
 					drawLog(
 						ctx,
 						item.text,
-						x + item.x,
-						yRoot + headerHeight + item.y,
+						xRoot + item.x,
+						yRoot + item.y,
 						item.font,
 						item.fontSize
 					);
@@ -706,8 +704,8 @@ export abstract class Window {
 				case "box": {
 					rect(
 						ctx,
-						x + item.x,
-						yRoot + headerHeight + item.y,
+						xRoot + item.x,
+						yRoot + item.y,
 						item.width,
 						item.height,
 						item.fill ?? "rgb(45 45 45)",
@@ -717,8 +715,8 @@ export abstract class Window {
 					if (itemFocused && item.identifier !== undefined) {
 						rect(
 							ctx,
-							x + item.x,
-							yRoot + headerHeight + item.y,
+							xRoot + item.x,
+							yRoot + item.y,
 							item.width,
 							item.height,
 							"rgba(255, 255, 255, 0.1)"
@@ -797,8 +795,8 @@ export abstract class Window {
 
 							rect(
 								ctx,
-								x + item.x,
-								yRoot + headerHeight + item.y,
+								xRoot + item.x,
+								yRoot + item.y,
 								item.width,
 								item.height,
 								`rgb(${colour} ${colour} ${colour})`,
@@ -810,8 +808,8 @@ export abstract class Window {
 						case "loaded":
 							ctx.drawImage(
 								image.bitmap,
-								x + item.x,
-								yRoot + headerHeight + item.y,
+								xRoot + item.x,
+								yRoot + item.y,
 								item.width,
 								item.height
 							);
@@ -822,13 +820,52 @@ export abstract class Window {
 					break;
 				}
 
+				case "sidebar": {
+					rect(
+						ctx,
+						x,
+						yRoot,
+						sidebarWidth,
+						height,
+						isFocused ? `rgb(95 95 95)` : `rgb(75 75 75)`
+					);
+
+					let y = yRoot;
+					const lineHeight = 30;
+
+					for (const entry of item.contents) {
+						switch (entry.type) {
+							case "header":
+								text(
+									ctx,
+									x + 5,
+									y,
+									entry.text,
+									"rgb(200 200 200)",
+									undefined,
+									14
+								);
+
+								y += lineHeight;
+								break;
+
+							case "button":
+								text(ctx, x + 5, y, entry.text);
+
+								break;
+						}
+					}
+
+					break;
+				}
+
 				default:
 					text(
 						ctx,
 						// @ts-expect-error
-						x + item.x,
+						xRoot + item.x,
 						// @ts-expect-error
-						yRoot + headerHeight + item.y,
+						yRoot + item.y,
 						// @ts-expect-error
 						`Unknown Component Type: ${item.type}`
 					);
@@ -872,7 +909,7 @@ export abstract class Window {
 		const contentHeight = height - headerHeight;
 
 		const focused = this.contents[this.interactables[this.scrollItem]];
-		if (focused) {
+		if (focused && "y" in focused) {
 			const targetVisibleTop = focused.y - this.scroll;
 			const targetVisibleBottom =
 				(this.#currentItemHeight ?? focused.y + 15) - this.scroll;

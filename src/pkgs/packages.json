@@ -194,7 +194,7 @@
 		},
 		"gui": {
 			"author": "ThatBeaverDev",
-			"published": 1785268776924,
+			"published": 1785334440541,
 			"dependencies": ["lib-gui"]
 		},
 		"lib-gui": {
@@ -225,6 +225,14 @@
 			"author": "ThatBeaverDev",
 			"published": 0,
 			"dependencies": ["lib-rotur"]
+		},
+		"roturd": {
+			"author": "ThatBeaverDev",
+			"published": 0
+		},
+		"wasm": {
+			"author": "ThatBeaverDev",
+			"published": 0
 		}
 	}
 }

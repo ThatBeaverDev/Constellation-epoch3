@@ -13,3 +13,4 @@ export const focusedWindowStroke = "rgb(170 170 170)";
 export const unfocusedWindowStroke = "rgb(150 150 150)";
 
 export const headerHeight = 50;
+export const sidebarWidth = 250;

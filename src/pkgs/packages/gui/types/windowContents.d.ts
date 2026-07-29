@@ -55,5 +55,17 @@ export interface WindowBox extends WindowBaseItem {
 	identifier?: string;
 }
 
+export interface WindowSidebar {
+	type: "sidebar";
+	contents: (
+		{ type: "header"; text: string } | { type: "button"; text: string }
+	)[];
+}
+
 export type WindowContentItem =
-	WindowText | WindowImage | WindowButton | WindowTextBox | WindowBox;
+	| WindowText
+	| WindowImage
+	| WindowButton
+	| WindowTextBox
+	| WindowBox
+	| WindowSidebar;
