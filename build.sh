@@ -8,3 +8,4 @@ npx rollup -c
 cp src/pkgs/packages.json dist/pkgs/packages.json
 
 node ./scripts/build.mjs
+node ./build/mkportable.js
