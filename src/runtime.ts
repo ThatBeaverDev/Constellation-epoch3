@@ -1,7 +1,12 @@
 import Constellation from "./index";
 import { FilesystemInterface } from "./lib/fs";
 import ConstellationWorker from "web-worker:./lib/worker";
-import { InputConfig, Log, Process } from "./util/types/worker";
+import {
+	InputConfig,
+	Log,
+	NetworkDataResponse,
+	Process
+} from "./util/types/worker";
 import { implementWorkerFS, mainThreadMessageHandler } from "./lib/workerUtils";
 import {
 	RuntimeMessageIntent,
@@ -23,6 +28,7 @@ import { User } from "./util/types/worker";
 import { insurePrivilege } from "./lib/users";
 import { ALLOWED_PROXY_EVENTS } from "./constants";
 import { join } from "path-browserify";
+import { encodeBase64 } from "./util/lib/base64";
 
 export interface ProgramLog {
 	type: "log" | "warning" | "error";
@@ -398,6 +404,50 @@ export default class Runtime {
 						: typeof body == "object"
 							? JSON.stringify(body)
 							: String(body);
+
+				const netJson = (): NetworkDataResponse => {
+					const path = url[0] == "/" ? url.substring(1) : url;
+
+					if (this.#kernel.netMap?.[path]) {
+						const data = this.#kernel.netMap[path];
+						let response;
+						switch (format) {
+							case "text":
+								response = data;
+								break;
+
+							case "json":
+								response = JSON.parse(data);
+								break;
+
+							case "datauri":
+								response = `data:text/javascript;base64,${encodeBase64(data)}`;
+								break;
+
+							case "blob":
+								response = new Blob([data], {
+									type: "text/javascript"
+								});
+								break;
+						}
+
+						return {
+							isOk: true,
+							statusCode: 200,
+							statusText: "Success",
+							response: response
+						};
+					} else {
+						return {
+							isOk: false,
+							statusCode: 400,
+							statusText: "Not found"
+						};
+					}
+				};
+
+				if (this.#kernel.netMap && !url.includes("://"))
+					return netJson();
 
 				if (url[0] == "/" && nodeJs) {
 					// this is to a local position, we should read from the program store (if node)

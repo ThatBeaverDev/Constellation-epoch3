@@ -152,6 +152,10 @@ export default class SocketManager {
 					const window = client.windows[msg.windowID ?? 0];
 
 					window.contents = msg.contents;
+					window.hasSidebar =
+						msg.contents.find((item) => item?.type == "sidebar") !==
+						undefined;
+
 					const interactableTypes = new Set<
 						WindowContentItem["type"]
 					>(["button", "textBox"]);

@@ -19,7 +19,8 @@ export default class Constellation {
 
 	constructor(
 		onInstallReady: (fs: FilesystemInterface) => Promise<void> | void,
-		GivenUiManager: new (fs: FilesystemInterface) => UiManager
+		GivenUiManager: new (fs: FilesystemInterface) => UiManager,
+		public netMap?: Record<string, string>
 	) {
 		applyStringPrototypes();
 		this.#onInstallReady = onInstallReady;

@@ -1,13 +1,15 @@
-import { in_Message } from "../types/roturd_incoming";
+import { in_Message } from "./roturd_incoming";
 import {
 	out_ErrorPacket,
 	out_Packet,
 	out_PrivateMessagePacket,
 	out_SuccessPacket
-} from "../types/roturd_outgoing";
-import { Environment, SocketConnection } from "../types/worker";
-import { sleep } from "./time";
+} from "./roturd_outgoing";
+import { Environment, SocketConnection } from "../../../util/types/worker";
+import { sleep } from "../../../util/lib/time";
+import { resolveName } from "../../../util/lib/exec";
 
+export type RoturLibraryConstructor = typeof RoturLibrary;
 export default class RoturLibrary {
 	#socketConnection?: SocketConnection;
 	#_nextResponder = 0;
@@ -54,7 +56,7 @@ export default class RoturLibrary {
 
 	async init() {
 		const socketDirectory = "/data/rotur/rotur.sock";
-		const serverDirectory = "/bin/roturd.js";
+		const serverDirectory = await resolveName(this.env, "roturd");
 
 		if (!(await this.env.fs.exists(socketDirectory))) {
 			await this.env.execute(serverDirectory);
@@ -180,6 +182,7 @@ export default class RoturLibrary {
 	}
 }
 
+export type getRoturToken = typeof getRoturToken;
 export async function getRoturToken(env: Environment) {
 	await env.fs.mkdir("/data/rotur");
 	const tokenFile = "/data/rotur/token.json";
@@ -214,8 +217,7 @@ export async function getRoturToken(env: Environment) {
 	await env.input("Press enter when done.");
 
 	type LinkResponse =
-		| { linked: false; token: "" }
-		| { linked: true; token: string };
+		{ linked: false; token: "" } | { linked: true; token: string };
 
 	const authRequest = await env.network.request<LinkResponse>(
 		"get",

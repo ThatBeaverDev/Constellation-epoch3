@@ -35,21 +35,27 @@ const programConfigs = globSync("./build/bin/*.js").map((file) => {
 	};
 });
 
-const packageConfigs = globSync("./build/pkgs/packages/**/*.js").map((file) => {
-	const name = path.basename(file, ".js");
-	const pathParts = path.dirname(file).split(path.sep);
-	const packageName = pathParts[pathParts.length - 1];
+const packageConfigs = globSync("./build/pkgs/packages/*/*.js")
+	.map((file) => {
+		const name = path.basename(file, ".js");
+		const pathParts = path.dirname(file).split(path.sep);
+		const packageName = pathParts[pathParts.length - 1];
 
-	return {
-		input: file,
-		context: "self",
-		output: {
-			file: `./dist/pkgs/packages/${packageName}/${name}.js`,
-			format: "es"
-		},
-		plugins
-	};
-});
+		if (packageName !== name) {
+			return undefined;
+		}
+
+		return {
+			input: file,
+			context: "self",
+			output: {
+				file: `./dist/pkgs/packages/${packageName}/${name}.js`,
+				format: "es"
+			},
+			plugins
+		};
+	})
+	.filter((item) => item !== undefined);
 
 export default [
 	// Kernel bundle
