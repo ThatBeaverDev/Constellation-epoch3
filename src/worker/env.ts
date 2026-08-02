@@ -48,6 +48,37 @@ export function newEnv(
 		terminateProgram: terminate
 	} = worker;
 
+	function allEntries(obj: any) {
+		const seen = new Set();
+		const result = [];
+
+		for (
+			let cur = obj;
+			cur && cur !== Object.prototype;
+			cur = Object.getPrototypeOf(cur)
+		) {
+			for (const k of Object.getOwnPropertyNames(cur)) {
+				if (k === "constructor" || seen.has(k)) continue;
+				seen.add(k);
+				const desc = Object.getOwnPropertyDescriptor(cur, k);
+				if (!desc) continue;
+
+				// Return like entries: [key, value]
+				result.push([k, obj[k]]);
+			}
+		}
+
+		// include own enumerable props that might be skipped? (optional)
+		for (const [k, v] of Object.entries(obj)) {
+			if (!seen.has(k)) {
+				seen.add(k);
+				result.push([k, v]);
+			}
+		}
+
+		return result;
+	}
+
 	const env: Environment = {
 		print(data: Log) {
 			emit(WorkerMessageIntent.log, { data });
@@ -114,7 +145,20 @@ export function newEnv(
 			);
 		},
 
-		fs: worker.fs,
+		fs: Object.fromEntries(
+			allEntries(worker.fs).map((item) => {
+				const name = item[0];
+
+				if (typeof item[1] !== "function") return [name, , item[1]];
+				const fn = item[1].bind(worker.fs);
+
+				return [
+					name,
+					(dir: string, ...args: any[]) =>
+						fn(path.resolve(env.workingDirectory, dir), ...args)
+				];
+			})
+		),
 		path,
 
 		users: {
