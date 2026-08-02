@@ -36,9 +36,7 @@ async function makePortable() {
 
 	try {
 		await rm("./dist/netcache.json");
-	} catch (e) {
-		console.warn(e);
-	}
+	} catch (e) {}
 
 	await walk("./dist", json);
 	// parse and stringify to compress
