@@ -15,7 +15,7 @@ import {
 	consoleWarn,
 	PlaySoundResponse
 } from "../ui/dom";
-import { nodeJs } from "../config";
+import { IS_NODE } from "../constants";
 import ConstellationWorker from "web-worker:../../worker/worker";
 import { implementWorkerFS, mainThreadMessageHandler } from "../../workerUtils";
 import { join } from "path-browserify";
@@ -25,6 +25,8 @@ import { ALLOWED_PROXY_EVENTS } from "../constants";
 import { triggerProgramEvent } from "./triggerProgramEvent";
 import { insurePrivilege } from "../security/users";
 import { logToString } from "@/lib/logs";
+import handleLogging from "./handlers/logging";
+import { RuntimeMessageIntents } from "../types/messages";
 
 export default class Runtime {
 	#log: (message: Log) => void;
@@ -66,7 +68,6 @@ export default class Runtime {
 		const logWithSource = (source: string, data: Log) => {
 			if (!this.#kernel.ui.controller) return log(source, data);
 
-			// @ts-expect-error
 			if (typeof process == "undefined") consoleLog(source, data);
 			return 0;
 		};
@@ -108,7 +109,7 @@ export default class Runtime {
 
 		this.#log("Program runtime initialised.");
 
-		if (!nodeJs)
+		if (!IS_NODE)
 			window.document.addEventListener(
 				"visibilitychange",
 				this.#onVisibilityChange
@@ -199,21 +200,7 @@ export default class Runtime {
 			reroot
 		);
 
-		handle("program_log", ({ data }) => {
-			const program = getProgram();
-
-			program.onLog("log", data);
-		});
-		handle("program_warn", ({ data }) => {
-			const program = getProgram();
-
-			program.onLog("warning", data);
-		});
-		handle("program_error", ({ data }) => {
-			const program = getProgram();
-
-			program.onLog("error", data);
-		});
+		handleLogging(handle, getProgram);
 
 		handle(
 			"env_exec",
@@ -380,7 +367,7 @@ export default class Runtime {
 				if (this.#kernel.netMap && !url.includes("://"))
 					return netJson();
 
-				if (url[0] == "/" && nodeJs) {
+				if (url[0] == "/" && IS_NODE) {
 					// this is to a local position, we should read from the program store (if node)
 					// @ts-expect-error
 					const fs = await import("node:fs/promises");
@@ -581,7 +568,7 @@ export default class Runtime {
 		});
 
 		// sockets
-		handle("Sockets/Client/newConnection", (packet) => {
+		handle("Sockets_Client_newConnection", (packet) => {
 			const client = getProgram();
 
 			return this.#sockets.newClientConnection(client, {
@@ -589,7 +576,7 @@ export default class Runtime {
 				socketDirectory: reroot(packet.socketDirectory)
 			});
 		});
-		handle("Sockets/Client/endConnection", (packet) => {
+		handle("Sockets_Client_endConnection", (packet) => {
 			const disconnectingClient = getProgram();
 
 			return this.#sockets.endClientConnection(
@@ -597,13 +584,13 @@ export default class Runtime {
 				packet
 			);
 		});
-		handle("Sockets/Client/sendPacket", (packet) => {
+		handle("Sockets_Client_sendPacket", (packet) => {
 			const client = getProgram();
 
 			return this.#sockets.clientSendMessage(client, packet);
 		});
 
-		handle("Sockets/Server/newServer", (packet) => {
+		handle("Sockets_Server_newServer", (packet) => {
 			const server = getProgram();
 
 			return this.#sockets.newServerInstance(server, {
@@ -611,12 +598,12 @@ export default class Runtime {
 				socketDirectory: reroot(packet.socketDirectory)
 			});
 		});
-		handle("Sockets/Server/endServer", (packet) => {
+		handle("Sockets_Server_endServer", (packet) => {
 			const server = getProgram();
 
 			return this.#sockets.endServerInstance(server, packet);
 		});
-		handle("Sockets/Server/sendPacket", (packet) => {
+		handle("Sockets_Server_sendPacket", (packet) => {
 			const server = getProgram();
 
 			return this.#sockets.serverSendMessage(server, packet);
@@ -749,7 +736,7 @@ export default class Runtime {
 		for (const worker of this.workers) {
 			if (
 				worker.lastKeepAlive + 10000 < now &&
-				(nodeJs || window?.document?.visibilityState == "visible")
+				(IS_NODE || window?.document?.visibilityState == "visible")
 			) {
 				if (worker.program) {
 					worker.program.onLog("log", [
@@ -767,7 +754,7 @@ export default class Runtime {
 			worker.lock = true;
 
 			worker
-				.sendMessage("execLoop", undefined)
+				.sendMessage(RuntimeMessageIntents.execLoop, undefined)
 				.then(({ programs, completePrograms, computePercentage }) => {
 					worker.totalPrograms -= completePrograms.length;
 					worker.computePercentage = computePercentage;
@@ -850,7 +837,7 @@ export default class Runtime {
 
 			onExit: (data?: Log) => {
 				this.workers.forEach((store) => {
-					store.emit("program_exit", {
+					store.emit(RuntimeMessageIntents.program_exit, {
 						pid: program.pid,
 						data,
 						logs: program.logs
@@ -866,7 +853,7 @@ export default class Runtime {
 				program.logs.push({ type, data: rootedData });
 
 				if (proxyOwner) {
-					proxyOwner.worker.emit("proxy_log", {
+					proxyOwner.worker.emit(RuntimeMessageIntents.proxy_log, {
 						handlerPid: proxyOwner.pid,
 						subjectPid: program.pid,
 
@@ -925,11 +912,14 @@ export default class Runtime {
 				});
 
 				if (proxyOwner) {
-					proxyOwner.worker.emit("proxy_set_logs", {
-						handlerPid: proxyOwner.pid,
-						subjectPid: program.pid,
-						logs
-					});
+					proxyOwner.worker.emit(
+						RuntimeMessageIntents.proxy_set_logs,
+						{
+							handlerPid: proxyOwner.pid,
+							subjectPid: program.pid,
+							logs
+						}
+					);
 				}
 
 				if (this.#kernel.ui.controller == program) {
@@ -976,7 +966,7 @@ export default class Runtime {
 					if (!proxyOwner) return;
 
 					const inputResponse = await proxyOwner.worker.sendMessage(
-						"proxy_input",
+						RuntimeMessageIntents.proxy_input,
 						{
 							handlerPid: proxyOwner.pid,
 							subjectPid: program.pid,
@@ -1029,7 +1019,7 @@ export default class Runtime {
 					if (!proxyOwner) return fallback;
 
 					return await proxyOwner.worker.sendMessage(
-						"proxy_get_dimensions",
+						RuntimeMessageIntents.proxy_get_dimensions,
 						{
 							handlerPid: proxyOwner.pid,
 							subjectPid: program.pid
@@ -1081,15 +1071,18 @@ export default class Runtime {
 				`File at ${directory} cannot be executed because it does not exist.`
 			);
 
-		const ok = await worker.sendMessage("executeProgram", {
-			directory,
-			code,
-			pid,
+		const ok = await worker.sendMessage(
+			RuntimeMessageIntents.executeProgram,
+			{
+				directory,
+				code,
+				pid,
 
-			args,
-			workingDirectory: config?.workingDirectory ?? "/",
-			input: config?.input
-		});
+				args,
+				workingDirectory: config?.workingDirectory ?? "/",
+				input: config?.input
+			}
+		);
 		if (!ok) {
 			// not great, let's exit properly.
 
@@ -1168,7 +1161,7 @@ export default class Runtime {
 
 	#exited = false;
 	exit() {
-		if (!nodeJs)
+		if (!IS_NODE)
 			window.document.removeEventListener(
 				"visibilitychange",
 				this.#onVisibilityChange

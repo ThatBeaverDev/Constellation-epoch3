@@ -19,3 +19,13 @@ export const WORKER_READ_BLACKLIST: Set<string> = new Set([
 
 export const USER_FOLDERS = ["data", "config", "bin", "lib"];
 export const ALLOWED_PROXY_EVENTS = new Set(["keyup", "keydown", "resize"]);
+
+export const IS_NODE = typeof process !== "undefined";
+export const NEW_FS =
+	new URL(globalThis?.location?.href ?? "https://node.js").searchParams.get(
+		"delete"
+	) !== null;
+export const IS_DEV_MODE =
+	new URL(globalThis?.location?.href ?? "https://node.js").searchParams.get(
+		"dev"
+	) !== null;

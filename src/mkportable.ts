@@ -3,7 +3,6 @@ import { readdir, stat, readFile, writeFile, rm } from "fs/promises";
 // @ts-expect-error
 import { relative, resolve } from "node:path";
 
-// @ts-expect-error
 const start = process.cwd();
 
 const ignores = new Set(["netcache.json", "portable.js", ".DS_Store"]);

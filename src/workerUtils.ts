@@ -1,5 +1,5 @@
 import { EnvironmentFilesystem, FileStats, User } from "@/types/worker";
-import { devMode, nodeJs } from "./kernel/config";
+import { IS_DEV_MODE, IS_NODE } from "./kernel/constants";
 import { FilesystemInterface } from "./kernel/fs/fs";
 import { WorkerStore } from "./kernel/runtime/types";
 import UsersManager from "./kernel/security/users";
@@ -39,7 +39,7 @@ type WorkerEvent = {
 type WorkerMessage = WorkerRequest | WorkerResponse | WorkerEvent;
 
 type Pending = {
-	intent: string;
+	intent: string | number;
 
 	resolve: (v: any) => void;
 	reject: (e: any) => void;
@@ -114,7 +114,7 @@ export async function mainThreadMessageHandler(
 					transfer
 				);
 			} catch (err: any) {
-				if (devMode) console.error(err);
+				if (IS_DEV_MODE) console.error(err);
 
 				worker.postMessage({
 					kind: "response",
@@ -144,7 +144,7 @@ export async function mainThreadMessageHandler(
 		}
 	};
 
-	if (nodeJs) {
+	if (IS_NODE) {
 		// @ts-expect-error
 		worker.on("message", onMessage);
 	} else {
@@ -307,7 +307,6 @@ export function implementWorkerFS(
 export async function workerMessageHandler() {
 	let nextMessageID = 1;
 
-	// @ts-expect-error
 	const isNode = typeof process !== "undefined";
 
 	let postMessage: (typeof globalThis)["postMessage"];
@@ -324,7 +323,7 @@ export async function workerMessageHandler() {
 	globalThis.postMessage = () => {};
 
 	const pendingMessages = new Map<number, Pending>();
-	const requestHandlers = new Map<string, RequestHandler>();
+	const requestHandlers = new Map<string | number, RequestHandler>();
 
 	const onRecievedMessage = async (msg: WorkerMessage) => {
 		// ---------- RESPONSE ----------

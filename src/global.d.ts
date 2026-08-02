@@ -14,3 +14,5 @@ declare module "web-worker:*" {
 	};
 	export default WorkerFactory;
 }
+
+declare const process: { cwd(): string; exit(): void };

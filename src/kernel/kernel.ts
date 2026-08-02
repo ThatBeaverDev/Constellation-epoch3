@@ -4,7 +4,7 @@ import Runtime from "./runtime/runtime";
 import UsersManager from "./security/users";
 import { UiManager } from "./ui/ui";
 import applyStringPrototypes from "./util/strings";
-import { devMode } from "./config";
+import { IS_DEV_MODE } from "./constants";
 
 export default class Epoch3Kernel {
 	ui: UiManager;
@@ -69,7 +69,7 @@ export default class Epoch3Kernel {
 			if (!root) throw new Error("Users did not provide a root user.");
 
 			await this.runtime.executeProgram("/bin/init.js", undefined, root, [
-				`${devMode}`
+				`${IS_DEV_MODE}`
 			]);
 		} catch (e) {
 			this.panic("init", e instanceof Error ? e : new Error(String(e)));

@@ -1,7 +1,7 @@
 import { FileStats, Log } from "@/types/worker";
 import SocketManager from "../runtime/sockets";
 import Epoch3Kernel from "../kernel";
-import { deleteFS } from "../config";
+import { NEW_FS } from "../constants";
 
 /**
  * An interface to access a Filesystem.
@@ -260,7 +260,7 @@ class DomFs implements FilesystemInterface {
 	================================ */
 
 	async init() {
-		if (deleteFS) {
+		if (NEW_FS) {
 			this.#log("Erasing old DomFs...");
 			const dbs = await indexedDB.databases();
 			const promises = dbs.map(() => {
