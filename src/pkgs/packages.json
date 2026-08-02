@@ -15,7 +15,7 @@
 		},
 		"init": {
 			"author": "ThatBeaverDev",
-			"published": 1780401763208,
+			"published": 1785676868774,
 			"dependencies": ["installd"]
 		},
 		"installd": {
