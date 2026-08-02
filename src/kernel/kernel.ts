@@ -4,7 +4,7 @@ import Runtime from "./runtime/runtime";
 import UsersManager from "./security/users";
 import { UiManager } from "./ui/ui";
 import applyStringPrototypes from "./util/strings";
-import { IS_DEV_MODE } from "./constants";
+import { IS_DEV_MODE, IS_NODE } from "./constants";
 
 export default class Epoch3Kernel {
 	ui: UiManager;
@@ -106,7 +106,6 @@ export default class Epoch3Kernel {
 		this.ui.log("kernel", "Exiting...");
 		this.ui.exit();
 
-		// @ts-expect-error
-		if (nodeJs) process.exit();
+		if (IS_NODE) process.exit();
 	}
 }

@@ -4,20 +4,16 @@ import fakeIndexedDb from "fake-indexeddb";
 import { Worker } from "node:worker_threads";
 // @ts-expect-error
 import { readFile } from "node:fs/promises";
-// @ts-expect-error
-import * as path from "node:path";
+import { resolve } from "path-browserify";
 
 globalThis.indexedDB = fakeIndexedDb;
 globalThis.Worker = Worker;
 
 // @ts-expect-error
-const constellationRoot = path.resolve(import.meta.dirname, "..");
+const constellationRoot = resolve(import.meta.dirname, "..");
 
-const init = path.resolve(
-	constellationRoot,
-	"./dist/pkgs/packages/init/init.js"
-);
-const installd = path.resolve(
+const init = resolve(constellationRoot, "./dist/pkgs/packages/init/init.js");
+const installd = resolve(
 	constellationRoot,
 	"./dist/pkgs/packages/installd/installd.js"
 );
