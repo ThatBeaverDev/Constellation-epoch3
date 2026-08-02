@@ -1,8 +1,8 @@
 import { WorkerMessageIntent } from "../../../worker/types/intents";
-import { mainThreadMessageHandler } from "../../../workerUtils";
 import UsersManager from "../../security/users";
 import Runtime from "../runtime";
 import { ProgramStore } from "../types";
+import { mainThreadMessageHandler } from "./handler";
 
 export default function handleExecution(
 	handle: Awaited<ReturnType<typeof mainThreadMessageHandler>>["handle"],

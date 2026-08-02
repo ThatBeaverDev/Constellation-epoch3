@@ -3,7 +3,7 @@ import Fs, { FilesystemInterface } from "./fs/fs";
 import Runtime from "./runtime/runtime";
 import UsersManager from "./security/users";
 import { UiManager } from "./ui/ui";
-import applyStringPrototypes from "./util/strings";
+import applyStringPrototypes from "../shared/strings";
 import { IS_DEV_MODE, IS_NODE } from "./constants";
 
 export default class Epoch3Kernel {

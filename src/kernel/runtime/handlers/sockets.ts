@@ -1,5 +1,5 @@
 import { WorkerMessageIntent } from "../../../worker/types/intents";
-import { mainThreadMessageHandler } from "../../../workerUtils";
+import { mainThreadMessageHandler } from "./handler";
 import SocketManager from "../sockets";
 import { ProgramStore } from "../types";
 

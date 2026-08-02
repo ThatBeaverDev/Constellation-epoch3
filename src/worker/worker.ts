@@ -10,46 +10,18 @@ import {
 	WorkerOutputProxy,
 	WorkerProgramStore
 } from "@/types/worker";
-import { WorkerFS, workerMessageHandler } from "../workerUtils";
+import { WorkerFS } from "./lib/fs";
 import * as path from "path-browserify";
 import { ALLOWED_PROXY_EVENTS } from "../kernel/constants";
 import { WorkerEnv_Network_Get } from "./types/messages";
 import { WorkerMessageIntent } from "./types/intents";
 import { blobToUrl } from "@/lib/uri";
 import { RuntimeMessageIntent } from "../kernel/types/intents";
+import applyStringPrototypes from "../shared/strings";
+import { workerMessageHandler } from "./handlers/handler";
 
 async function worker() {
-	String.prototype.textAfter = function (after) {
-		return this.split(after).splice(1, Infinity).join(after);
-	};
-
-	String.prototype.textAfterAll = function (after) {
-		return this.split(after).pop() ?? "";
-	};
-
-	String.prototype.textBefore = function (before) {
-		return this.substring(0, this.indexOf(before));
-	};
-
-	String.prototype.textBeforeLast = function (before) {
-		return this.split("")
-			.reverse()
-			.join("")
-			.textAfter(before)
-			.split("")
-			.reverse()
-			.join("");
-	};
-
-	String.prototype.map = function (mappings) {
-		let text = String(this);
-
-		for (const replaced in mappings) {
-			text = text.replaceAll(replaced, mappings[replaced]);
-		}
-
-		return text;
-	};
+	applyStringPrototypes();
 
 	/* Secure some bases */
 

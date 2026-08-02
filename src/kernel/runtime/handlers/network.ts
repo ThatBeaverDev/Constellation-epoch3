@@ -1,6 +1,6 @@
 import { NetworkDataResponse } from "@/types/worker";
 import { WorkerMessageIntent } from "../../../worker/types/intents";
-import { mainThreadMessageHandler } from "../../../workerUtils";
+import { mainThreadMessageHandler } from "./handler";
 import Epoch3Kernel from "../../kernel";
 import { encodeBase64 } from "@/lib/base64";
 import { IS_NODE } from "../../constants";

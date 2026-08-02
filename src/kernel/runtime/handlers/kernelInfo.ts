@@ -1,6 +1,6 @@
 import { WorkerMessageIntent } from "../../../worker/types/intents";
-import { mainThreadMessageHandler } from "../../../workerUtils";
 import Epoch3Kernel from "../../kernel";
+import { mainThreadMessageHandler } from "./handler";
 
 export default function handleKernelInfo(
 	handle: Awaited<ReturnType<typeof mainThreadMessageHandler>>["handle"],

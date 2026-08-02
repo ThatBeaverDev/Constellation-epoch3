@@ -13,7 +13,7 @@ import {
 import { consoleError, consoleLog, consoleWarn } from "../ui/dom";
 import { IS_NODE } from "../constants";
 import ConstellationWorker from "web-worker:../../worker/worker";
-import { implementWorkerFS, mainThreadMessageHandler } from "../../workerUtils";
+import { implementWorkerFS } from "./handlers/fs";
 import { join } from "path-browserify";
 import { logToString } from "@/lib/logs";
 import handleInputOutput from "./handlers/io";
@@ -26,6 +26,7 @@ import handleKernelInfo from "./handlers/kernelInfo";
 import handleSounds from "./handlers/sounds";
 import handleSockets from "./handlers/sockets";
 import handlePasswords from "./handlers/passwords";
+import { mainThreadMessageHandler } from "./handlers/handler";
 
 export default class Runtime {
 	#log: (message: Log) => void;

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { basicNetworkGetSuccess, createMockEnv } from "./mock.js";
 import wget from "../../pkgs/packages/wget.js";
-import applyStringPrototypes from "../../kernel/util/strings.js";
+import applyStringPrototypes from "../../shared/strings.js";
 
 describe("Wget tests", () => {
 	beforeEach(() => {

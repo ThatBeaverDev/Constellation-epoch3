@@ -1,10 +1,10 @@
 import { WorkerMessageIntent } from "../../../worker/types/intents";
-import { mainThreadMessageHandler } from "../../../workerUtils";
 import { ALLOWED_PROXY_EVENTS } from "../../constants";
 import { UiManager } from "../../ui/ui";
 import Runtime from "../runtime";
 import { triggerProgramEvent } from "../triggerProgramEvent";
 import { ProgramStore } from "../types";
+import { mainThreadMessageHandler } from "./handler";
 
 export default function handleInputOutput(
 	handle: Awaited<ReturnType<typeof mainThreadMessageHandler>>["handle"],

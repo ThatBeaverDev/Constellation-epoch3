@@ -1,6 +1,6 @@
 import { Process } from "@/types/worker";
 import { WorkerMessageIntent } from "../../../worker/types/intents";
-import { mainThreadMessageHandler } from "../../../workerUtils";
+import { mainThreadMessageHandler } from "./handler";
 import Runtime from "../runtime";
 import { ProgramStore } from "../types";
 

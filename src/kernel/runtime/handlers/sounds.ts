@@ -1,5 +1,5 @@
 import { WorkerMessageIntent } from "../../../worker/types/intents";
-import { mainThreadMessageHandler } from "../../../workerUtils";
+import { mainThreadMessageHandler } from "./handler";
 import { UiManager } from "../../ui/ui";
 import Runtime from "../runtime";
 import { ProgramStore, RuntimeSoundsStore } from "../types";
