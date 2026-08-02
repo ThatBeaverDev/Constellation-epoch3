@@ -10,6 +10,7 @@ import {
 	Worker_Sockets_Server_newServer,
 	Worker_Sockets_Server_sendPacket
 } from "../../worker/types/messages";
+import { RuntimeMessageIntent } from "../types/intents";
 
 interface Socket {
 	directory: string;
@@ -75,11 +76,14 @@ export default class SocketManager {
 		socket.clients.add(client);
 
 		// inform the server
-		socket.server.worker.emit("Sockets/Client/newConnection", {
-			...packet,
-			socketId: socket.id,
-			initiatorPid: client.pid
-		});
+		socket.server.worker.emit(
+			RuntimeMessageIntent.socket_client_connected,
+			{
+				...packet,
+				socketId: socket.id,
+				initiatorPid: client.pid
+			}
+		);
 
 		return socket.id;
 	}
@@ -96,7 +100,7 @@ export default class SocketManager {
 		socket.clients.delete(disconnectingClient);
 
 		// inform the server
-		server.worker.emit("Sockets/Client/endConnection", {
+		server.worker.emit(RuntimeMessageIntent.socket_client_disconnected, {
 			...packet,
 			initiatorPid: disconnectingClient.pid
 		});
@@ -112,10 +116,13 @@ export default class SocketManager {
 		if (!socket.clients.has(client))
 			throw new Error("Not connected to this websocket."); // not connected. it must connect first.
 
-		socket.server.worker.emit("Sockets/Client/sendPacket", {
-			...packet,
-			initiatorPid: client.pid
-		});
+		socket.server.worker.emit(
+			RuntimeMessageIntent.socket_client_sent_packet,
+			{
+				...packet,
+				initiatorPid: client.pid
+			}
+		);
 	}
 	serverSendMessage(
 		packetServer: ProgramStore,
@@ -130,7 +137,10 @@ export default class SocketManager {
 		if (!socket.clients.has(target))
 			throw new Error("Target not connected to socket"); // not connected. this PID must connect first.
 
-		target.worker.emit("Sockets/Server/sendPacket", packet);
+		target.worker.emit(
+			RuntimeMessageIntent.socket_server_sent_packet,
+			packet
+		);
 	}
 
 	async newServerInstance(
@@ -188,7 +198,10 @@ export default class SocketManager {
 
 			messagedWorkers.push(client.worker);
 
-			client.worker.emit("Sockets/Server/endServer", packet);
+			client.worker.emit(
+				RuntimeMessageIntent.socket_server_ended,
+				packet
+			);
 		}
 
 		this.#socketsById.delete(packet.socketId);

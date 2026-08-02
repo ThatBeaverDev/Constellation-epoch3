@@ -14,7 +14,9 @@ import { WorkerFS, workerMessageHandler } from "../workerUtils";
 import * as path from "path-browserify";
 import { ALLOWED_PROXY_EVENTS } from "../kernel/constants";
 import { WorkerEnv_Network_Get } from "./types/messages";
+import { WorkerMessageIntent } from "./types/intents";
 import { blobToUrl } from "@/lib/uri";
+import { RuntimeMessageIntent } from "../kernel/types/intents";
 
 async function worker() {
 	String.prototype.textAfter = function (after) {
@@ -68,7 +70,7 @@ async function worker() {
 	const { sendMessage, emit, handle } = await workerMessageHandler();
 
 	setInterval(() => {
-		emit("keepAlive", undefined);
+		emit(WorkerMessageIntent.ping, undefined);
 	}, 2000);
 
 	/* =============== Worker Code  =============== */
@@ -103,24 +105,24 @@ async function worker() {
 
 		const env: Environment = {
 			print(data: Log) {
-				emit("program_log", { data });
+				emit(WorkerMessageIntent.log, { data });
 
 				return logs.push(data);
 			},
 
 			warn(data: Log) {
-				emit("program_warn", { data });
+				emit(WorkerMessageIntent.warn, { data });
 
 				return logs.push(data);
 			},
 
 			error(data: Log) {
-				emit("program_error", { data });
+				emit(WorkerMessageIntent.error, { data });
 
 				return logs.push(data);
 			},
 			async getLiveCanvas(width, height) {
-				return await sendMessage("env_get_liveCanvas", {
+				return await sendMessage(WorkerMessageIntent.get_live_canvas, {
 					width,
 					height
 				});
@@ -137,7 +139,7 @@ async function worker() {
 
 				program.inputRequest = {};
 
-				const text = await sendMessage("env_input", {
+				const text = await sendMessage(WorkerMessageIntent.get_input, {
 					message,
 
 					config: {
@@ -158,13 +160,16 @@ async function worker() {
 			},
 
 			setLogs(newLogs?: Log[]) {
-				emit("env_set_logs", { logs: newLogs });
+				emit(WorkerMessageIntent.set_logs, { logs: newLogs });
 
 				logs = newLogs ?? [];
 			},
 
 			terminalDimensions() {
-				return sendMessage("env_terminal_dimensions", undefined);
+				return sendMessage(
+					WorkerMessageIntent.terminal_dimensions,
+					undefined
+				);
 			},
 
 			fs,
@@ -172,11 +177,17 @@ async function worker() {
 
 			users: {
 				changePassword(uid, newPassword) {
-					return sendMessage("change_password", { uid, newPassword });
+					return sendMessage(WorkerMessageIntent.change_password, {
+						uid,
+						newPassword
+					});
 				},
 
 				validatePassword(uid, password) {
-					return sendMessage("validate_password", { uid, password });
+					return sendMessage(WorkerMessageIntent.validate_password, {
+						uid,
+						password
+					});
 				}
 			},
 
@@ -214,17 +225,20 @@ async function worker() {
 					user?: { uid: number; password: string };
 				}
 			) {
-				const { pid: executedPID } = await sendMessage("env_exec", {
-					path,
-					args,
-					handoverDisplayPid: config?.handOverDisplay
-						? pid
-						: undefined,
-					workingDirectory: this.workingDirectory,
-					input: config?.input,
-					outputProxy: config?.outputProxy !== undefined,
-					user: config?.user
-				});
+				const { pid: executedPID } = await sendMessage(
+					WorkerMessageIntent.execute_program,
+					{
+						path,
+						args,
+						handoverDisplayPid: config?.handOverDisplay
+							? pid
+							: undefined,
+						workingDirectory: this.workingDirectory,
+						input: config?.input,
+						outputProxy: config?.outputProxy !== undefined,
+						user: config?.user
+					}
+				);
 
 				if (config?.outputProxy) {
 					program.outputProxyHandlers[executedPID] =
@@ -252,7 +266,7 @@ async function worker() {
 							if (ALLOWED_PROXY_EVENTS.has(eventName)) {
 								// allowed
 
-								emit("proxy_trigger_event", {
+								emit(WorkerMessageIntent.trigger_proxy_event, {
 									handlerPid: program.pid,
 									subjectPid: executedPID,
 
@@ -269,13 +283,22 @@ async function worker() {
 				} as any; // trust, it's trying to complain about the lack of `outputProxy` key.
 			},
 			async processes() {
-				return await sendMessage("env_processes", undefined);
+				return await sendMessage(
+					WorkerMessageIntent.get_all_processes,
+					undefined
+				);
 			},
 			async self() {
-				return await sendMessage("env_selfProcess", undefined);
+				return await sendMessage(
+					WorkerMessageIntent.get_self_process,
+					undefined
+				);
 			},
 			async parent() {
-				return await sendMessage("env_parent_process", undefined);
+				return await sendMessage(
+					WorkerMessageIntent.get_parent_process,
+					undefined
+				);
 			},
 
 			network: {
@@ -287,14 +310,17 @@ async function worker() {
 					headers?: Record<string, string>,
 					options?: WorkerEnv_Network_Get["options"]
 				) => {
-					const result = await sendMessage("env_network_get", {
-						type,
-						url,
-						format,
-						body,
-						headers,
-						options: options ?? {}
-					});
+					const result = await sendMessage(
+						WorkerMessageIntent.env_network_get,
+						{
+							type,
+							url,
+							format,
+							body,
+							headers,
+							options: options ?? {}
+						}
+					);
 
 					return result;
 				}
@@ -302,18 +328,24 @@ async function worker() {
 
 			systemStats: {
 				async uptime() {
-					return await sendMessage("kernel_uptime", undefined);
+					return await sendMessage(
+						WorkerMessageIntent.kernel_uptime,
+						undefined
+					);
 				},
 
 				async kernelVersion() {
-					return await sendMessage("kernel_version", undefined);
+					return await sendMessage(
+						WorkerMessageIntent.kernel_version,
+						undefined
+					);
 				}
 			},
 
 			sound: {
 				play: async (config: Sound) => {
 					const { id, duration } = await sendMessage(
-						"env_sound_play",
+						WorkerMessageIntent.play_sound,
 						{
 							config
 						}
@@ -332,21 +364,27 @@ async function worker() {
 						onStop,
 
 						async pause() {
-							await sendMessage("env_sound_pause", {
+							await sendMessage(WorkerMessageIntent.pause_sound, {
 								soundID: id
 							});
 						},
 
 						async resume() {
-							await sendMessage("env_sound_resume", {
-								soundID: id
-							});
+							await sendMessage(
+								WorkerMessageIntent.resume_sound,
+								{
+									soundID: id
+								}
+							);
 						},
 
 						async remove() {
-							await sendMessage("env_sound_remove", {
-								soundID: id
-							});
+							await sendMessage(
+								WorkerMessageIntent.remove_sound,
+								{
+									soundID: id
+								}
+							);
 						}
 					};
 				}
@@ -355,7 +393,7 @@ async function worker() {
 			sockets: {
 				async connectToSocket(directory: string) {
 					const socketId = await sendMessage(
-						"Sockets/Client/newConnection",
+						WorkerMessageIntent.socket_connect,
 						{
 							socketDirectory: directory
 						}
@@ -374,10 +412,13 @@ async function worker() {
 									"Connection is no longer active and messages can no longer be sent."
 								);
 
-							emit("Sockets/Client/sendPacket", {
-								payload,
-								socketId
-							});
+							emit(
+								WorkerMessageIntent.send_socket_packet_to_server,
+								{
+									payload,
+									socketId
+								}
+							);
 						},
 
 						exit() {
@@ -391,7 +432,9 @@ async function worker() {
 									(socket) => socket.connection !== connection
 								);
 
-							emit("Sockets/Client/endConnection", { socketId });
+							emit(WorkerMessageIntent.socket_disconnect, {
+								socketId
+							});
 						}
 					};
 
@@ -402,7 +445,7 @@ async function worker() {
 
 				async createSocket(directory: string) {
 					const socketId = await sendMessage(
-						"Sockets/Server/newServer",
+						WorkerMessageIntent.create_socket,
 						{
 							socketDirectory: directory
 						}
@@ -423,11 +466,14 @@ async function worker() {
 									"Server is no longer active and messages can no longer be sent"
 								);
 
-							emit("Sockets/Server/sendPacket", {
-								payload,
-								socketId: socketId,
-								targetPid: clientPid
-							});
+							emit(
+								WorkerMessageIntent.send_socket_packet_to_client,
+								{
+									payload,
+									socketId: socketId,
+									targetPid: clientPid
+								}
+							);
 						},
 
 						exit() {
@@ -440,7 +486,9 @@ async function worker() {
 									(socket) => socket.server !== server
 								);
 
-							emit("Sockets/Server/endServer", { socketId });
+							emit(WorkerMessageIntent.end_socket, {
+								socketId
+							});
 						}
 					};
 
@@ -495,7 +543,7 @@ async function worker() {
 	> = {};
 
 	handle(
-		"executeProgram",
+		RuntimeMessageIntent.begin_execution,
 		async ({
 			directory,
 			code: contents,
@@ -583,7 +631,7 @@ async function worker() {
 
 	function terminateProgram(program: WorkerProgramStore, data: Log) {
 		for (const liveCanvas of program.liveCanvasIds) {
-			emit("env_remove_liveCanvas", { id: liveCanvas });
+			emit(WorkerMessageIntent.remove_live_canvas, { id: liveCanvas });
 		}
 
 		for (const server of program.socketServers) {
@@ -598,7 +646,7 @@ async function worker() {
 
 		programs.splice(programs.indexOf(program), 1);
 
-		sendMessage("termination", { data });
+		sendMessage(WorkerMessageIntent.exit, { data });
 	}
 
 	const completedQueue: { pid: number }[] = [];
@@ -606,7 +654,7 @@ async function worker() {
 	const computeCalculationWindow = 2000;
 	const computeSlices: { start: number; end: number }[] = [];
 
-	handle("execLoop", () => {
+	handle(RuntimeMessageIntent.dispatch_frame, () => {
 		const start = performance.now();
 
 		programs.forEach(async (program) => {
@@ -686,7 +734,7 @@ async function worker() {
 		return result;
 	});
 
-	handle("program_exit", ({ pid, data, logs }) => {
+	handle(RuntimeMessageIntent.program_exit_inform, ({ pid, data, logs }) => {
 		const program = activePrograms[pid];
 		if (program) {
 			program.resolve({ return: data, logs: logs });
@@ -727,17 +775,17 @@ async function worker() {
 		return connections;
 	}
 
-	handle("Sockets/Client/newConnection", (packet) => {
+	handle(RuntimeMessageIntent.socket_client_connected, (packet) => {
 		const server = socketServerBySocketId(packet.socketId);
 
 		server?.server?.onClientConnect?.({ pid: packet.initiatorPid });
 	});
-	handle("Sockets/Client/endConnection", (packet) => {
+	handle(RuntimeMessageIntent.socket_client_disconnected, (packet) => {
 		const server = socketServerBySocketId(packet.socketId);
 
 		server?.server?.onClientDisconnect?.({ pid: packet.initiatorPid });
 	});
-	handle("Sockets/Client/sendPacket", (packet) => {
+	handle(RuntimeMessageIntent.socket_client_sent_packet, (packet) => {
 		const server = socketServerBySocketId(packet.socketId);
 
 		server?.server?.onMessage?.(
@@ -747,8 +795,7 @@ async function worker() {
 	});
 
 	// shouldnt fire
-	handle("Sockets/Server/newServer", () => {});
-	handle("Sockets/Server/endServer", (packet) => {
+	handle(RuntimeMessageIntent.socket_server_ended, (packet) => {
 		// a server has terminated, so we need to disconnect clients.
 		const connections = clientConnectionsBySocketId(packet.socketId);
 
@@ -758,7 +805,7 @@ async function worker() {
 			connection.connection.exit();
 		}
 	});
-	handle("Sockets/Server/sendPacket", (packet) => {
+	handle(RuntimeMessageIntent.socket_server_sent_packet, (packet) => {
 		// recieve server packet
 		const recipient = programByPid(packet.targetPid);
 
@@ -775,14 +822,14 @@ async function worker() {
 	});
 
 	// events
-	handle("event_trigger", (packet) => {
+	handle(RuntimeMessageIntent.trigger_event, (packet) => {
 		const program = programByPid(packet.pid);
 
 		program.env.triggerEvent(packet.name, packet.data);
 	});
 
 	// output proxies
-	handle("proxy_log", (packet) => {
+	handle(RuntimeMessageIntent.proxy_log, (packet) => {
 		const program = programByPid(packet.handlerPid);
 
 		const handler = program.outputProxyHandlers[packet.subjectPid];
@@ -791,7 +838,7 @@ async function worker() {
 		handler.onLog(packet.log.type, packet.log.data);
 	});
 
-	handle("proxy_input", async (packet) => {
+	handle(RuntimeMessageIntent.proxy_input, async (packet) => {
 		const program = programByPid(packet.handlerPid);
 
 		const handler = program.outputProxyHandlers[packet.subjectPid];
@@ -803,7 +850,7 @@ async function worker() {
 		};
 	});
 
-	handle("proxy_set_logs", (packet) => {
+	handle(RuntimeMessageIntent.proxy_set_logs, (packet) => {
 		const program = programByPid(packet.handlerPid);
 
 		const handler = program.outputProxyHandlers[packet.subjectPid];
@@ -812,7 +859,7 @@ async function worker() {
 		handler.onSetLogs(packet.logs);
 	});
 
-	handle("proxy_get_dimensions", (packet) => {
+	handle(RuntimeMessageIntent.proxy_get_dimensions, (packet) => {
 		const program = programByPid(packet.handlerPid);
 
 		const handler = program.outputProxyHandlers[packet.subjectPid];

@@ -1,6 +1,8 @@
 import { InputConfig, Log, User } from "@/types/worker";
 import { UiManager } from "../ui/ui";
-import { RuntimeMessageIntent, RuntimeMessageMap } from "../types/messages";
+import { RuntimeMessageMap } from "../types/messages";
+import { RuntimeMessageIntent } from "../types/intents";
+import { PlaySoundResponse } from "../ui/dom";
 
 export interface ProgramLog {
 	type: "log" | "warning" | "error";
@@ -66,3 +68,8 @@ interface ProgramConfig {
 	input?: Log[];
 	outputProxy?: number;
 }
+
+export type RuntimeSoundsStore = Map<
+	number,
+	{ program: ProgramStore; info: PlaySoundResponse }
+>;

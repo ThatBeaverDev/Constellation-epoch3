@@ -10,77 +10,71 @@ import {
 	Worker_Sockets_Server_newServer,
 	Worker_Sockets_Server_sendPacket
 } from "../../worker/types/messages";
+import { RuntimeMessageIntent } from "./intents";
 
-interface RuntimeMessageDataTypes {
-	executeProgram: {
+interface RuntimeMessageMap {
+	[RuntimeMessageIntent.begin_execution]: {
 		data: RuntimeExecuteProgram;
 		return: boolean;
 	};
 
-	execLoop: {
+	[RuntimeMessageIntent.dispatch_frame]: {
 		data: undefined;
 		return: RuntimeExecLoopResponse;
 	};
 
-	program_exit: {
+	[RuntimeMessageIntent.program_exit_inform]: {
 		data: { pid: number; data?: any; logs: Log[] };
 		return: void;
 	};
 
 	// sockets
 	// client
-	"Sockets/Client/newConnection": {
+	[RuntimeMessageIntent.socket_client_connected]: {
 		data: Runtime_Sockets_Client_newConnection;
 		return: void;
 	};
-	"Sockets/Client/endConnection": {
+	[RuntimeMessageIntent.socket_client_disconnected]: {
 		data: Runtime_Sockets_Client_endConnection;
 		return: void;
 	};
-	"Sockets/Client/sendPacket": {
+	[RuntimeMessageIntent.socket_client_sent_packet]: {
 		data: Runtime_Sockets_Client_sendPacket;
 		return: void;
 	};
 	// server
-	"Sockets/Server/newServer": {
-		data: void;
-		return: void;
-	};
-	"Sockets/Server/endServer": {
+	[RuntimeMessageIntent.socket_server_ended]: {
 		data: Runtime_Sockets_Server_endServer;
 		return: void;
 	};
-	"Sockets/Server/sendPacket": {
+	[RuntimeMessageIntent.socket_server_sent_packet]: {
 		data: Runtime_Sockets_Server_sendPacket;
 		return: void;
 	};
 
-	event_trigger: {
+	[RuntimeMessageIntent.trigger_event]: {
 		data: Runtime_Events_Trigger<any>;
 		return: void;
 	};
 
 	// output proxies
-	proxy_log: {
+	[RuntimeMessageIntent.proxy_log]: {
 		data: Runtime_Proxy_Log;
 		return: void;
 	};
-	proxy_input: {
+	[RuntimeMessageIntent.proxy_input]: {
 		data: Runtime_Proxy_Input;
 		return: Worker_Proxy_Input_Response;
 	};
-	proxy_set_logs: {
+	[RuntimeMessageIntent.proxy_set_logs]: {
 		data: Runtime_Proxy_Set_Logs;
 		return: void;
 	};
-	proxy_get_dimensions: {
+	[RuntimeMessageIntent.proxy_get_dimensions]: {
 		data: Runtime_Proxy_Get_Dimensions;
 		return?: { width: number; height: number };
 	};
 }
-
-export type RuntimeMessageMap = RuntimeMessageDataTypes;
-export type RuntimeMessageIntent = keyof RuntimeMessageMap;
 
 export interface RuntimeExecLoopResponse {
 	programs: {

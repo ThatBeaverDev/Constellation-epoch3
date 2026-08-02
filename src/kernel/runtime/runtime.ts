@@ -1,4 +1,4 @@
-import { Log, NetworkDataResponse, Process, User } from "@/types/worker";
+import { Log, User } from "@/types/worker";
 import { UiManager } from "../ui/ui";
 import Epoch3Kernel from "../kernel";
 import { FilesystemInterface } from "../fs/fs";
@@ -7,26 +7,25 @@ import {
 	ProgramConfig,
 	ProgramInputLog,
 	ProgramStore,
+	RuntimeSoundsStore,
 	WorkerStore
 } from "./types";
-import {
-	consoleError,
-	consoleLog,
-	consoleWarn,
-	PlaySoundResponse
-} from "../ui/dom";
+import { consoleError, consoleLog, consoleWarn } from "../ui/dom";
 import { IS_NODE } from "../constants";
 import ConstellationWorker from "web-worker:../../worker/worker";
 import { implementWorkerFS, mainThreadMessageHandler } from "../../workerUtils";
 import { join } from "path-browserify";
-import { encodeBase64 } from "@/lib/base64";
-import { blobToDataURL } from "@/lib/uri";
-import { ALLOWED_PROXY_EVENTS } from "../constants";
-import { triggerProgramEvent } from "./triggerProgramEvent";
-import { insurePrivilege } from "../security/users";
 import { logToString } from "@/lib/logs";
-import handleLogging from "./handlers/logging";
-import { RuntimeMessageIntents } from "../types/messages";
+import handleInputOutput from "./handlers/io";
+import { WorkerMessageIntent } from "../../worker/types/intents";
+import { RuntimeMessageIntent } from "../types/intents";
+import handleExecutionFlow from "./handlers/execution";
+import handleProcesses from "./handlers/processes";
+import handleNetwork from "./handlers/network";
+import handleKernelInfo from "./handlers/kernelInfo";
+import handleSounds from "./handlers/sounds";
+import handleSockets from "./handlers/sockets";
+import handlePasswords from "./handlers/passwords";
 
 export default class Runtime {
 	#log: (message: Log) => void;
@@ -47,11 +46,28 @@ export default class Runtime {
 	targetWorkers: number = 0;
 	workers: WorkerStore[];
 
-	#sounds = new Map<
-		number,
-		{ program: ProgramStore; info: PlaySoundResponse }
-	>();
-	#nextSoundID = 1;
+	nextSoundID = 0;
+	#sounds: RuntimeSoundsStore = new Map();
+
+	programs: ProgramStore[];
+	#initProgram!: ProgramStore;
+	programByPid(id: number): ProgramStore {
+		const index = this.programs.map((program) => program.pid).indexOf(id);
+
+		if (index == -1) {
+			throw new Error(`Session by ID '${id}' does not exist.`);
+		}
+
+		return this.programs[index];
+	}
+
+	#nextPID: number = 1;
+	#nextWorkerID: number = 1;
+
+	#onVisibilityChange = () => {
+		// prevent workers dying randomly
+		this.workers.forEach((worker) => (worker.lastKeepAlive = Date.now()));
+	};
 
 	constructor(
 		kernel: Epoch3Kernel,
@@ -115,26 +131,6 @@ export default class Runtime {
 				this.#onVisibilityChange
 			);
 	}
-
-	programs: ProgramStore[];
-	#initProgram!: ProgramStore;
-	programByPid(id: number): ProgramStore {
-		const index = this.programs.map((program) => program.pid).indexOf(id);
-
-		if (index == -1) {
-			throw new Error(`Session by ID '${id}' does not exist.`);
-		}
-
-		return this.programs[index];
-	}
-
-	#nextPID: number = 1;
-	#nextWorkerID: number = 1;
-
-	#onVisibilityChange = () => {
-		// prevent workers dying randomly
-		this.workers.forEach((worker) => (worker.lastKeepAlive = Date.now()));
-	};
 
 	async #createWorker(
 		programDirectory: string,
@@ -200,467 +196,54 @@ export default class Runtime {
 			reroot
 		);
 
-		handleLogging(handle, getProgram);
-
-		handle(
-			"env_exec",
-			async ({
-				path,
-				args,
-				handoverDisplayPid: executingProgramPid,
-				workingDirectory,
-				input,
-				outputProxy,
-				user: loginInfo
-			}) => {
-				const parent = getProgram();
-
-				if (loginInfo) {
-					const user = await this.#kernel.users.userByUID(
-						loginInfo.uid
-					);
-
-					if (!user)
-						throw new Error(
-							`No user exists by UID ${loginInfo?.uid}`
-						);
-
-					const isValid = await this.#kernel.users.verifyPassword(
-						user,
-						loginInfo.password
-					);
-
-					if (!isValid) {
-						throw new Error("Password is incorrect.");
-					}
-				}
-
-				let user = loginInfo
-					? await this.#kernel.users.userByUID(loginInfo.uid)
-					: parent.user;
-
-				const program = await this.executeProgram(
-					reroot(path),
-					parent,
-					user,
-					args,
-					{
-						displayHandover: { oldOwner: executingProgramPid },
-						workingDirectory,
-						input,
-						outputProxy: outputProxy ? parent.pid : undefined
-					}
-				);
-
-				return { pid: program.pid };
-			}
+		// logging and input
+		handleInputOutput(
+			handle,
+			withTransfer,
+			getProgram,
+			this.programByPid,
+			this.#kernel.ui
 		);
 
-		function sessionToProgram(session: ProgramStore): Process {
-			return {
-				pid: session.pid,
-				name: session.directory.textAfterAll("/"),
+		// ability to spawn other processes or exit
+		handleExecutionFlow(
+			handle,
+			getProgram,
+			reroot,
+			this.#kernel.users,
+			this.executeProgram.bind(this),
 
-				startTime: session.startTime,
-				UID: session.user.UID
-			};
-		}
-
-		handle("env_processes", () => {
-			const list: Process[] = [];
-
-			for (const proc of this.programs) {
-				const obj = sessionToProgram(proc);
-
-				list.push(obj);
-			}
-
-			return list;
-		});
-
-		handle("env_selfProcess", () => {
-			const program = getProgram();
-
-			const store = sessionToProgram(program);
-
-			return store;
-		});
-
-		handle("env_parent_process", () => {
-			const program = getProgram();
-
-			const parent = program.parent;
-			if (!parent) return undefined;
-
-			return sessionToProgram(parent);
-		});
-
-		handle(
-			"env_network_get",
-			async ({ type, url, format, body, headers, options }) => {
-				const processedType = `${type}`.toLowerCase();
-				let method = "GET";
-
-				switch (processedType) {
-					case "get":
-						method = "GET";
-						break;
-					case "post":
-						method = "POST";
-						break;
-					default:
-						throw new Error(
-							`Unknown request type: '` +
-								processedType +
-								`' (given '${type}')`
-						);
-				}
-
-				const bodyString =
-					method == "GET"
-						? undefined
-						: typeof body == "object"
-							? JSON.stringify(body)
-							: String(body);
-
-				const netJson = (): NetworkDataResponse => {
-					const path = url[0] == "/" ? url.substring(1) : url;
-
-					if (this.#kernel.netMap?.[path]) {
-						const data = this.#kernel.netMap[path];
-						let response;
-						switch (format) {
-							case "text":
-								response = data;
-								break;
-
-							case "json":
-								response = JSON.parse(data);
-								break;
-
-							case "datauri":
-								response = `data:text/javascript;base64,${encodeBase64(data)}`;
-								break;
-
-							case "blob":
-								response = new Blob([data], {
-									type: "text/javascript"
-								});
-								break;
-						}
-
-						return {
-							isOk: true,
-							statusCode: 200,
-							statusText: "Success",
-							response: response
-						};
-					} else {
-						return {
-							isOk: false,
-							statusCode: 400,
-							statusText: "Not found"
-						};
-					}
-				};
-
-				if (this.#kernel.netMap && !url.includes("://"))
-					return netJson();
-
-				if (url[0] == "/" && IS_NODE) {
-					// this is to a local position, we should read from the program store (if node)
-					// @ts-expect-error
-					const fs = await import("node:fs/promises");
-					// @ts-expect-error
-					const path = await import("node:path");
-
-					const constellationRoot: string = path.resolve(
-						// @ts-expect-error
-						import.meta.dirname,
-						".."
-					);
-
-					const targetPath: string = path.resolve(
-						constellationRoot,
-						"." + url
-					);
-
-					if (!targetPath.startsWith(constellationRoot)) {
-						throw new Error(
-							"Attempt to read above project root denied."
-						);
-					}
-
-					const contents = await fs.readFile(targetPath, "utf8");
-
-					let result;
-					switch (format) {
-						case "text":
-							result = contents;
-							break;
-						case "json":
-							result = JSON.parse(contents);
-							break;
-						case "datauri":
-							result = await blobToDataURL(new Blob([contents]));
-							break;
-						case "blob":
-							result = new Blob([contents]);
-
-						default:
-							throw new Error(
-								`Unkown request format: '${format}'`
-							);
-					}
-
-					return {
-						response: result,
-						isOk: true,
-						statusCode: 200,
-						statusText: ""
-					};
-				} else {
-					const request = await fetch(url, {
-						method,
-						body: bodyString,
-						headers: headers,
-						cache: (options.cache ?? true) ? "no-store" : "default"
-					});
-
-					let result;
-					switch (format) {
-						case "text":
-							result = await request.text();
-							break;
-						case "json":
-							result = await request.json();
-							break;
-
-						case "datauri":
-							const blob = await request.blob();
-
-							result = await blobToDataURL(blob);
-							break;
-
-						case "blob":
-							result = await request.blob();
-							break;
-
-						default:
-							throw new Error(
-								`Unkown request format: '${format}'`
-							);
-					}
-
-					return {
-						response: request.ok ? result : undefined,
-						errorResponse: request.ok ? undefined : result,
-
-						isOk: request.ok,
-						statusCode: request.status,
-						statusText: request.statusText
-					};
-				}
-			}
+			(data) => this.#registerTermination(pid, data)
 		);
 
-		handle("termination", ({ data }) => {
-			this.#registerTermination(pid, data);
+		// access to process information
+		handleProcesses(handle, getProgram, this);
 
-			// delete all sounds
-			for (const item of this.#sounds) {
-				const soundID = item[0];
-				const sound = item[1];
-				if (!sound) continue;
+		// network requests
+		handleNetwork(handle, this.#kernel.netMap);
 
-				sound.info.remove();
-				this.#sounds.delete(soundID);
-			}
-		});
+		// kernel info
+		handleKernelInfo(handle, this.#kernel);
 
-		handle(
-			"env_input",
-			async ({ message = "Messsage not provided.", config }) => {
-				const program = getProgram();
-
-				return await program.onInput(message, {
-					hideTyping: config.hideTyping,
-					leaveInputOnCompletion: config.leaveInputOnCompletion,
-					inline: config.inline,
-					initialText: config.initialText
-				});
-			}
-		);
-
-		handle("env_set_logs", ({ logs }) => {
-			const program = getProgram();
-
-			return program.onSetLogs(logs);
-		});
-
-		handle("env_terminal_dimensions", () => {
-			const program = getProgram();
-
-			return program.getTerminalDimensions();
-		});
-
-		handle("kernel_uptime", () => Date.now() - this.#kernel.start);
-		handle("kernel_version", () => this.#kernel.version);
-
-		handle("keepAlive", () => {
+		// for when the program pings to say it is alive to prevent termination due to crash
+		handle(WorkerMessageIntent.ping, () => {
 			workerStore.lastKeepAlive = Date.now();
 		});
 
-		/* ----- Sounds ----- */
+		handleSounds(
+			handle,
+			getProgram,
+			reroot,
+			this,
+			this.#sounds,
+			this.#kernel.ui
+		);
 
-		handle("env_sound_play", async ({ config }) => {
-			const program = getProgram();
-			const sound = await this.#kernel.ui.playSound?.(
-				"file" in config
-					? { ...config, file: reroot(config.file) }
-					: config
-			);
+		// sockets for IPC
+		handleSockets(handle, getProgram, reroot, this.#sockets);
 
-			const id = this.#nextSoundID++;
-
-			if (!sound) return { id, duration: 5 };
-
-			this.#sounds.set(id, { info: sound, program });
-
-			sound.onStop.then((time) => {
-				// @ts-expect-error
-				workerStore.emit(`sound_stopped_${id}`, {
-					time
-				});
-
-				this.#sounds.delete(id);
-			});
-
-			return {
-				id,
-				duration: sound.duration
-			};
-		});
-
-		handle("env_sound_pause", async ({ soundID }) => {
-			const sound = this.#sounds.get(soundID);
-
-			if (!sound) throw new Error(`Sound ${soundID} does not exist.`);
-
-			sound.info.pause();
-		});
-
-		handle("env_sound_resume", async ({ soundID }) => {
-			const sound = this.#sounds.get(soundID);
-
-			if (!sound) throw new Error(`Sound ${soundID} does not exist.`);
-
-			sound.info.play();
-		});
-
-		handle("env_sound_remove", async ({ soundID }) => {
-			const sound = this.#sounds.get(soundID);
-
-			if (!sound) return;
-
-			sound.info.remove();
-			this.#sounds.delete(soundID);
-		});
-
-		// sockets
-		handle("Sockets_Client_newConnection", (packet) => {
-			const client = getProgram();
-
-			return this.#sockets.newClientConnection(client, {
-				...packet,
-				socketDirectory: reroot(packet.socketDirectory)
-			});
-		});
-		handle("Sockets_Client_endConnection", (packet) => {
-			const disconnectingClient = getProgram();
-
-			return this.#sockets.endClientConnection(
-				disconnectingClient,
-				packet
-			);
-		});
-		handle("Sockets_Client_sendPacket", (packet) => {
-			const client = getProgram();
-
-			return this.#sockets.clientSendMessage(client, packet);
-		});
-
-		handle("Sockets_Server_newServer", (packet) => {
-			const server = getProgram();
-
-			return this.#sockets.newServerInstance(server, {
-				...packet,
-				socketDirectory: reroot(packet.socketDirectory)
-			});
-		});
-		handle("Sockets_Server_endServer", (packet) => {
-			const server = getProgram();
-
-			return this.#sockets.endServerInstance(server, packet);
-		});
-		handle("Sockets_Server_sendPacket", (packet) => {
-			const server = getProgram();
-
-			return this.#sockets.serverSendMessage(server, packet);
-		});
-
-		// @ts-expect-error // withTransfer explodes the types
-		handle("env_get_liveCanvas", async ({ width, height }) => {
-			const liveCanvas = await this.#kernel.ui.getLiveCanvas?.(
-				width,
-				height
-			);
-
-			if (!liveCanvas) {
-				throw new Error(
-					"UI did not provide a canvas element (or does not support liveCanvas)."
-				);
-			}
-
-			const program = getProgram();
-			program.liveCanvasIds.push(liveCanvas.id);
-
-			return withTransfer(liveCanvas, [liveCanvas.canvas]);
-		});
-
-		handle("env_remove_liveCanvas", ({ id }) => {
-			const program = getProgram();
-
-			if (program.liveCanvasIds.includes(id)) {
-				// good to go
-				this.#kernel.ui.removeLiveCanvas?.(id);
-			} else {
-				throw new Error(`Program does not own liveCanvas#${id}`);
-			}
-		});
-
-		handle("proxy_trigger_event", (msg) => {
-			if (ALLOWED_PROXY_EVENTS.has(msg.eventName)) {
-				// allowed
-				const target = this.programByPid(msg.subjectPid);
-
-				triggerProgramEvent(target, msg.eventName, msg.data);
-			}
-		});
-
-		handle("change_password", async (msg) => {
-			await insurePrivilege(getProgram(), this.#kernel.users);
-
-			return this.#kernel.users.changePassword(msg.uid, msg.newPassword);
-		});
-
-		handle("validate_password", async (msg) => {
-			const user = await this.#kernel.users.userByUID(msg.uid);
-			if (!user)
-				throw new Error(`User by UID ${msg.uid} does not exist.`);
-
-			return this.#kernel.users.verifyPassword(user, msg.password);
-		});
+		// validation of passwords
+		handlePasswords(handle, getProgram, this.#kernel.users);
 
 		this.workers.push(workerStore);
 		this.#log(`New worker created. (#${workerID})`);
@@ -754,7 +337,7 @@ export default class Runtime {
 			worker.lock = true;
 
 			worker
-				.sendMessage(RuntimeMessageIntents.execLoop, undefined)
+				.sendMessage(RuntimeMessageIntent.dispatch_frame, undefined)
 				.then(({ programs, completePrograms, computePercentage }) => {
 					worker.totalPrograms -= completePrograms.length;
 					worker.computePercentage = computePercentage;
@@ -837,7 +420,7 @@ export default class Runtime {
 
 			onExit: (data?: Log) => {
 				this.workers.forEach((store) => {
-					store.emit(RuntimeMessageIntents.program_exit, {
+					store.emit(RuntimeMessageIntent.program_exit_inform, {
 						pid: program.pid,
 						data,
 						logs: program.logs
@@ -853,7 +436,7 @@ export default class Runtime {
 				program.logs.push({ type, data: rootedData });
 
 				if (proxyOwner) {
-					proxyOwner.worker.emit(RuntimeMessageIntents.proxy_log, {
+					proxyOwner.worker.emit(RuntimeMessageIntent.proxy_log, {
 						handlerPid: proxyOwner.pid,
 						subjectPid: program.pid,
 
@@ -913,7 +496,7 @@ export default class Runtime {
 
 				if (proxyOwner) {
 					proxyOwner.worker.emit(
-						RuntimeMessageIntents.proxy_set_logs,
+						RuntimeMessageIntent.proxy_set_logs,
 						{
 							handlerPid: proxyOwner.pid,
 							subjectPid: program.pid,
@@ -966,7 +549,7 @@ export default class Runtime {
 					if (!proxyOwner) return;
 
 					const inputResponse = await proxyOwner.worker.sendMessage(
-						RuntimeMessageIntents.proxy_input,
+						RuntimeMessageIntent.proxy_input,
 						{
 							handlerPid: proxyOwner.pid,
 							subjectPid: program.pid,
@@ -1019,7 +602,7 @@ export default class Runtime {
 					if (!proxyOwner) return fallback;
 
 					return await proxyOwner.worker.sendMessage(
-						RuntimeMessageIntents.proxy_get_dimensions,
+						RuntimeMessageIntent.proxy_get_dimensions,
 						{
 							handlerPid: proxyOwner.pid,
 							subjectPid: program.pid
@@ -1072,7 +655,7 @@ export default class Runtime {
 			);
 
 		const ok = await worker.sendMessage(
-			RuntimeMessageIntents.executeProgram,
+			RuntimeMessageIntent.begin_execution,
 			{
 				directory,
 				code,
@@ -1108,6 +691,17 @@ export default class Runtime {
 		this.#log(
 			`Program by PID ${pid} (from ${program.directory}) has exited.`
 		);
+
+		// stop sounds
+		for (const item of this.#sounds) {
+			const soundID = item[0];
+			const sound = item[1];
+
+			if (!sound || sound.program !== program) continue;
+
+			sound.info.remove();
+			this.#sounds.delete(soundID);
+		}
 
 		// reparent children to init
 		if (program.children.size !== 0) {

@@ -3,21 +3,16 @@ import { IS_DEV_MODE, IS_NODE } from "./kernel/constants";
 import { FilesystemInterface } from "./kernel/fs/fs";
 import { WorkerStore } from "./kernel/runtime/types";
 import UsersManager from "./kernel/security/users";
-import {
-	RuntimeMessageIntent,
-	RuntimeMessageMap
-} from "./kernel/types/messages";
-import {
-	WorkerMessageDataTypes,
-	WorkerMessageIntent,
-	WorkerMessageMap
-} from "./worker/types/messages";
+import { RuntimeMessageMap } from "./kernel/types/messages";
+import { WorkerMessageMap } from "./worker/types/messages";
+import { WorkerMessageIntent } from "./worker/types/intents";
 import { tryReadFile, tryWriteFile } from "./kernel/security/permissions";
+import { RuntimeMessageIntent } from "./kernel/types/intents";
 
 type WorkerRequest = {
 	kind: "request";
 	id: number;
-	intent: string;
+	intent: string | number;
 	data?: any;
 };
 
@@ -32,7 +27,7 @@ type WorkerResponse = {
 
 type WorkerEvent = {
 	kind: "event";
-	event: string;
+	event: string | number;
 	data?: any;
 };
 
@@ -55,7 +50,7 @@ export async function mainThreadMessageHandler(
 	let nextMessageID = 1;
 
 	const pendingMessages = new Map<number, Pending>();
-	const requestHandlers = new Map<string, RequestHandler>();
+	const requestHandlers = new Map<string | number, RequestHandler>();
 
 	const onMessage = async (msg: WorkerMessage) => {
 		store.lastKeepAlive = Date.now();
@@ -145,7 +140,6 @@ export async function mainThreadMessageHandler(
 	};
 
 	if (IS_NODE) {
-		// @ts-expect-error
 		worker.on("message", onMessage);
 	} else {
 		worker.onmessage = (event) => onMessage(event.data);
@@ -205,11 +199,11 @@ export async function mainThreadMessageHandler(
 }
 
 export function implementWorkerFS(
-	handle: <Intent extends keyof WorkerMessageDataTypes>(
+	handle: <Intent extends keyof WorkerMessageMap>(
 		event: Intent,
 		handler: RequestHandler<
-			WorkerMessageDataTypes[Intent]["data"],
-			WorkerMessageDataTypes[Intent]["return"]
+			WorkerMessageMap[Intent]["data"],
+			WorkerMessageMap[Intent]["return"]
 		>
 	) => void,
 	fs: FilesystemInterface,
@@ -217,36 +211,42 @@ export function implementWorkerFS(
 	getUser: () => User,
 	reroot: (path: string) => string
 ) {
-	handle("fs_readFile", async ({ path, format }) => {
+	handle(WorkerMessageIntent.fs_readFile, async ({ path, format }) => {
 		path = reroot(path);
 		await tryReadFile(path, users, getUser());
 
 		return await fs.readFile(path, format);
 	});
-	handle("fs_writeFile", async ({ path, contents }) => {
+	handle(WorkerMessageIntent.fs_writeFile, async ({ path, contents }) => {
 		path = reroot(path);
 		await tryWriteFile(path, users, getUser());
 
 		return await fs.writeFile(path, contents);
 	});
-	handle("fs_unlink", async ({ path }) => {
+	handle(WorkerMessageIntent.fs_unlink, async ({ path }) => {
 		path = reroot(path);
 		await tryWriteFile(path, users, getUser());
 
 		return await fs.unlink(path);
 	});
 
-	handle("fs_get_metadata_entry", async ({ path, entry }) => {
-		return await fs.getMetadataEntry(path, entry);
-	});
-	handle("fs_set_metadata_entry", async ({ path, entry, value }) => {
-		return await fs.setMetadataEntry(path, entry, value);
-	});
-	handle("fs_list_metadata_entries", async ({ path }) => {
+	handle(
+		WorkerMessageIntent.fs_get_metadata_entry,
+		async ({ path, entry }) => {
+			return await fs.getMetadataEntry(path, entry);
+		}
+	);
+	handle(
+		WorkerMessageIntent.fs_set_metadata_entry,
+		async ({ path, entry, value }) => {
+			return await fs.setMetadataEntry(path, entry, value);
+		}
+	);
+	handle(WorkerMessageIntent.fs_list_metadata_entries, async ({ path }) => {
 		return await fs.listMetadataEntries(path);
 	});
 
-	handle("fs_mkdir", async ({ path, options }) => {
+	handle(WorkerMessageIntent.fs_mkdir, async ({ path, options }) => {
 		path = reroot(path);
 		await tryWriteFile(path, users, getUser());
 
@@ -262,41 +262,41 @@ export function implementWorkerFS(
 			return true;
 		} else return await fs.mkdir(path);
 	});
-	handle("fs_createAlias", async ({ path, targetPath }) => {
+	handle(WorkerMessageIntent.fs_createAlias, async ({ path, targetPath }) => {
 		path = reroot(path);
 		return await fs.createAlias(path, targetPath);
 	});
-	handle("fs_readdir", async ({ path }) => {
+	handle(WorkerMessageIntent.fs_readdir, async ({ path }) => {
 		path = reroot(path);
 		await tryReadFile(path, users, getUser());
 
 		return await fs.readdir(path);
 	});
-	handle("fs_rmdir", async ({ path }) => {
+	handle(WorkerMessageIntent.fs_rmdir, async ({ path }) => {
 		path = reroot(path);
 		await tryWriteFile(path, users, getUser());
 
 		return await fs.rmdir(path);
 	});
 
-	handle("fs_rm", async ({ path }) => {
+	handle(WorkerMessageIntent.fs_rm, async ({ path }) => {
 		path = reroot(path);
 		await tryWriteFile(path, users, getUser());
 
 		return await fs.rm(path);
 	});
 
-	handle("fs_isdir", async ({ path }) => {
+	handle(WorkerMessageIntent.fs_isdir, async ({ path }) => {
 		path = reroot(path);
 		return await fs.isDir(path);
 	});
 
-	handle("fs_exists", async ({ path }) => {
+	handle(WorkerMessageIntent.fs_exists, async ({ path }) => {
 		path = reroot(path);
 		return await fs.exists(path);
 	});
 
-	handle("fs_stats", async ({ path }) => {
+	handle(WorkerMessageIntent.fs_stats, async ({ path }) => {
 		path = reroot(path);
 		await tryReadFile(path, users, getUser());
 
@@ -456,13 +456,13 @@ export class WorkerFS implements EnvironmentFilesystem {
 	waitForReady(): Promise<void> {
 		return new Promise((resolve) => resolve());
 	}
-	#sendMessage: <Intent extends keyof WorkerMessageDataTypes>(
+	#sendMessage: <Intent extends WorkerMessageIntent>(
 		intent: Intent,
 		data: WorkerMessageMap[Intent]["data"]
 	) => Promise<WorkerMessageMap[Intent]["return"]>;
 
 	constructor(
-		sendMessage: <Intent extends keyof WorkerMessageDataTypes>(
+		sendMessage: <Intent extends WorkerMessageIntent>(
 			intent: Intent,
 			data: WorkerMessageMap[Intent]["data"]
 		) => Promise<WorkerMessageMap[Intent]["return"]>
@@ -484,33 +484,45 @@ export class WorkerFS implements EnvironmentFilesystem {
 		if (!["text", "json", undefined].includes(format))
 			throw new Error("Format must be 'text', 'json' or blank.");
 
-		return await this.#sendMessage("fs_readFile", { path, format });
+		return await this.#sendMessage(WorkerMessageIntent.fs_readFile, {
+			path,
+			format
+		});
 	}
 	async writeFile(path: string, contents: string) {
 		if (typeof path !== "string") throw new Error("Path must be string");
 		if (typeof contents !== "string")
 			throw new Error("Contents must be string");
 
-		return await this.#sendMessage("fs_writeFile", { path, contents });
+		return await this.#sendMessage(WorkerMessageIntent.fs_writeFile, {
+			path,
+			contents
+		});
 	}
 	async unlink(path: string): Promise<void> {
 		if (typeof path !== "string") throw new Error("Path must be string");
 
-		return await this.#sendMessage("fs_unlink", { path });
+		return await this.#sendMessage(WorkerMessageIntent.fs_unlink, { path });
 	}
 
 	async getMetadataEntry(path: string, entry: string) {
 		if (typeof path !== "string") throw new Error("Path must be string");
 
-		return await this.#sendMessage("fs_get_metadata_entry", {
-			path,
-			entry
-		});
+		return await this.#sendMessage(
+			WorkerMessageIntent.fs_get_metadata_entry,
+			{
+				path,
+				entry
+			}
+		);
 	}
 	async listMetadataEntries(path: string) {
 		if (typeof path !== "string") throw new Error("Path must be string");
 
-		return await this.#sendMessage("fs_list_metadata_entries", { path });
+		return await this.#sendMessage(
+			WorkerMessageIntent.fs_list_metadata_entries,
+			{ path }
+		);
 	}
 	async setMetadataEntry(
 		path: string,
@@ -519,11 +531,14 @@ export class WorkerFS implements EnvironmentFilesystem {
 	) {
 		if (typeof path !== "string") throw new Error("Path must be string");
 
-		return await this.#sendMessage("fs_set_metadata_entry", {
-			path,
-			entry,
-			value
-		});
+		return await this.#sendMessage(
+			WorkerMessageIntent.fs_set_metadata_entry,
+			{
+				path,
+				entry,
+				value
+			}
+		);
 	}
 
 	async mkdir(
@@ -532,7 +547,10 @@ export class WorkerFS implements EnvironmentFilesystem {
 	): Promise<boolean> {
 		if (typeof path !== "string") throw new Error("Path must be string");
 
-		return await this.#sendMessage("fs_mkdir", { path, options });
+		return await this.#sendMessage(WorkerMessageIntent.fs_mkdir, {
+			path,
+			options
+		});
 	}
 
 	async createAlias(path: string, targetPath: string): Promise<boolean> {
@@ -541,7 +559,7 @@ export class WorkerFS implements EnvironmentFilesystem {
 		if (typeof targetPath !== "string")
 			throw new Error("Target path must be string");
 
-		return await this.#sendMessage("fs_createAlias", {
+		return await this.#sendMessage(WorkerMessageIntent.fs_createAlias, {
 			path,
 			targetPath
 		});
@@ -550,29 +568,31 @@ export class WorkerFS implements EnvironmentFilesystem {
 	async readdir(path: string): Promise<string[]> {
 		if (typeof path !== "string") throw new Error("Path must be string");
 
-		return await this.#sendMessage("fs_readdir", { path });
+		return await this.#sendMessage(WorkerMessageIntent.fs_readdir, {
+			path
+		});
 	}
 	async rmdir(path: string): Promise<void> {
 		if (typeof path !== "string") throw new Error("Path must be string");
 
-		return await this.#sendMessage("fs_rmdir", { path });
+		return await this.#sendMessage(WorkerMessageIntent.fs_rmdir, { path });
 	}
 
 	async rm(path: string): Promise<void> {
 		if (typeof path !== "string") throw new Error("Path must be string");
 
-		return await this.#sendMessage("fs_rm", { path });
+		return await this.#sendMessage(WorkerMessageIntent.fs_rm, { path });
 	}
 
 	async isDirectory(path: string): Promise<boolean> {
-		return await this.#sendMessage("fs_isdir", { path });
+		return await this.#sendMessage(WorkerMessageIntent.fs_isdir, { path });
 	}
 
 	async exists(path: string): Promise<boolean> {
-		return await this.#sendMessage("fs_exists", { path });
+		return await this.#sendMessage(WorkerMessageIntent.fs_exists, { path });
 	}
 
 	async stats(path: string): Promise<FileStats | undefined> {
-		return await this.#sendMessage("fs_stats", { path });
+		return await this.#sendMessage(WorkerMessageIntent.fs_stats, { path });
 	}
 }

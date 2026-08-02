@@ -9,22 +9,23 @@ import {
 	Process,
 	Sound
 } from "@/types/worker";
+import { WorkerMessageIntent } from "./intents";
 
-interface WorkerMessageDataTypes {
-	program_log: {
+interface WorkerMessageMap {
+	[WorkerMessageIntent.log]: {
 		data: { data: Log };
 		return: void;
 	};
-	program_warn: {
+	[WorkerMessageIntent.warn]: {
 		data: { data: Log };
 		return: void;
 	};
-	program_error: {
+	[WorkerMessageIntent.error]: {
 		data: { data: Log };
 		return: void;
 	};
 
-	env_exec: {
+	[WorkerMessageIntent.execute_program]: {
 		data: {
 			path: string;
 			args?: string[];
@@ -38,181 +39,178 @@ interface WorkerMessageDataTypes {
 		};
 		return: { pid: number };
 	};
-	env_processes: {
+	[WorkerMessageIntent.get_all_processes]: {
 		data: void;
 		return: Process[];
 	};
-	env_selfProcess: {
+	[WorkerMessageIntent.get_self_process]: {
 		data: void;
 		return: Process;
 	};
-	env_parent_process: {
+	[WorkerMessageIntent.get_parent_process]: {
 		data: void;
 		return: Process | undefined;
 	};
-	env_network_get: {
+	[WorkerMessageIntent.env_network_get]: {
 		data: WorkerEnv_Network_Get;
 		return: NetworkDataResponse;
 	};
-	env_input: {
+	[WorkerMessageIntent.get_input]: {
 		data: WorkerEnv_Input;
 		return: string;
 	};
-	env_set_logs: {
+	[WorkerMessageIntent.set_logs]: {
 		data: Worker_Env_Set_Logs;
 		return: void;
 	};
-	env_terminal_dimensions: {
+	[WorkerMessageIntent.terminal_dimensions]: {
 		data: undefined;
 		return: { width: number; height: number };
 	};
-	kernel_uptime: {
+	[WorkerMessageIntent.kernel_uptime]: {
 		data: void;
 		return: number;
 	};
-	kernel_version: {
+	[WorkerMessageIntent.kernel_version]: {
 		data: void;
 		return: string;
 	};
-	keepAlive: {
+	[WorkerMessageIntent.ping]: {
 		data: void;
 		return: void;
 	};
-	env_sound_play: {
+	[WorkerMessageIntent.play_sound]: {
 		data: WorkerEnv_PlaySound;
 		return: { id: number; duration: number };
 	};
-	env_sound_pause: {
+	[WorkerMessageIntent.pause_sound]: {
 		data: WorkerEnv_SoundAction;
 		return: void;
 	};
-	env_sound_resume: {
+	[WorkerMessageIntent.resume_sound]: {
 		data: WorkerEnv_SoundAction;
 		return: void;
 	};
-	env_sound_remove: {
+	[WorkerMessageIntent.remove_sound]: {
 		data: WorkerEnv_SoundAction;
 		return: void;
 	};
-	env_get_liveCanvas: {
+	[WorkerMessageIntent.get_live_canvas]: {
 		data: Worker_Env_Get_LiveCanvas;
 		return: {
 			canvas: OffscreenCanvas;
 			id: number;
 		};
 	};
-	env_remove_liveCanvas: {
+	[WorkerMessageIntent.remove_live_canvas]: {
 		data: { id: number };
 		return: void;
 	};
 
 	// sockets
-	"Sockets/Client/newConnection": {
+	[WorkerMessageIntent.socket_connect]: {
 		data: Worker_Sockets_Client_newConnection;
 		return: number;
 	};
-	"Sockets/Client/endConnection": {
+	[WorkerMessageIntent.socket_disconnect]: {
 		data: Worker_Sockets_Client_endConnection;
 		return: void;
 	};
-	"Sockets/Client/sendPacket": {
+	[WorkerMessageIntent.send_socket_packet_to_server]: {
 		data: Worker_Sockets_Client_sendPacket;
 		return: void;
 	};
-	"Sockets/Server/newServer": {
+	[WorkerMessageIntent.create_socket]: {
 		data: Worker_Sockets_Server_newServer;
 		return: number;
 	};
-	"Sockets/Server/endServer": {
+	[WorkerMessageIntent.end_socket]: {
 		data: Worker_Sockets_Server_endServer;
 		return: void;
 	};
-	"Sockets/Server/sendPacket": {
+	[WorkerMessageIntent.send_socket_packet_to_client]: {
 		data: Worker_Sockets_Server_sendPacket;
 		return: void;
 	};
 
 	// proxies
-	proxy_trigger_event: {
+	[WorkerMessageIntent.trigger_proxy_event]: {
 		data: Worker_Proxy_Trigger_Event<any>;
 		return: void;
 	};
 
-	termination: {
+	[WorkerMessageIntent.exit]: {
 		data: { data?: any };
 		return: void;
 	};
 
 	// workerFS
-	fs_readFile: {
+	[WorkerMessageIntent.fs_readFile]: {
 		data: { path: string; format?: "text" | "json" };
 		return: string | any | void;
 	};
-	fs_writeFile: {
+	[WorkerMessageIntent.fs_writeFile]: {
 		data: { path: string; contents: string };
 		return: void;
 	};
-	fs_unlink: {
+	[WorkerMessageIntent.fs_unlink]: {
 		data: { path: string };
 		return: void;
 	};
-	fs_get_metadata_entry: {
+	[WorkerMessageIntent.fs_get_metadata_entry]: {
 		data: { path: string; entry: string };
 		return: string | void;
 	};
-	fs_set_metadata_entry: {
+	[WorkerMessageIntent.fs_set_metadata_entry]: {
 		data: { path: string; entry: string; value: string | undefined };
 		return: void;
 	};
-	fs_list_metadata_entries: {
+	[WorkerMessageIntent.fs_list_metadata_entries]: {
 		data: { path: string };
 		return: string[] | void;
 	};
-	fs_mkdir: {
+	[WorkerMessageIntent.fs_mkdir]: {
 		data: { path: string; options?: { recursive?: boolean } };
 		return: boolean;
 	};
-	fs_createAlias: {
+	[WorkerMessageIntent.fs_createAlias]: {
 		data: { path: string; targetPath: string };
 		return: boolean;
 	};
-	fs_readdir: {
+	[WorkerMessageIntent.fs_readdir]: {
 		data: { path: string };
 		return: string[];
 	};
-	fs_rmdir: {
+	[WorkerMessageIntent.fs_rmdir]: {
 		data: { path: string };
 		return: void;
 	};
-	fs_rm: {
+	[WorkerMessageIntent.fs_rm]: {
 		data: { path: string };
 		return: void;
 	};
-	fs_isdir: {
+	[WorkerMessageIntent.fs_isdir]: {
 		data: { path: string };
 		return: boolean;
 	};
-	fs_exists: {
+	[WorkerMessageIntent.fs_exists]: {
 		data: { path: string };
 		return: boolean;
 	};
-	fs_stats: {
+	[WorkerMessageIntent.fs_stats]: {
 		data: { path: string };
 		return: FileStats | undefined;
 	};
 
-	change_password: {
+	[WorkerMessageIntent.change_password]: {
 		data: { uid: number; newPassword: string };
 		return: boolean;
 	};
-	validate_password: {
+	[WorkerMessageIntent.validate_password]: {
 		data: { uid: number; password: string };
 		return: boolean;
 	};
 }
-
-export type WorkerMessageMap = WorkerMessageDataTypes;
-export type WorkerMessageIntent = keyof WorkerMessageMap;
 
 export interface WorkerEnv_Input {
 	message: string;

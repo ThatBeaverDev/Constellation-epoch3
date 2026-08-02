@@ -16,3 +16,7 @@ declare module "web-worker:*" {
 }
 
 declare const process: { cwd(): string; exit(): void };
+
+declare interface Worker {
+	on: (event: "message", handler: Function) => void;
+}
