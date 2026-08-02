@@ -20,40 +20,385 @@ import { RuntimeMessageIntent } from "../kernel/types/intents";
 import applyStringPrototypes from "../shared/strings";
 import { workerMessageHandler } from "./handlers/handler";
 
-async function worker() {
-	applyStringPrototypes();
+applyStringPrototypes();
 
-	/* Secure some bases */
+/* Secure some bases */
 
-	// @ts-expect-error
-	globalThis.localStorage = undefined;
+// @ts-expect-error
+globalThis.localStorage = undefined;
 
-	// @ts-expect-error
-	globalThis.eval = undefined;
-	// @ts-expect-error
-	globalThis.fetch = undefined;
-	// @ts-expect-error
-	globalThis.XMLHttpRequest = undefined;
-	// @ts-expect-error
-	globalThis.Worker = undefined;
-	// @ts-expect-error
-	globalThis.globalThis = globalThis;
+// @ts-expect-error
+globalThis.eval = undefined;
+// @ts-expect-error
+globalThis.fetch = undefined;
+// @ts-expect-error
+globalThis.XMLHttpRequest = undefined;
+// @ts-expect-error
+globalThis.Worker = undefined;
+// @ts-expect-error
+globalThis.globalThis = globalThis;
 
-	const { sendMessage, emit, handle } = await workerMessageHandler();
+class ConstellationWorker {
+	sendMessage!: Awaited<
+		ReturnType<typeof workerMessageHandler>
+	>["sendMessage"];
+	emit!: Awaited<ReturnType<typeof workerMessageHandler>>["emit"];
 
-	setInterval(() => {
-		emit(WorkerMessageIntent.ping, undefined);
-	}, 2000);
+	programs: WorkerProgramStore[] = [];
+	fs!: WorkerFS;
 
-	/* =============== Worker Code  =============== */
+	activePrograms: Partial<
+		Record<
+			number,
+			{
+				promise: Promise<{ return: Log; logs: Log[] }>;
+				resolve: (value: { return: Log; logs: Log[] }) => void;
+			}
+		>
+	> = {};
 
-	const programs: WorkerProgramStore[] = [];
-	const fs = new WorkerFS(sendMessage);
+	completedQueue: { pid: number }[] = [];
+	computeCalculationWindow = 2000;
+	computeSlices: { start: number; end: number }[] = [];
 
-	function newEnv(
-		program: WorkerProgramStore,
-		workingDirectory?: string
-	): Environment {
+	constructor() {
+		this.init();
+	}
+
+	init = async () => {
+		const { sendMessage, emit, handle } = await workerMessageHandler();
+
+		this.sendMessage = sendMessage;
+		this.emit = emit;
+
+		setInterval(() => {
+			emit(WorkerMessageIntent.ping, undefined);
+		}, 2000);
+
+		this.fs = new WorkerFS(sendMessage);
+
+		// handlers
+		handle(
+			RuntimeMessageIntent.begin_execution,
+			async ({
+				directory,
+				code: contents,
+				pid,
+
+				args,
+				workingDirectory,
+				input
+			}) => {
+				if (!directory) throw new Error("Directory is required!");
+				if (!pid) throw new Error("PID is required!");
+
+				if (!contents)
+					throw new Error(
+						`File '${directory}' to execute does not exist!`
+					);
+
+				const blob = new Blob([contents], {
+					type: "text/javascript"
+				});
+				const url = blobToUrl(blob);
+
+				const exports = await import(url);
+				const program = exports.default as ConstellationProgram;
+
+				const store: WorkerProgramStore = {
+					generator: undefined,
+
+					pid,
+					directory,
+
+					// @ts-expect-error
+					env: "tempValue",
+
+					locked: false,
+
+					outputHandlers: {},
+
+					socketConnections: [],
+					socketServers: [],
+
+					liveCanvasIds: [],
+
+					outputProxyHandlers: {},
+
+					onExit: []
+				};
+				store.env = this.newEnv(store, workingDirectory);
+
+				try {
+					const generator = program(store.env, args ?? [], input);
+
+					if (
+						generator &&
+						Object.keys(Object.getPrototypeOf(generator)).length ==
+							0
+					) {
+						// @ts-expect-error // probably a generator
+						store.generator = generator;
+					} else {
+						// not a generator, this is a return value, let's just pretend we're working with a generator.
+						store.generator = (function* emptyGenerator() {
+							return generator;
+						})();
+					}
+				} catch (e) {
+					console.error(e);
+					return false;
+				}
+
+				this.programs.push(store);
+
+				return true;
+			}
+		);
+
+		handle(RuntimeMessageIntent.dispatch_frame, () => {
+			const start = performance.now();
+
+			this.programs.forEach(async (program) => {
+				if (program.locked) return;
+				program.locked = true;
+
+				try {
+					if (!program.generator) {
+						this.terminateProgram(program, "");
+						return;
+					}
+
+					const result = await program.generator.next(
+						program.passValue
+					);
+					program.passValue = undefined;
+
+					if (result.done) {
+						this.terminateProgram(program, result.value);
+					} else {
+						// result.value is a regular value, pass it next time
+						program.passValue = result.value;
+					}
+				} catch (err) {
+					console.error(`Program ${program.pid} failed:`, err);
+
+					// kill it.
+					this.terminateProgram(program, [
+						{
+							text: String(
+								err instanceof Error
+									? `${err.name}: ${err.message}`
+									: err
+							),
+							colour: "#ff0000"
+						}
+					]);
+				}
+
+				program.locked = false;
+			});
+
+			const programsData = this.programs.map((item) => ({
+				pid: item.pid,
+				directory: item.directory
+			}));
+
+			const end = performance.now();
+
+			// Store this active compute period
+			this.computeSlices.push({ start, end });
+
+			// Remove anything completely outside the window
+			const cutoff = end - this.computeCalculationWindow;
+			while (
+				this.computeSlices.length &&
+				this.computeSlices[0].end < cutoff
+			) {
+				this.computeSlices.shift();
+			}
+
+			// Calculate total active time within the last 2 seconds
+			let activeTime = 0;
+
+			for (const slice of this.computeSlices) {
+				const overlapStart = Math.max(slice.start, cutoff);
+				const overlapEnd = slice.end;
+
+				if (overlapEnd > overlapStart) {
+					activeTime += overlapEnd - overlapStart;
+				}
+			}
+
+			const computePercentage =
+				(activeTime / this.computeCalculationWindow) * 100;
+
+			const result = {
+				programs: programsData,
+				completePrograms: this.completedQueue.splice(0),
+				computePercentage
+			};
+
+			return result;
+		});
+
+		handle(
+			RuntimeMessageIntent.program_exit_inform,
+			({ pid, data, logs }) => {
+				const program = this.activePrograms[pid];
+				if (program) {
+					program.resolve({ return: data, logs: logs });
+					delete this.activePrograms[pid];
+				}
+			}
+		);
+
+		// sockets
+
+		const socketServerBySocketId = (
+			id: number
+		): WorkerProgramStore["socketServers"][0] | undefined => {
+			for (const program of this.programs) {
+				const ids = program.socketServers.map(
+					(server) => server.socketId
+				);
+				const index = ids.indexOf(id);
+
+				if (index !== -1) {
+					return program.socketServers[index];
+				}
+			}
+
+			return undefined;
+		};
+
+		const clientConnectionsBySocketId = (id: number) => {
+			const connections: WorkerProgramStore["socketConnections"] = [];
+			for (const program of this.programs) {
+				const ids = program.socketConnections.map(
+					(connection) => connection.socketId
+				);
+				const index = ids.indexOf(id);
+
+				if (index !== -1) {
+					connections.push(program.socketConnections[index]);
+				}
+			}
+
+			return connections;
+		};
+
+		handle(RuntimeMessageIntent.socket_client_connected, (packet) => {
+			const server = socketServerBySocketId(packet.socketId);
+
+			server?.server?.onClientConnect?.({ pid: packet.initiatorPid });
+		});
+		handle(RuntimeMessageIntent.socket_client_disconnected, (packet) => {
+			const server = socketServerBySocketId(packet.socketId);
+
+			server?.server?.onClientDisconnect?.({
+				pid: packet.initiatorPid
+			});
+		});
+		handle(RuntimeMessageIntent.socket_client_sent_packet, (packet) => {
+			const server = socketServerBySocketId(packet.socketId);
+
+			server?.server?.onMessage?.(
+				{ pid: packet.initiatorPid },
+				packet.payload
+			);
+		});
+
+		// shouldnt fire
+		handle(RuntimeMessageIntent.socket_server_ended, (packet) => {
+			// a server has terminated, so we need to disconnect clients.
+			const connections = clientConnectionsBySocketId(packet.socketId);
+
+			for (const connection of connections) {
+				// need onClose()
+				connection.connection.onClose?.();
+				connection.connection.exit();
+			}
+		});
+		handle(RuntimeMessageIntent.socket_server_sent_packet, (packet) => {
+			// recieve server packet
+			const recipient = this.programByPid(packet.targetPid);
+
+			const ids = recipient.socketConnections.map(
+				(connection) => connection.socketId
+			);
+			const index = ids.indexOf(packet.socketId);
+
+			if (index == -1) return; // not connected
+
+			const { connection } = recipient.socketConnections[index];
+
+			connection.onMessage?.(packet.payload);
+		});
+
+		// events
+		handle(RuntimeMessageIntent.trigger_event, (packet) => {
+			const program = this.programByPid(packet.pid);
+
+			program.env.triggerEvent(packet.name, packet.data);
+		});
+
+		// output proxies
+		handle(RuntimeMessageIntent.proxy_log, (packet) => {
+			const program = this.programByPid(packet.handlerPid);
+
+			const handler = program.outputProxyHandlers[packet.subjectPid];
+			if (!handler) return;
+
+			handler.onLog(packet.log.type, packet.log.data);
+		});
+
+		handle(RuntimeMessageIntent.proxy_input, async (packet) => {
+			const program = this.programByPid(packet.handlerPid);
+
+			const handler = program.outputProxyHandlers[packet.subjectPid];
+			if (!handler) return { finished: false };
+
+			return {
+				finished: true,
+				response: await handler.onInput(packet.message, packet.config)
+			};
+		});
+
+		handle(RuntimeMessageIntent.proxy_set_logs, (packet) => {
+			const program = this.programByPid(packet.handlerPid);
+
+			const handler = program.outputProxyHandlers[packet.subjectPid];
+			if (!handler) return;
+
+			handler.onSetLogs(packet.logs);
+		});
+
+		handle(RuntimeMessageIntent.proxy_get_dimensions, (packet) => {
+			const program = this.programByPid(packet.handlerPid);
+
+			const handler = program.outputProxyHandlers[packet.subjectPid];
+			if (!handler) return;
+
+			return handler.getDimensions();
+		});
+
+		console.log("Initialisation Complete.");
+	};
+
+	programByPid = (id: number) => {
+		const index = this.programs.map((program) => program.pid).indexOf(id);
+
+		if (index == -1) {
+			throw new Error(
+				`Program by PID ${id} does not exist on this worker.`
+			);
+		}
+
+		return this.programs[index];
+	};
+
+	newEnv = (program: WorkerProgramStore, workingDirectory?: string) => {
 		const { pid } = program;
 		let handlingInput = false;
 
@@ -74,6 +419,13 @@ async function worker() {
 		});
 
 		const eventsMap: Record<string, Function[]> = {};
+
+		const {
+			emit,
+			sendMessage,
+			activePrograms,
+			terminateProgram: terminate
+		} = this;
 
 		const env: Environment = {
 			print(data: Log) {
@@ -144,7 +496,7 @@ async function worker() {
 				);
 			},
 
-			fs,
+			fs: this.fs,
 			path,
 
 			users: {
@@ -410,7 +762,10 @@ async function worker() {
 						}
 					};
 
-					program.socketConnections.push({ connection, socketId });
+					program.socketConnections.push({
+						connection,
+						socketId
+					});
 
 					return connection;
 				},
@@ -497,113 +852,18 @@ async function worker() {
 			},
 
 			exit() {
-				terminateProgram(program, "");
+				terminate(program, "");
 			}
 		};
 
 		return env;
-	}
+	};
 
-	const activePrograms: Partial<
-		Record<
-			number,
-			{
-				promise: Promise<{ return: Log; logs: Log[] }>;
-				resolve: (value: { return: Log; logs: Log[] }) => void;
-			}
-		>
-	> = {};
-
-	handle(
-		RuntimeMessageIntent.begin_execution,
-		async ({
-			directory,
-			code: contents,
-			pid,
-
-			args,
-			workingDirectory,
-			input
-		}) => {
-			if (!directory) throw new Error("Directory is required!");
-			if (!pid) throw new Error("PID is required!");
-
-			if (!contents)
-				throw new Error(
-					`File '${directory}' to execute does not exist!`
-				);
-
-			const blob = new Blob([contents], { type: "text/javascript" });
-			const url = blobToUrl(blob);
-
-			const exports = await import(url);
-			const program = exports.default as ConstellationProgram;
-
-			const store: WorkerProgramStore = {
-				generator: undefined,
-
-				pid,
-				directory,
-
-				// @ts-expect-error
-				env: "tempValue",
-
-				locked: false,
-
-				outputHandlers: {},
-
-				socketConnections: [],
-				socketServers: [],
-
-				liveCanvasIds: [],
-
-				outputProxyHandlers: {},
-
-				onExit: []
-			};
-			store.env = newEnv(store, workingDirectory);
-
-			try {
-				const generator = program(store.env, args ?? [], input);
-
-				if (
-					generator &&
-					Object.keys(Object.getPrototypeOf(generator)).length == 0
-				) {
-					// @ts-expect-error // probably a generator
-					store.generator = generator;
-				} else {
-					// not a generator, this is a return value, let's just pretend we're working with a generator.
-					store.generator = (function* emptyGenerator() {
-						return generator;
-					})();
-				}
-			} catch (e) {
-				console.error(e);
-				return false;
-			}
-
-			programs.push(store);
-
-			return true;
-		}
-	);
-
-	function programByPid(id: number) {
-		const index = programs.map((program) => program.pid).indexOf(id);
-
-		if (index == -1) {
-			throw new Error(
-				`Program by PID ${id} does not exist on this worker.`
-			);
-		}
-
-		return programs[index];
-	}
-
-	function terminateProgram(program: WorkerProgramStore, data: Log) {
+	terminateProgram = (program: WorkerProgramStore, data: Log) => {
 		for (const liveCanvas of program.liveCanvasIds) {
-			emit(WorkerMessageIntent.remove_live_canvas, { id: liveCanvas });
+			this.emit(WorkerMessageIntent.remove_live_canvas, {
+				id: liveCanvas
+			});
 		}
 
 		for (const server of program.socketServers) {
@@ -614,233 +874,12 @@ async function worker() {
 		}
 		program.onExit.forEach((fn) => fn());
 
-		completedQueue.push({ pid: program.pid });
+		this.completedQueue.push({ pid: program.pid });
 
-		programs.splice(programs.indexOf(program), 1);
+		this.programs.splice(this.programs.indexOf(program), 1);
 
-		sendMessage(WorkerMessageIntent.exit, { data });
-	}
-
-	const completedQueue: { pid: number }[] = [];
-
-	const computeCalculationWindow = 2000;
-	const computeSlices: { start: number; end: number }[] = [];
-
-	handle(RuntimeMessageIntent.dispatch_frame, () => {
-		const start = performance.now();
-
-		programs.forEach(async (program) => {
-			if (program.locked) return;
-			program.locked = true;
-
-			try {
-				if (!program.generator) {
-					terminateProgram(program, "");
-					return;
-				}
-
-				const result = await program.generator.next(program.passValue);
-				program.passValue = undefined;
-
-				if (result.done) {
-					terminateProgram(program, result.value);
-				} else {
-					// result.value is a regular value, pass it next time
-					program.passValue = result.value;
-				}
-			} catch (err) {
-				console.error(`Program ${program.pid} failed:`, err);
-
-				// kill it.
-				terminateProgram(program, [
-					{
-						text: String(
-							err instanceof Error
-								? `${err.name}: ${err.message}`
-								: err
-						),
-						colour: "#ff0000"
-					}
-				]);
-			}
-
-			program.locked = false;
-		});
-
-		const programsData = programs.map((item) => ({
-			pid: item.pid,
-			directory: item.directory
-		}));
-
-		const end = performance.now();
-
-		// Store this active compute period
-		computeSlices.push({ start, end });
-
-		// Remove anything completely outside the window
-		const cutoff = end - computeCalculationWindow;
-		while (computeSlices.length && computeSlices[0].end < cutoff) {
-			computeSlices.shift();
-		}
-
-		// Calculate total active time within the last 2 seconds
-		let activeTime = 0;
-
-		for (const slice of computeSlices) {
-			const overlapStart = Math.max(slice.start, cutoff);
-			const overlapEnd = slice.end;
-
-			if (overlapEnd > overlapStart) {
-				activeTime += overlapEnd - overlapStart;
-			}
-		}
-
-		const computePercentage = (activeTime / computeCalculationWindow) * 100;
-
-		const result = {
-			programs: programsData,
-			completePrograms: completedQueue.splice(0),
-			computePercentage
-		};
-
-		return result;
-	});
-
-	handle(RuntimeMessageIntent.program_exit_inform, ({ pid, data, logs }) => {
-		const program = activePrograms[pid];
-		if (program) {
-			program.resolve({ return: data, logs: logs });
-			delete activePrograms[pid];
-		}
-	});
-
-	// sockets
-
-	function socketServerBySocketId(
-		id: number
-	): WorkerProgramStore["socketServers"][0] | undefined {
-		for (const program of programs) {
-			const ids = program.socketServers.map((server) => server.socketId);
-			const index = ids.indexOf(id);
-
-			if (index !== -1) {
-				return program.socketServers[index];
-			}
-		}
-
-		return undefined;
-	}
-
-	function clientConnectionsBySocketId(id: number) {
-		const connections: WorkerProgramStore["socketConnections"] = [];
-		for (const program of programs) {
-			const ids = program.socketConnections.map(
-				(connection) => connection.socketId
-			);
-			const index = ids.indexOf(id);
-
-			if (index !== -1) {
-				connections.push(program.socketConnections[index]);
-			}
-		}
-
-		return connections;
-	}
-
-	handle(RuntimeMessageIntent.socket_client_connected, (packet) => {
-		const server = socketServerBySocketId(packet.socketId);
-
-		server?.server?.onClientConnect?.({ pid: packet.initiatorPid });
-	});
-	handle(RuntimeMessageIntent.socket_client_disconnected, (packet) => {
-		const server = socketServerBySocketId(packet.socketId);
-
-		server?.server?.onClientDisconnect?.({ pid: packet.initiatorPid });
-	});
-	handle(RuntimeMessageIntent.socket_client_sent_packet, (packet) => {
-		const server = socketServerBySocketId(packet.socketId);
-
-		server?.server?.onMessage?.(
-			{ pid: packet.initiatorPid },
-			packet.payload
-		);
-	});
-
-	// shouldnt fire
-	handle(RuntimeMessageIntent.socket_server_ended, (packet) => {
-		// a server has terminated, so we need to disconnect clients.
-		const connections = clientConnectionsBySocketId(packet.socketId);
-
-		for (const connection of connections) {
-			// need onClose()
-			connection.connection.onClose?.();
-			connection.connection.exit();
-		}
-	});
-	handle(RuntimeMessageIntent.socket_server_sent_packet, (packet) => {
-		// recieve server packet
-		const recipient = programByPid(packet.targetPid);
-
-		const ids = recipient.socketConnections.map(
-			(connection) => connection.socketId
-		);
-		const index = ids.indexOf(packet.socketId);
-
-		if (index == -1) return; // not connected
-
-		const { connection } = recipient.socketConnections[index];
-
-		connection.onMessage?.(packet.payload);
-	});
-
-	// events
-	handle(RuntimeMessageIntent.trigger_event, (packet) => {
-		const program = programByPid(packet.pid);
-
-		program.env.triggerEvent(packet.name, packet.data);
-	});
-
-	// output proxies
-	handle(RuntimeMessageIntent.proxy_log, (packet) => {
-		const program = programByPid(packet.handlerPid);
-
-		const handler = program.outputProxyHandlers[packet.subjectPid];
-		if (!handler) return;
-
-		handler.onLog(packet.log.type, packet.log.data);
-	});
-
-	handle(RuntimeMessageIntent.proxy_input, async (packet) => {
-		const program = programByPid(packet.handlerPid);
-
-		const handler = program.outputProxyHandlers[packet.subjectPid];
-		if (!handler) return { finished: false };
-
-		return {
-			finished: true,
-			response: await handler.onInput(packet.message, packet.config)
-		};
-	});
-
-	handle(RuntimeMessageIntent.proxy_set_logs, (packet) => {
-		const program = programByPid(packet.handlerPid);
-
-		const handler = program.outputProxyHandlers[packet.subjectPid];
-		if (!handler) return;
-
-		handler.onSetLogs(packet.logs);
-	});
-
-	handle(RuntimeMessageIntent.proxy_get_dimensions, (packet) => {
-		const program = programByPid(packet.handlerPid);
-
-		const handler = program.outputProxyHandlers[packet.subjectPid];
-		if (!handler) return;
-
-		return handler.getDimensions();
-	});
-
-	console.log("Initialisation Complete.");
+		this.sendMessage(WorkerMessageIntent.exit, { data });
+	};
 }
 
-worker();
+new ConstellationWorker();
