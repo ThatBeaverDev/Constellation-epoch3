@@ -37,7 +37,7 @@ export async function workerMessageHandler() {
 			else
 				pending.reject(
 					new Error(
-						`${pending.intent}     ${msg.error ?? "Unknown error"}`
+						`${WorkerMessageIntent[Number(pending.intent)]}     ${msg.error ?? "Unknown error"}`
 					)
 				);
 
