@@ -74,48 +74,61 @@ export default async function* packageInstall(
 	}
 
 	async function fetch(
-		url: string,
+		url: string | string[],
 		json?: false
 	): Promise<NetworkDataResponse<string>>;
 	async function fetch<T extends Object = Object>(
-		url: string,
+		url: string | string[],
 		json: true
 	): Promise<NetworkDataResponse<T>>;
 	async function fetch<T extends Object = Object>(
-		url: string,
+		url: string | string[],
 		json: boolean = false
 	) {
-		async function corsRequest() {
-			const corsURL = `https://proxy.mistium.com/?url=${encodeURIComponent(url)}`;
+		const urls =
+			typeof url == "string"
+				? // URL and proxy url
+					[
+						url,
+						`https://proxy.mistium.com/?url=${encodeURIComponent(url)}`
+					]
+				: [
+						// all URLs then proxied versions
+						...url,
+						...url.map(
+							(item) =>
+								`https://proxy.mistium.com/?url=${encodeURIComponent(item)}`
+						)
+					];
 
-			const corsRequest = await env.network.request<T>(
-				"get",
-				corsURL,
-				json ? "json" : "text",
-				undefined,
-				undefined,
-				{ cache: false }
-			);
+		const requests: NetworkDataResponse[] = [];
 
-			return corsRequest;
+		for (const url of urls) {
+			try {
+				const request = await env.network.request<T>(
+					"get",
+					url,
+					json ? "json" : "text",
+					undefined,
+					undefined,
+					{ cache: false }
+				);
+
+				requests.push(request);
+
+				if (request.isOk) return request;
+			} catch {}
 		}
 
-		try {
-			const standardRequest = await env.network.request<T>(
-				"get",
-				url,
-				json ? "json" : "text",
-				undefined,
-				undefined,
-				{ cache: false }
-			);
+		const last = requests.at(-1);
 
-			if (!standardRequest.isOk) return corsRequest();
+		if (last) return last;
 
-			return standardRequest;
-		} catch (e) {
-			return corsRequest();
-		}
+		return {
+			isOk: false,
+			statusCode: 404,
+			statusText: "Not found."
+		} as NetworkDataResponse;
 	}
 
 	async function resolvePackageFromRepos(packageName: string) {
@@ -219,28 +232,31 @@ export default async function* packageInstall(
 					const main = packageInfo.main ?? true;
 					const binpath = getMainPath(packageName);
 					if (main) {
-						let sourceRequest = await fetch(
-							url + `/packages/${packageName}/${packageName}.js`
-						);
-
-						if (!sourceRequest.isOk) {
-							sourceRequest = await fetch(
+						try {
+							const sourceRequest = await fetch([
+								url + `/packages/${packageName}.js`,
+								url +
+									`/packages/${packageName}/${packageName}.js`,
 								url + `/packages/${packageName}/package.js`
-							);
+							]);
 
 							if (!sourceRequest.isOk) {
 								throw new Error(
 									`Source code for package ${packageName} could not be found.`
 								);
 							}
+
+							const source = sourceRequest.response;
+
+							if (!source) continue;
+							env.print(`Match has source, installing`);
+
+							await env.fs.writeFile(binpath, source);
+						} catch (e) {
+							throw new Error(
+								`Source code for package ${packageName} could not be found.`
+							);
 						}
-
-						const source = sourceRequest.response;
-
-						if (!source) continue;
-						env.print(`Match has source, installing`);
-
-						await env.fs.writeFile(binpath, source);
 					}
 
 					if (packageInfo.directories) {
