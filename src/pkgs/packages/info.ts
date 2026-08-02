@@ -1,7 +1,7 @@
 import { Environment } from "../../util/types/worker";
 import { formatTable } from "../../util/lib/table";
-import { PackagesJson } from "../../pkgs/packages/pkg/pkg";
 import { readableTime } from "../../util/lib/time";
+import { PackagesJson } from "./pkg/types";
 
 export default async function* getInfo(env: Environment) {
 	const username = "root";
