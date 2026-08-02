@@ -1,10 +1,9 @@
-import { ProgramStore } from "../runtime";
-import { UiManager } from "./ui";
-import { InputConfig, Log } from "../util/types/worker";
-import { normalizeLog, renderConsole, withOrigin } from "./shared";
-
 // @ts-expect-error
 import readline_import from "node:readline";
+import { UiManager } from "./ui";
+import { ProgramStore } from "../runtime/types";
+import { InputConfig, Log } from "@/types/worker";
+import { normalizeLog, renderConsole, withOrigin } from "./shared";
 const readline: any = readline_import;
 
 declare const process: any;

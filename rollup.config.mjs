@@ -91,7 +91,7 @@ const packageConfigs = [...packageConfigsSubfolder, ...packageConfigsDirect];
 export default [
 	// Kernel bundle
 	{
-		input: "build/entry/web.js",
+		input: "build/kernel/entry/web.js",
 		context: "window",
 		output: {
 			file: "./dist/kernel.js",
@@ -101,7 +101,7 @@ export default [
 		plugins
 	},
 	{
-		input: "build/nodeboot.js",
+		input: "build/kernel/nodeboot.js",
 		context: "global",
 		output: {
 			file: "./dist/kernel.node.js",

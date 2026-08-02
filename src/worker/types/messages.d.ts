@@ -1,5 +1,3 @@
-import { User } from "../util/types/worker";
-import { transferrableMarkerSymbol } from "../lib/workerUtils";
 import {
 	EventMap,
 	EventName,
@@ -10,10 +8,7 @@ import {
 	NetworkRequestType,
 	Process,
 	Sound
-} from "../util/types/worker";
-import { Runtime_Sockets_Server_sendPacket } from "./runtimeMessages";
-
-// Types for messages sent by workers.
+} from "@/types/worker";
 
 interface WorkerMessageDataTypes {
 	program_log: {
@@ -133,7 +128,7 @@ interface WorkerMessageDataTypes {
 		return: void;
 	};
 	"Sockets/Server/sendPacket": {
-		data: Runtime_Sockets_Server_sendPacket;
+		data: Worker_Sockets_Server_sendPacket;
 		return: void;
 	};
 

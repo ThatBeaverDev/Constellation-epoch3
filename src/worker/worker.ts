@@ -1,22 +1,20 @@
 import {
-	type ConstellationProgram,
-	type NetworkRequestType,
-	type SocketConnection,
-	type SocketServer,
-	type WorkerProgramStore,
-	type Environment,
-	type InputConfig,
-	type Log,
-	type Sound,
-	WorkerOutputProxy
-} from "../util/types/worker.js";
-import { type WorkerEnv_Network_Get } from "../types/workerMessages.js";
-import path from "path-browserify";
-import { WorkerFS, workerMessageHandler } from "./workerUtils.js";
-import { ALLOWED_PROXY_EVENTS } from "../constants.js";
-import { blobToUrl } from "../util/lib/uri.js";
-
-/// <reference path="@typescript/lib-webworker@npm:@types/webworker" />
+	ConstellationProgram,
+	Environment,
+	InputConfig,
+	Log,
+	NetworkRequestType,
+	SocketConnection,
+	SocketServer,
+	Sound,
+	WorkerOutputProxy,
+	WorkerProgramStore
+} from "@/types/worker";
+import { WorkerFS, workerMessageHandler } from "../workerUtils";
+import * as path from "path-browserify";
+import { ALLOWED_PROXY_EVENTS } from "../kernel/constants";
+import { WorkerEnv_Network_Get } from "./types/messages";
+import { blobToUrl } from "@/lib/uri";
 
 async function worker() {
 	String.prototype.textAfter = function (after) {

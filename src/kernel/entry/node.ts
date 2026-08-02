@@ -1,5 +1,5 @@
-import Constellation from "..";
-import { FilesystemInterface } from "../lib/fs";
+import { FilesystemInterface } from "../fs/fs";
+import Constellation from "../kernel";
 import NodeUI from "../ui/node";
 
 export default function ConstellationNode(

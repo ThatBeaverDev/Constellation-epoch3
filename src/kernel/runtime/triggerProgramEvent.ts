@@ -1,5 +1,5 @@
-import { ProgramStore } from "../runtime";
-import { EventMap, EventName } from "../util/types/worker";
+import { EventMap, EventName } from "@/types/worker";
+import { ProgramStore } from "./types";
 
 export async function triggerProgramEvent<K extends EventName>(
 	program: ProgramStore,

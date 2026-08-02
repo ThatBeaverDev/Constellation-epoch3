@@ -1,4 +1,4 @@
-import { Log, NormalizedLog } from "../util/types/worker";
+import { Log, NormalizedLog } from "@/types/worker";
 
 export function withOrigin(origin: string, log: NormalizedLog): NormalizedLog {
 	log = log ?? [];

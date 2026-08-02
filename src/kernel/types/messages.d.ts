@@ -1,4 +1,6 @@
-import { EventMap, EventName, InputConfig, Log } from "../util/types/worker";
+// Types for messages sent by runtime.
+
+import { EventMap, EventName, InputConfig, Log } from "@/types/worker";
 import {
 	Worker_Proxy_Input_Response,
 	Worker_Sockets_Client_endConnection,
@@ -7,9 +9,7 @@ import {
 	Worker_Sockets_Server_endServer,
 	Worker_Sockets_Server_newServer,
 	Worker_Sockets_Server_sendPacket
-} from "./workerMessages";
-
-// Types for messages sent by runtime.
+} from "../../worker/types/messages";
 
 interface RuntimeMessageDataTypes {
 	executeProgram: {

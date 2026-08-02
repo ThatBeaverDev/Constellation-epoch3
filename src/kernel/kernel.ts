@@ -1,12 +1,12 @@
-import { devMode, nodeJs } from "./lib/config";
-import Fs, { FilesystemInterface } from "./lib/fs";
-import applyStringPrototypes from "./lib/strings";
-import UsersManager from "./lib/users";
-import Runtime from "./runtime";
+import { Log } from "@/types/worker";
+import Fs, { FilesystemInterface } from "./fs/fs";
+import Runtime from "./runtime/runtime";
+import UsersManager from "./security/users";
 import { UiManager } from "./ui/ui";
-import { Log } from "./util/types/worker";
+import applyStringPrototypes from "./util/strings";
+import { devMode } from "./config";
 
-export default class Constellation {
+export default class Epoch3Kernel {
 	ui: UiManager;
 	fs: FilesystemInterface;
 	runtime: Runtime;

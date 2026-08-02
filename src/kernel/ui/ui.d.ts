@@ -1,6 +1,6 @@
-import { ProgramStore } from "../runtime";
-import { PlaySoundResponse } from "../ui/dom";
-import { InputConfig, Log, Sound } from "../util/types/worker";
+import { InputConfig, Log, Sound } from "@/types/worker";
+import { ProgramStore } from "../runtime/types";
+import { PlaySoundResponse } from "./dom";
 
 export interface UiManager {
 	log(source: string, message: Log): void;

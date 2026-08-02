@@ -1,12 +1,12 @@
+import { User } from "@/types/worker";
+import UsersManager from "./users";
 import {
 	WORKER_READ_BLACKLIST,
 	WORKER_READ_ROOT_BLACKLIST,
 	WORKER_WRITE_BLACKLIST,
 	WORKER_WRITE_ROOT_BLACKLIST
 } from "../constants";
-import { User } from "../util/types/worker";
-import { PermissionError } from "./errors";
-import UsersManager from "./users";
+import { PermissionError } from "../errors";
 
 export async function tryReadFile(
 	path: string,

@@ -1,99 +1,30 @@
-import Constellation from "./index";
-import { FilesystemInterface } from "./lib/fs";
-import ConstellationWorker from "web-worker:./lib/worker";
+import { Log, NetworkDataResponse, Process, User } from "@/types/worker";
+import { UiManager } from "../ui/ui";
+import Epoch3Kernel from "../kernel";
+import { FilesystemInterface } from "../fs/fs";
+import SocketManager from "./sockets";
 import {
-	InputConfig,
-	Log,
-	NetworkDataResponse,
-	Process
-} from "./util/types/worker";
-import { implementWorkerFS, mainThreadMessageHandler } from "./lib/workerUtils";
-import {
-	RuntimeMessageIntent,
-	RuntimeMessageMap
-} from "./types/runtimeMessages";
+	ProgramConfig,
+	ProgramInputLog,
+	ProgramStore,
+	WorkerStore
+} from "./types";
 import {
 	consoleError,
 	consoleLog,
 	consoleWarn,
 	PlaySoundResponse
-} from "./ui/dom";
-import { UiManager } from "./ui/ui";
-import SocketManager from "./lib/sockets";
-import { nodeJs } from "./lib/config";
-import { blobToDataURL } from "./util/lib/uri";
-import { logToString } from "./util/lib/logs";
-import { triggerProgramEvent } from "./lib/triggerProgramEvent";
-import { User } from "./util/types/worker";
-import { insurePrivilege } from "./lib/users";
-import { ALLOWED_PROXY_EVENTS } from "./constants";
+} from "../ui/dom";
+import { nodeJs } from "../config";
+import ConstellationWorker from "web-worker:../../worker/worker";
+import { implementWorkerFS, mainThreadMessageHandler } from "../../workerUtils";
 import { join } from "path-browserify";
-import { encodeBase64 } from "./util/lib/base64";
-
-export interface ProgramLog {
-	type: "log" | "warning" | "error";
-	data: Log;
-}
-export interface ProgramInputLog {
-	type: "input";
-	message: string;
-	config: InputConfig;
-	callback(value: Awaited<ReturnType<UiManager["input"]>>): void;
-}
-
-export interface ProgramStore {
-	readonly worker: WorkerStore;
-
-	parent?: ProgramStore;
-	children: Set<ProgramStore>;
-
-	readonly pid: number;
-	readonly user: User;
-	readonly directory: string;
-	readonly startTime: Date;
-
-	onExit: (data?: any) => void;
-
-	logs: (ProgramLog | ProgramInputLog)[];
-
-	onLog(type: "log" | "warning" | "error", data: Log): void;
-	onInput(message: string, config: InputConfig): Promise<string>;
-	onSetLogs(logs?: Log[]): void;
-	getTerminalDimensions(): Promise<{ width: number; height: number }>;
-
-	liveCanvasIds: number[];
-}
-
-export interface WorkerStore {
-	worker: Worker;
-	totalPrograms: number;
-
-	computePercentage: number;
-	lastKeepAlive: number;
-
-	id: number;
-	name: string;
-	lock: boolean;
-
-	program?: ProgramStore;
-
-	sendMessage: <Intent extends RuntimeMessageIntent>(
-		intent: Intent,
-		data: RuntimeMessageMap[Intent]["data"]
-	) => Promise<RuntimeMessageMap[Intent]["return"]>;
-	emit: <Intent extends RuntimeMessageIntent>(
-		event: Intent,
-		data: RuntimeMessageMap[Intent]["data"]
-	) => void;
-	exit(): void;
-}
-
-interface ProgramConfig {
-	displayHandover?: { oldOwner?: number };
-	workingDirectory: string;
-	input?: Log[];
-	outputProxy?: number;
-}
+import { encodeBase64 } from "@/lib/base64";
+import { blobToDataURL } from "@/lib/uri";
+import { ALLOWED_PROXY_EVENTS } from "../constants";
+import { triggerProgramEvent } from "./triggerProgramEvent";
+import { insurePrivilege } from "../security/users";
+import { logToString } from "@/lib/logs";
 
 export default class Runtime {
 	#log: (message: Log) => void;
@@ -106,7 +37,7 @@ export default class Runtime {
 	#workerError: UiManager["error"];
 
 	#panic: (message: Error) => void;
-	#kernel: Constellation;
+	#kernel: Epoch3Kernel;
 	#fs: FilesystemInterface;
 
 	#sockets: SocketManager;
@@ -121,7 +52,7 @@ export default class Runtime {
 	#nextSoundID = 1;
 
 	constructor(
-		kernel: Constellation,
+		kernel: Epoch3Kernel,
 
 		log: UiManager["log"],
 		warn: UiManager["warn"],

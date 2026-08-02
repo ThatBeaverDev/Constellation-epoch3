@@ -1,6 +1,6 @@
 import { Environment } from "../../../util/types/worker";
 import { objectFallback } from "../../../util/lib/object";
-import { USER_FOLDERS } from "../../../constants";
+import { USER_FOLDERS } from "../../../kernel/constants";
 
 interface InstallerData {
 	installed: number | boolean;

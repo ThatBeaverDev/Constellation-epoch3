@@ -1,4 +1,4 @@
-import { USER_FOLDERS } from "../../constants";
+import { USER_FOLDERS } from "../../kernel/constants";
 import finishGenerator from "../../util/lib/generator";
 import { getUserData, writeUserData } from "../../util/lib/users";
 import { Environment, User } from "../../util/types/worker";

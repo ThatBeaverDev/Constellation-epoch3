@@ -1,16 +1,15 @@
-import { FilesystemInterface } from "../lib/fs";
-import { triggerProgramEvent } from "../lib/triggerProgramEvent";
-import { clamp } from "../util/lib/maths";
-import { ProgramStore } from "../runtime";
-import styles from "./styles.css";
-import { InputConfig, Log, NormalizedLog, Sound } from "../util/types/worker";
+import { InputConfig, Log, NormalizedLog, Sound } from "@/types/worker";
+import { normalizeLog, renderConsole, withOrigin } from "./shared";
+import { FilesystemInterface } from "../fs/fs";
 import { UiManager } from "./ui";
-import { normalizeLog, withOrigin } from "./shared";
-import { renderConsole } from "./shared";
+import { ProgramStore } from "../runtime/types";
+import styles from "./styles.css";
+import { triggerProgramEvent } from "../runtime/triggerProgramEvent";
+import { clamp } from "@/lib/maths";
 
-const lineHeight = 15;
+const LINE_HEIGHT = 15;
 function linesToPx(lines: number) {
-	return lineHeight * Math.round(lines);
+	return LINE_HEIGHT * Math.round(lines);
 }
 
 export interface PlaySoundResponse {

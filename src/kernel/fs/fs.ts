@@ -1,7 +1,7 @@
-import Constellation from "../index";
-import { deleteFS } from "./config";
-import SocketManager from "./sockets";
-import { FileStats, Log } from "../util/types/worker";
+import { FileStats, Log } from "@/types/worker";
+import SocketManager from "../runtime/sockets";
+import Epoch3Kernel from "../kernel";
+import { deleteFS } from "../config";
 
 /**
  * An interface to access a Filesystem.
@@ -191,7 +191,7 @@ export function basename(path: string): string {
 
 class DomFs implements FilesystemInterface {
 	#log: (message: Log) => void;
-	#panic: Constellation["panic"];
+	#panic: Epoch3Kernel["panic"];
 	socketManager?: SocketManager;
 
 	#index: Partial<Record<string, FilesystemStore>> = {};
@@ -218,7 +218,7 @@ class DomFs implements FilesystemInterface {
 
 	constructor(
 		log: (message: Log) => void,
-		panic: Constellation["panic"],
+		panic: Epoch3Kernel["panic"],
 		socketManager?: SocketManager
 	) {
 		this.#log = log;

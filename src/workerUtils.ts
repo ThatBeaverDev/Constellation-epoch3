@@ -1,18 +1,18 @@
-import { WorkerStore } from "../runtime";
+import { EnvironmentFilesystem, FileStats, User } from "@/types/worker";
+import { devMode, nodeJs } from "./kernel/config";
+import { FilesystemInterface } from "./kernel/fs/fs";
+import { WorkerStore } from "./kernel/runtime/types";
+import UsersManager from "./kernel/security/users";
 import {
 	RuntimeMessageIntent,
 	RuntimeMessageMap
-} from "../types/runtimeMessages";
+} from "./kernel/types/messages";
 import {
 	WorkerMessageDataTypes,
 	WorkerMessageIntent,
 	WorkerMessageMap
-} from "../types/workerMessages";
-import { EnvironmentFilesystem, FileStats, User } from "../util/types/worker";
-import { nodeJs } from "./config";
-import { FilesystemInterface } from "./fs";
-import { tryReadFile, tryWriteFile } from "./permissions";
-import UsersManager from "./users";
+} from "./worker/types/messages";
+import { tryReadFile, tryWriteFile } from "./kernel/security/permissions";
 
 type WorkerRequest = {
 	kind: "request";
@@ -114,6 +114,8 @@ export async function mainThreadMessageHandler(
 					transfer
 				);
 			} catch (err: any) {
+				if (devMode) console.error(err);
+
 				worker.postMessage({
 					kind: "response",
 					id: msg.id,

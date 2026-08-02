@@ -1,13 +1,13 @@
+import { Group, SemiRecord, User, UsersFile } from "@/types/worker";
+import { ProgramStore } from "../runtime/types";
+import { FilesystemInterface } from "../fs/fs";
+import { UiManager } from "../ui/ui";
+import { devMode } from "../config";
 import {
 	DEFAULT_PASSWORD_ALGO,
 	USER_FILE,
 	USER_PASSWORD_FILE
 } from "../constants";
-import { UiManager } from "../ui/ui";
-import { FilesystemInterface } from "./fs";
-import { Group, SemiRecord, User, UsersFile } from "../util/types/worker";
-import { ProgramStore } from "../runtime";
-import { devMode } from "./config";
 
 type UsersStore = SemiRecord<number, User>;
 type PasswordAlgorithms = "SHA-512";
