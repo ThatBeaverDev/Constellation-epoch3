@@ -1,4 +1,5 @@
 import fs from "fs";
+import path from "path";
 import { execSync } from "child_process";
 
 const PACKAGES_JSON = "./src/pkgs/packages.json";
@@ -23,24 +24,37 @@ const modifiedPackages = new Set();
 for (const file of stagedFiles) {
 	// Normalize leading slashes if any
 	const cleanPath = file.replace(/^\.\//, "");
-	console.debug(file);
 
 	if (cleanPath.startsWith(PACKAGES_DIRECTORY)) {
-		// Extract top-level folder name inside src/pkgs/packages/
 		const relativePath = cleanPath.slice(PACKAGES_DIRECTORY.length);
-		const pkgName = relativePath.split("/")[0];
-		console.debug(pkgName);
 
-		if (pkgName) {
-			modifiedPackages.add(pkgName);
+		// Split path parts
+		const parts = relativePath.split("/");
+
+		if (parts.length === 1) {
+			// It's a root file directly under packages/ (e.g., "myPackage.js")
+			// Strip the extension to get the clean package name
+			const pkgName = path.parse(parts[0]).name;
+			if (pkgName) modifiedPackages.add(pkgName);
+		} else if (parts.length > 1) {
+			// It's a folder-based package (e.g., "myPackage/index.js")
+			const pkgName = parts[0];
+			if (pkgName) modifiedPackages.add(pkgName);
 		}
 	}
 }
 
 // update package published times, throw if new package present
 for (const pkgName of modifiedPackages) {
-	const pkgPath = `${PACKAGES_DIRECTORY}${pkgName}`;
-	const existsOnDisk = fs.existsSync(pkgPath);
+	// Check if package exists either as a directory OR as a file (.js, .ts, etc.)
+	const folderPath = `${PACKAGES_DIRECTORY}${pkgName}`;
+	const filePathMatches = fs
+		.readdirSync(PACKAGES_DIRECTORY, { withFileTypes: true })
+		.some(
+			(entry) => entry.isFile() && path.parse(entry.name).name === pkgName
+		);
+
+	const existsOnDisk = fs.existsSync(folderPath) || filePathMatches;
 
 	// doesn't exist but registered
 	if (!existsOnDisk) {
@@ -58,7 +72,7 @@ for (const pkgName of modifiedPackages) {
 	if (!packagesFile.packages[pkgName]) {
 		console.error(
 			`\n[Git Hook Error]: The package "${pkgName}" is staged but does not exist in ${PACKAGES_JSON}.\n` +
-				`   Please register "${pkgName}" in packages.json before committing.\n`
+				`   Please register "${pkgName}" in packages.json before committing.`
 		);
 		process.exit(1);
 	}

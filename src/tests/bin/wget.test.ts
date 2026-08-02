@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { basicNetworkGetSuccess, createMockEnv } from "./mock.js";
-import wget from "../../pkgs/packages/wget/wget.js";
+import wget from "../../pkgs/packages/wget.js";
 import applyStringPrototypes from "../../lib/strings.js";
 
 describe("Wget tests", () => {
