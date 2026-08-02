@@ -1,5 +1,6 @@
-npx tsc -b
+set -e
 
+npx tsc -b
 
 mkdir -p ./dist/bin
 
