@@ -1,51 +1,7 @@
-import { type Environment } from "../../../util/types/worker.js";
-import { objectFallback } from "../../../util/lib/object.js";
-import { PassthroughOutputProxy } from "../../../util/lib/io.js";
-import { usersByName } from "../../../util/lib/users.js";
-
-interface Service {
-	running: boolean;
-	restartPolicy: "always" | "once" | "never";
-
-	failed: false | Error;
-
-	directory: string;
-	fallback?: string;
-	args: string[];
-	display: boolean;
-	askForUser: boolean;
-}
-
-interface ServiceJSON {
-	/**
-	 * Path to the file to execute.
-	 */
-	directory: string;
-
-	/**
-	 * Always will always try to restart if it exits. Once onle starts it on boot. Both give up if an error is thrown.
-	 */
-	restart: "always" | "once";
-
-	/**
-	 * String arguments to pass to the program
-	 */
-	args?: string[];
-
-	/**
-	 * Whether to pass display control
-	 */
-	display?: boolean;
-
-	/**
-	 * Whether `init` should request username and password from the user.
-	 */
-	askForUser?: boolean;
-	/*
-	 * Path to the file to execute in the case of a failure
-	 */
-	fallback?: string;
-}
+import { Environment } from "@/types/worker";
+import { passthroughOutputProxy } from "@/lib/io.js";
+import { findServices } from "./services/find.js";
+import { startServices } from "./services/start.js";
 
 export default async function* initSystem(
 	env: Environment,
@@ -53,149 +9,19 @@ export default async function* initSystem(
 ) {
 	const devMode = devModeString == "true";
 
-	async function startServices(services: Service[]) {
-		for (const service of services) {
-			if (
-				service.running == true ||
-				service.failed instanceof Error ||
-				service.restartPolicy == "never"
-			)
-				continue;
-
-			try {
-				let userState: { uid: number; password: string } | undefined =
-					undefined;
-
-				service.running = true;
-
-				if (service.askForUser) {
-					async function getUsername() {
-						if (devMode) {
-							return "dev";
-						}
-
-						return env.input("Username: ");
-					}
-
-					async function getPassword() {
-						if (devMode) {
-							return "dev";
-						}
-
-						return env.input("Password: ", {
-							hideTyping: true
-						});
-					}
-
-					const username = await getUsername();
-
-					const targetUser = (await usersByName(env, username))[0];
-					if (!targetUser) {
-						env.print(`User '${username}' doesn't exist!`);
-						service.running = false;
-						continue;
-					}
-
-					const password = await getPassword();
-
-					userState = { uid: targetUser?.UID, password };
-				}
-
-				const exec = await env.execute(
-					service.directory,
-					service.args,
-					{ handOverDisplay: service.display, user: userState }
-				);
-
-				if (service.restartPolicy == "once") {
-					service.restartPolicy = "never";
-				}
-
-				exec.onExit.then(() => (service.running = false));
-			} catch (e) {
-				try {
-					if (service.fallback) {
-						const exec = await env.execute(
-							service.fallback,
-							service.args,
-							{ handOverDisplay: service.display }
-						);
-						service.running = true;
-						if (service.restartPolicy == "once") {
-							service.restartPolicy = "never";
-						}
-
-						exec.onExit.then(() => (service.running = false));
-					}
-				} catch (e) {
-					service.failed = e instanceof Error ? e : false;
-					env.warn(
-						`Service from ${service.directory} (and fallback at ${service.fallback}) has failed to start: ${String(e)}`
-					);
-				} finally {
-					service.failed = e instanceof Error ? e : false;
-					env.warn(
-						`Service from ${service.directory} has failed to start: ${String(e)}`
-					);
-				}
-			}
-		}
-	}
-
-	async function findServices(): Promise<Service[]> {
-		const services: Service[] = [];
-
-		// insure dir exists
-		await env.fs.mkdir("/config/init");
-		await env.fs.mkdir("/config/init/services");
-
-		const files = await env.fs.readdir("/config/init/services");
-		for (const filename of files) {
-			if (!filename.endsWith(".json")) continue;
-
-			const path = "/config/init/services/" + filename;
-			const json = await env.fs.readFile<ServiceJSON>(path, "json");
-			if (!json) continue;
-			if (!json.directory)
-				env.warn(`Service file ${path} declares no directory.`);
-
-			const serviceJSON = objectFallback<ServiceJSON>(json, {
-				directory: "/bin/yes.js",
-				restart: "always"
-			});
-
-			const service: Service = {
-				directory: serviceJSON.directory,
-				fallback: serviceJSON.fallback,
-
-				running: false,
-				failed: false,
-
-				restartPolicy: serviceJSON.restart,
-				args: serviceJSON.args ?? [],
-				display: serviceJSON.display ?? false,
-				askForUser: serviceJSON.askForUser ?? false
-			};
-
-			services.push(service);
-		}
-
-		return services;
-	}
-
 	// Runs installer to make sure that init isn't lonely
 	const result = await env.execute("/bin/installd.js", [`${devMode}`], {
-		outputProxy: PassthroughOutputProxy(env)
+		outputProxy: passthroughOutputProxy(env)
 	});
 	await result.onExit;
 
 	env.print("Installer has exited. Finding services...");
-	const services = await findServices();
+	const services = await findServices(env);
 
 	env.print("Starting services.");
 
 	while (true) {
-		startServices(services);
+		startServices(env, devMode, services);
 
 		yield;
 	}

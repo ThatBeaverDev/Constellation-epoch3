@@ -14,3 +14,9 @@ declare module "web-worker:*" {
 	};
 	export default WorkerFactory;
 }
+
+declare const process: { cwd(): string; exit(): void };
+
+declare interface Worker {
+	on: (event: "message", handler: Function) => void;
+}

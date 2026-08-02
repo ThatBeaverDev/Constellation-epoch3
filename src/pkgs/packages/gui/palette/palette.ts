@@ -1,6 +1,6 @@
 import Fuse from "fuse.js";
 import { Environment } from "../../../../util/types/worker";
-import type GuiWindow from "../../lib-gui/lib-gui";
+import type GuiWindow from "../../lib-gui";
 import {
 	WindowBox,
 	WindowContentItem,

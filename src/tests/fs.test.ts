@@ -5,7 +5,7 @@ import DomFs, {
 	FilesystemInterface,
 	normalise,
 	parent
-} from "../lib/fs.js";
+} from "../kernel/fs/fs.js";
 
 describe("Filesystem stress tests", async () => {
 	const fs: FilesystemInterface = new DomFs(

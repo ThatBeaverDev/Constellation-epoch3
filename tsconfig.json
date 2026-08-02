@@ -15,7 +15,11 @@
 		"noUnusedParameters": true,
 
 		"incremental": true,
-		"tsBuildInfoFile": "./build/.tsbuildinfo"
+		"tsBuildInfoFile": "./build/.tsbuildinfo",
+
+		"paths": {
+			"@/*": ["./src/util/*"]
+		}
 	},
 	"include": ["./src", "./src/global.d.ts"]
 }

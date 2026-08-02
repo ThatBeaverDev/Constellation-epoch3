@@ -1,6 +1,6 @@
 import { Environment, WorkerOutputProxy } from "../types/worker";
 
-export function PassthroughOutputProxy(env: Environment): WorkerOutputProxy {
+export function passthroughOutputProxy(env: Environment): WorkerOutputProxy {
 	return {
 		onLog(type, log) {
 			switch (type) {

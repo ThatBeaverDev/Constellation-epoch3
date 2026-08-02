@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createMockEnv } from "./mock.js";
-import grep from "../../pkgs/packages/grep/grep.js";
+import grep from "../../pkgs/packages/grep.js";
 
 describe("Grep tests", () => {
 	it("prints matching lines", () => {

@@ -1,8 +1,8 @@
 import {
 	Runtime_Proxy_Input,
 	Runtime_Proxy_Log
-} from "../../types/runtimeMessages";
-import { WorkerEnv_Network_Get } from "../../types/workerMessages";
+} from "../../kernel/types/messages";
+import { WorkerEnv_Network_Get } from "../../worker/types/messages";
 
 type HexColour = string;
 type LogSegment =

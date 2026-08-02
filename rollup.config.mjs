@@ -4,9 +4,22 @@ import commonjs from "@rollup/plugin-commonjs";
 import { nodeResolve } from "@rollup/plugin-node-resolve";
 import { string } from "rollup-plugin-string";
 import webWorkerLoader from "rollup-plugin-web-worker-loader";
-import { mkdirSync } from "fs";
+import alias from "@rollup/plugin-alias";
+import { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const plugins = [
+	alias({
+		entries: [
+			{
+				find: /^@\/(.*)/,
+				replacement: path.resolve(
+					dirname(fileURLToPath(import.meta.url)),
+					"build/util/$1"
+				)
+			}
+		]
+	}),
 	nodeResolve({
 		browser: true,
 		preferBuiltins: false
@@ -78,7 +91,7 @@ const packageConfigs = [...packageConfigsSubfolder, ...packageConfigsDirect];
 export default [
 	// Kernel bundle
 	{
-		input: "build/entry/web.js",
+		input: "build/kernel/entry/web.js",
 		context: "window",
 		output: {
 			file: "./dist/kernel.js",
@@ -88,7 +101,7 @@ export default [
 		plugins
 	},
 	{
-		input: "build/nodeboot.js",
+		input: "build/kernel/nodeboot.js",
 		context: "global",
 		output: {
 			file: "./dist/kernel.node.js",
