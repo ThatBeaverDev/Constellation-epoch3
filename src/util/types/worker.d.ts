@@ -4,6 +4,16 @@ import {
 } from "../../kernel/types/messages";
 import { WorkerEnv_Network_Get } from "../../worker/types/messages";
 
+declare global {
+	interface String {
+		textAfter(after: string): string;
+		textAfterAll(after: string): string;
+		textBefore(before: string): string;
+		textBeforeLast(before: string): string;
+		map(mappings: Record<string, string>): string;
+	}
+}
+
 type HexColour = string;
 type LogSegment =
 	| {

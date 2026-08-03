@@ -1,13 +1,3 @@
-declare global {
-	interface String {
-		textAfter(after: string): string;
-		textAfterAll(after: string): string;
-		textBefore(before: string): string;
-		textBeforeLast(before: string): string;
-		map(mappings: Record<string, string>): string;
-	}
-}
-
 export default function applyStringPrototypes() {
 	String.prototype.textAfter = function (after) {
 		return this.split(after).splice(1, Infinity).join(after);
