@@ -6,7 +6,7 @@ import {
 	GuiKeypressOutgoing,
 	GuiOutgoing
 } from "./types/gui.outgoing";
-import { WindowContentItem } from "./types/windowContents";
+import { WindowContentItem } from "@/types/windowContents";
 import WindowManager, { Window } from "./windows";
 
 export interface Client {

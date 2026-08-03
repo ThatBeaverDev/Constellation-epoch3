@@ -1,5 +1,5 @@
 import { AppMetadata } from "../../../../util/lib/appMetadata";
-import { WindowContentItem } from "./windowContents";
+import { WindowContentItem } from "@/types/windowContents";
 
 export interface GuiBaseIngoing {
 	responder: string;

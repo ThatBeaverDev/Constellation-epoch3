@@ -6,7 +6,8 @@ import {
 import { logToString } from "../../util/lib/logs";
 import { sleep } from "../../util/lib/time";
 import { Environment, Log } from "../../util/types/worker";
-import { WindowContentItem, WindowText } from "./gui/types/windowContents";
+import { WindowContentItem } from "@/types/windowContents";
+import { WindowText } from "@/types/windowContents";
 import include from "../../util/lib/include";
 
 // @app-name: Preview

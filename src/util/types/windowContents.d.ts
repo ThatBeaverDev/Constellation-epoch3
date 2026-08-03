@@ -1,4 +1,4 @@
-import { Log } from "../../../../util/types/worker";
+import { Log } from "./worker";
 
 export interface WindowBaseItem {
 	x: number;

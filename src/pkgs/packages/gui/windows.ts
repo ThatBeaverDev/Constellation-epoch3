@@ -3,7 +3,7 @@ import { Environment, Process } from "../../../util/types/worker";
 import PaletteHandler, { paletteHeight, paletteWidth } from "./palette/palette";
 import SocketManager, { Client } from "./socket";
 import { drawLog, measureText, rect, text } from "./util/rendering";
-import { WindowContentItem } from "./types/windowContents";
+import { WindowContentItem } from "@/types/windowContents";
 import { GuiState } from "./gui";
 import { dataURItoBlob } from "../../../util/lib/uri";
 import {

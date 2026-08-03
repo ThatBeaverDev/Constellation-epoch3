@@ -1,7 +1,8 @@
 import include from "../../util/lib/include";
 import { logToArrayLog, logToString } from "../../util/lib/logs";
 import { ArrayLog, Environment, InputConfig } from "../../util/types/worker";
-import { WindowText, WindowTextBox } from "./gui/types/windowContents";
+import { WindowTextBox } from "@/types/windowContents";
+import { WindowText } from "@/types/windowContents";
 import { Shell_IO, shellImpl } from "./shell/shell";
 
 // @app-name: Terminal

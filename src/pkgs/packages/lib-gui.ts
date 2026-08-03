@@ -1,3 +1,4 @@
+import { LibGui } from "@/types/libraries";
 import { getAppMetadata } from "../../util/lib/appMetadata";
 import { Environment, SocketConnection } from "../../util/types/worker";
 import {
@@ -8,9 +9,9 @@ import {
 } from "./gui/constants";
 import { GuiIngoing } from "./gui/types/gui.ingoing";
 import { GuiOutgoing } from "./gui/types/gui.outgoing";
-import { WindowContentItem } from "./gui/types/windowContents";
+import { WindowContentItem } from "@/types/windowContents";
 
-export default class GuiWindow {
+export default class GuiWindow implements LibGui {
 	#socketConnection?: SocketConnection<GuiIngoing, GuiOutgoing>;
 
 	#textboxes: Partial<
