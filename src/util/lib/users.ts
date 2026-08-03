@@ -1,4 +1,3 @@
-import { USER_FILE } from "../../kernel/constants";
 import {
 	Environment,
 	Group,
@@ -6,6 +5,8 @@ import {
 	User,
 	UsersFile
 } from "../types/worker";
+
+const USER_FILE = "/config/users.json";
 
 type UsersStore = SemiRecord<number, User>;
 type GroupsStore = SemiRecord<number, Group>;
