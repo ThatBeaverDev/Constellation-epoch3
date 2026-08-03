@@ -1,6 +1,12 @@
 // Types for messages sent by runtime.
 
-import { EventMap, EventName, InputConfig, Log } from "@/types/worker";
+import {
+	EventMap,
+	EventName,
+	InputConfig,
+	Log,
+	ProxyLogType
+} from "@/types/worker";
 import {
 	Worker_Proxy_Input_Response,
 	Worker_Sockets_Client_endConnection,
@@ -139,7 +145,7 @@ export interface Runtime_Proxy_Log {
 	subjectPid: number;
 
 	log: {
-		type: "log" | "warning" | "error";
+		type: ProxyLogType;
 		data: Log;
 	};
 }

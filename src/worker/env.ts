@@ -2,6 +2,7 @@ import {
 	Environment,
 	InputConfig,
 	Log,
+	NetworkGetOptions,
 	NetworkRequestType,
 	SocketConnection,
 	SocketServer,
@@ -13,7 +14,6 @@ import { ConstellationWorker } from "./worker";
 import { WorkerMessageIntent } from "./types/intents";
 import * as path from "path-browserify";
 import { ALLOWED_PROXY_EVENTS } from "../kernel/constants";
-import { WorkerEnv_Network_Get } from "./types/messages";
 
 export function newEnv(
 	worker: ConstellationWorker,
@@ -291,7 +291,7 @@ export function newEnv(
 				format: "text" | "json" | "datauri" | "blob" = "text",
 				body?: Object,
 				headers?: Record<string, string>,
-				options?: WorkerEnv_Network_Get["options"]
+				options?: NetworkGetOptions
 			) => {
 				const result = await sendMessage(
 					WorkerMessageIntent.env_network_get,

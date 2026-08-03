@@ -5,6 +5,7 @@ import {
 	InputConfig,
 	Log,
 	NetworkDataResponse,
+	NetworkGetOptions,
 	NetworkRequestType,
 	Process,
 	Sound
@@ -223,9 +224,7 @@ export interface WorkerEnv_Network_Get {
 	format: "text" | "json" | "datauri" | "blob";
 	body?: Object;
 	headers?: Record<string, string>;
-	options: {
-		cache?: boolean;
-	};
+	options: NetworkGetOptions;
 }
 
 // sound types

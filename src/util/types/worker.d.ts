@@ -1,9 +1,3 @@
-import {
-	Runtime_Proxy_Input,
-	Runtime_Proxy_Log
-} from "../../kernel/types/messages";
-import { WorkerEnv_Network_Get } from "../../worker/types/messages";
-
 declare global {
 	interface String {
 		textAfter(after: string): string;
@@ -12,6 +6,10 @@ declare global {
 		textBeforeLast(before: string): string;
 		map(mappings: Record<string, string>): string;
 	}
+}
+
+export interface NetworkGetOptions {
+	cache?: boolean;
 }
 
 type HexColour = string;
@@ -169,12 +167,14 @@ export type NetworkDataResponse<T = any> =
 			statusText: string;
 	  };
 
+export type ProxyLogType = "log" | "warning" | "error";
+
 export interface WorkerOutputProxy {
-	onLog: (type: Runtime_Proxy_Log["log"]["type"], log: Log) => any;
+	onLog: (type: ProxyLogType, log: Log) => any;
 
 	onInput: (
 		message: string,
-		config?: Runtime_Proxy_Input["config"]
+		config?: InputConfig
 	) => string | Promise<string>;
 
 	onSetLogs: (logs: Log[]) => void;
@@ -356,7 +356,7 @@ export interface Environment {
 			format?: "text",
 			body?: Object,
 			headers?: Record<string, string>,
-			options?: WorkerEnv_Network_Get["options"]
+			options?: NetworkGetOptions
 		): Promise<NetworkDataResponse<string>>;
 		request<T = Object>(
 			type: NetworkRequestType,
@@ -364,7 +364,7 @@ export interface Environment {
 			format: "json",
 			body?: Object,
 			headers?: Record<string, string>,
-			options?: WorkerEnv_Network_Get["options"]
+			options?: NetworkGetOptions
 		): Promise<NetworkDataResponse<T>>;
 		request(
 			type: NetworkRequestType,
@@ -372,7 +372,7 @@ export interface Environment {
 			format: "datauri",
 			body?: Object,
 			headers?: Record<string, string>,
-			options?: WorkerEnv_Network_Get["options"]
+			options?: NetworkGetOptions
 		): Promise<NetworkDataResponse<string>>;
 		request(
 			type: NetworkRequestType,
@@ -380,7 +380,7 @@ export interface Environment {
 			format: "blob",
 			body?: Object,
 			headers?: Record<string, string>,
-			options?: WorkerEnv_Network_Get["options"]
+			options?: NetworkGetOptions
 		): Promise<NetworkDataResponse<Blob>>;
 		request<T = Object>(
 			type: NetworkRequestType,
@@ -388,7 +388,7 @@ export interface Environment {
 			format?: "text" | "json" | "datauri" | "blob",
 			body?: Object,
 			headers?: Record<string, string>,
-			options?: WorkerEnv_Network_Get["options"]
+			options?: NetworkGetOptions
 		): Promise<NetworkDataResponse<string | T | Blob>>;
 	};
 
