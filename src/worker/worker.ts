@@ -58,10 +58,6 @@ export class ConstellationWorker {
 		this.sendMessage = sendMessage;
 		this.emit = emit;
 
-		setInterval(() => {
-			emit(WorkerMessageIntent.ping, undefined);
-		}, 2000);
-
 		this.fs = new WorkerFS(sendMessage);
 
 		// handlers

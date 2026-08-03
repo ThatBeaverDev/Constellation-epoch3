@@ -42,9 +42,6 @@ export interface WorkerStore {
 	worker: Worker;
 	totalPrograms: number;
 
-	computePercentage: number;
-	lastKeepAlive: number;
-
 	id: number;
 	name: string;
 	lock: boolean;

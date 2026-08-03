@@ -18,8 +18,6 @@ export enum WorkerMessageIntent {
 	kernel_uptime = 11,
 	kernel_version = 12,
 
-	ping = 13,
-
 	play_sound = 14,
 	pause_sound = 15,
 	resume_sound = 16,

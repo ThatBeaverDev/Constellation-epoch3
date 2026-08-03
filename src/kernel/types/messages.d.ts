@@ -26,7 +26,13 @@ interface RuntimeMessageMap {
 
 	[RuntimeMessageIntent.dispatch_frame]: {
 		data: undefined;
-		return: RuntimeExecLoopResponse;
+		return: {
+			programs: {
+				pid: number;
+				directory: string;
+			}[];
+			completePrograms: { pid: number }[];
+		};
 	};
 
 	[RuntimeMessageIntent.program_exit_inform]: {
@@ -82,13 +88,12 @@ interface RuntimeMessageMap {
 	};
 }
 
-export interface RuntimeExecLoopResponse {
+interface RuntimeExecLoopResponse {
 	programs: {
 		pid: number;
 		directory: string;
 	}[];
 	completePrograms: { pid: number }[];
-	computePercentage: number;
 }
 
 export interface RuntimeExecuteProgram {

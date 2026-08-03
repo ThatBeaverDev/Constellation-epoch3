@@ -76,10 +76,6 @@ interface WorkerMessageMap {
 		data: void;
 		return: string;
 	};
-	[WorkerMessageIntent.ping]: {
-		data: void;
-		return: void;
-	};
 	[WorkerMessageIntent.play_sound]: {
 		data: WorkerEnv_PlaySound;
 		return: { id: number; duration: number };

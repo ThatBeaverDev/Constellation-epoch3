@@ -11,13 +11,11 @@ import {
 	WorkerStore
 } from "./types";
 import { consoleError, consoleLog, consoleWarn } from "../ui/dom";
-import { IS_NODE } from "../constants";
 import ConstellationWorker from "web-worker:../../worker/worker";
 import { implementWorkerFS } from "./handlers/fs";
 import { join } from "path-browserify";
 import { logToString } from "@/lib/logs";
 import handleInputOutput from "./handlers/io";
-import { WorkerMessageIntent } from "../../worker/types/intents";
 import { RuntimeMessageIntent } from "../types/intents";
 import handleExecutionFlow from "./handlers/execution";
 import handleProcesses from "./handlers/processes";
@@ -64,11 +62,6 @@ export default class Runtime {
 
 	#nextPID: number = 1;
 	#nextWorkerID: number = 1;
-
-	#onVisibilityChange = () => {
-		// prevent workers dying randomly
-		this.workers.forEach((worker) => (worker.lastKeepAlive = Date.now()));
-	};
 
 	constructor(
 		kernel: Epoch3Kernel,
@@ -125,12 +118,6 @@ export default class Runtime {
 		this.workers = [];
 
 		this.#log("Program runtime initialised.");
-
-		if (!IS_NODE)
-			window.document.addEventListener(
-				"visibilitychange",
-				this.#onVisibilityChange
-			);
 	}
 
 	async #createWorker(
@@ -163,7 +150,7 @@ export default class Runtime {
 		};
 
 		const { sendMessage, handle, emit, withTransfer } =
-			await mainThreadMessageHandler(worker, workerStore);
+			await mainThreadMessageHandler(worker);
 
 		workerStore.sendMessage = sendMessage;
 		workerStore.emit = emit;
@@ -225,11 +212,6 @@ export default class Runtime {
 
 		// kernel info
 		handleKernelInfo(handle, this.#kernel);
-
-		// for when the program pings to say it is alive to prevent termination due to crash
-		handle(WorkerMessageIntent.ping, () => {
-			workerStore.lastKeepAlive = Date.now();
-		});
 
 		handleSounds(
 			handle,
@@ -315,33 +297,14 @@ export default class Runtime {
 	async execLoop() {
 		if (this.#exited) return;
 
-		const now = Date.now();
-
 		for (const worker of this.workers) {
-			if (
-				worker.lastKeepAlive + 10000 < now &&
-				(IS_NODE || window?.document?.visibilityState == "visible")
-			) {
-				if (worker.program) {
-					worker.program.onLog("log", [
-						{
-							text: "WorkerCrash: Program worker became unresponsive, possibly due to bad worker implementation OR program breakage.",
-							colour: "#ff0000"
-						}
-					]);
-					this.#registerTermination(worker.program.pid);
-				}
-				continue;
-			}
-
 			if (worker.lock) continue;
 			worker.lock = true;
 
 			worker
 				.sendMessage(RuntimeMessageIntent.dispatch_frame, undefined)
-				.then(({ programs, completePrograms, computePercentage }) => {
+				.then(({ programs, completePrograms }) => {
 					worker.totalPrograms -= completePrograms.length;
-					worker.computePercentage = computePercentage;
 
 					if (worker.totalPrograms !== programs.length) {
 						this.#panic(
@@ -756,12 +719,6 @@ export default class Runtime {
 
 	#exited = false;
 	exit() {
-		if (!IS_NODE)
-			window.document.removeEventListener(
-				"visibilitychange",
-				this.#onVisibilityChange
-			);
-
 		this.workers.forEach((store) => store.exit());
 	}
 }

@@ -4,20 +4,15 @@ import { WorkerMessageMap } from "../../../worker/types/messages";
 import { IS_DEV_MODE, IS_NODE } from "../../constants";
 import { RuntimeMessageIntent } from "../../types/intents";
 import { RuntimeMessageMap } from "../../types/messages";
-import { WorkerStore } from "../types";
 
 export const transferrableMarkerSymbol = Symbol("transfer");
-export async function mainThreadMessageHandler(
-	worker: Worker,
-	store: WorkerStore
-) {
+export async function mainThreadMessageHandler(worker: Worker) {
 	let nextMessageID = 1;
 
 	const pendingMessages = new Map<number, Pending>();
 	const requestHandlers = new Map<string | number, RequestHandler>();
 
 	const onMessage = async (msg: Message) => {
-		store.lastKeepAlive = Date.now();
 		if (!msg) return;
 
 		// ---------- RESPONSE ----------
