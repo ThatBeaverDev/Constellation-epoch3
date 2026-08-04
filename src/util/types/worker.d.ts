@@ -545,6 +545,10 @@ export interface EnvironmentFilesystem {
 	exists(path: string): Promise<boolean>;
 
 	stats(path: string): Promise<FileStats | undefined>;
+
+	readFileSync(path: string): string | undefined;
+	readdirSync(path: string): string[] | undefined;
+	statSync(path: string): FileStats | undefined;
 }
 
 export interface Process {

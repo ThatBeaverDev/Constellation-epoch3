@@ -80,7 +80,7 @@ export default class Epoch3Kernel {
 			if (lock == true) return;
 			lock = true;
 
-			await this.runtime.execLoop();
+			await this.runtime.dispatchPrograms();
 
 			lock = false;
 		}, 0);

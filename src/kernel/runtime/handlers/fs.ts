@@ -5,6 +5,13 @@ import { WorkerMessageMap } from "../../../worker/types/messages";
 import { FilesystemInterface } from "../../fs/fs";
 import { tryReadFile, tryWriteFile } from "../../security/permissions";
 import UsersManager from "../../security/users";
+import { writeMessage } from "sync-message";
+import {
+	SyncReaddirResponse,
+	SyncReadFileResponse,
+	SyncStatResponse,
+	WorkerStore
+} from "../types";
 
 export function implementWorkerFS(
 	handle: <Intent extends keyof WorkerMessageMap>(
@@ -14,6 +21,7 @@ export function implementWorkerFS(
 			WorkerMessageMap[Intent]["return"]
 		>
 	) => void,
+	workerStore: WorkerStore,
 	fs: FilesystemInterface,
 	users: UsersManager,
 	getUser: () => User,
@@ -109,5 +117,38 @@ export function implementWorkerFS(
 		await tryReadFile(path, users, getUser());
 
 		return await fs.stats(path);
+	});
+
+	handle(WorkerMessageIntent.fs_read_sync, async ({ path, messageId }) => {
+		path = reroot(path);
+		await tryReadFile(path, users, getUser());
+
+		const contents = await fs.readFile(path);
+
+		const message: SyncReadFileResponse = { contents };
+
+		writeMessage(workerStore.atomicChannel, message, messageId);
+	});
+
+	handle(WorkerMessageIntent.fs_readdir_sync, async ({ path, messageId }) => {
+		path = reroot(path);
+		await tryReadFile(path, users, getUser());
+
+		const contents = await fs.readdir(path);
+
+		const message: SyncReaddirResponse = { contents };
+
+		writeMessage(workerStore.atomicChannel, message, messageId);
+	});
+
+	handle(WorkerMessageIntent.fs_stat_sync, async ({ path, messageId }) => {
+		path = reroot(path);
+		await tryReadFile(path, users, getUser());
+
+		const stats = await fs.stats(path);
+
+		const message: SyncStatResponse = { stats };
+
+		writeMessage(workerStore.atomicChannel, message, messageId);
 	});
 }

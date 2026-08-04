@@ -1,8 +1,9 @@
-import { InputConfig, Log, User } from "@/types/worker";
+import { FileStats, InputConfig, Log, User } from "@/types/worker";
 import { UiManager } from "../ui/ui";
 import { RuntimeMessageMap } from "../types/messages";
 import { RuntimeMessageIntent } from "../types/intents";
 import { PlaySoundResponse } from "../ui/dom";
+import { Channel } from "sync-message";
 
 export interface ProgramLog {
 	type: "log" | "warning" | "error";
@@ -42,6 +43,9 @@ export interface WorkerStore {
 	worker: Worker;
 	totalPrograms: number;
 
+	sharedArrayBuffer: SharedArrayBuffer;
+	atomicChannel: Channel;
+
 	id: number;
 	name: string;
 	lock: boolean;
@@ -70,3 +74,15 @@ export type RuntimeSoundsStore = Map<
 	number,
 	{ program: ProgramStore; info: PlaySoundResponse }
 >;
+
+export interface SyncReadFileResponse {
+	contents: string | undefined;
+}
+
+export interface SyncReaddirResponse {
+	contents: string[] | undefined;
+}
+
+export interface SyncStatResponse {
+	stats: FileStats | undefined;
+}

@@ -17,6 +17,7 @@ import {
 	Worker_Sockets_Server_sendPacket
 } from "../../worker/types/messages";
 import { RuntimeMessageIntent } from "./intents";
+import { Channel } from "sync-message";
 
 interface RuntimeMessageMap {
 	[RuntimeMessageIntent.begin_execution]: {
@@ -85,6 +86,11 @@ interface RuntimeMessageMap {
 	[RuntimeMessageIntent.proxy_get_dimensions]: {
 		data: Runtime_Proxy_Get_Dimensions;
 		return?: { width: number; height: number };
+	};
+
+	[RuntimeMessageIntent.send_atomics_channel]: {
+		data: Channel;
+		return: void;
 	};
 }
 

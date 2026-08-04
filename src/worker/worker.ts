@@ -6,6 +6,8 @@ import { workerMessageHandler } from "./handlers/handler";
 import { handleSockets } from "./handlers/sockets";
 import { handleInputOutput } from "./handlers/io";
 import { handleFlow } from "./handlers/flow";
+import { RuntimeMessageIntent } from "../kernel/types/intents";
+import { Channel } from "sync-message";
 
 applyStringPrototypes();
 
@@ -48,6 +50,8 @@ export class ConstellationWorker {
 	computeCalculationWindow = 2000;
 	computeSlices: { start: number; end: number }[] = [];
 
+	atomicsChannel!: Channel;
+
 	constructor() {
 		this.init();
 	}
@@ -58,7 +62,11 @@ export class ConstellationWorker {
 		this.sendMessage = sendMessage;
 		this.emit = emit;
 
-		this.fs = new WorkerFS(sendMessage);
+		this.atomicsChannel = await new Promise<Channel>((resolve) => {
+			handle(RuntimeMessageIntent.send_atomics_channel, resolve);
+		});
+
+		this.fs = new WorkerFS(sendMessage, emit, this.atomicsChannel);
 
 		// handlers
 

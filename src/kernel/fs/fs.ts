@@ -19,16 +19,16 @@ export interface FilesystemInterface {
 	 * Reads contents from a file
 	 * @param path The file to read from
 	 */
-	readFile(path: string): Promise<string | void>;
-	readFile(path: string, format: "text"): Promise<string | void>;
+	readFile(path: string): Promise<string | undefined>;
+	readFile(path: string, format: "text"): Promise<string | undefined>;
 	readFile<T extends Object = Object>(
 		path: string,
 		format: "json"
-	): Promise<T | void>;
+	): Promise<T | undefined>;
 	readFile<T extends Object = Object>(
 		path: string,
 		format?: "text" | "json"
-	): Promise<string | T | void>;
+	): Promise<string | T | undefined>;
 	/**
 	 * Writes contents to a file
 	 * @param path File to write to
@@ -497,7 +497,7 @@ class DomFs implements FilesystemInterface {
 
 		const dir = this.#index[path];
 		if (!dir || dir.type !== "directory")
-			throw new Error("Not a directory");
+			throw new Error(`Not a directory: '${path}'`);
 
 		const results: string[] = [];
 
@@ -517,7 +517,7 @@ class DomFs implements FilesystemInterface {
 
 		const entry = this.#index[path];
 		if (!entry || entry.type !== "directory")
-			throw new Error("Not a directory");
+			throw new Error(`Not a directory: '${path}'`);
 
 		for (const key in this.#index) {
 			if (parent(key) === path) throw new Error("Directory not empty");

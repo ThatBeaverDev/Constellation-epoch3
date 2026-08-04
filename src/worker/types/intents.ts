@@ -53,6 +53,11 @@ export enum WorkerMessageIntent {
 	fs_exists = 40,
 	fs_stats = 41,
 
+	// sync fs
+	fs_read_sync = 13,
+	fs_readdir_sync = 44,
+	fs_stat_sync = 45,
+
 	change_password = 42,
 	validate_password = 43
 }

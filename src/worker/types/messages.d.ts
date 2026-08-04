@@ -198,6 +198,18 @@ interface WorkerMessageMap {
 		data: { path: string };
 		return: FileStats | undefined;
 	};
+	[WorkerMessageIntent.fs_read_sync]: {
+		data: { path: string; messageId: string };
+		return: void;
+	};
+	[WorkerMessageIntent.fs_readdir_sync]: {
+		data: { path: string; messageId: string };
+		return: void;
+	};
+	[WorkerMessageIntent.fs_stat_sync]: {
+		data: { path: string; messageId: string };
+		return: void;
+	};
 
 	[WorkerMessageIntent.change_password]: {
 		data: { uid: number; newPassword: string };

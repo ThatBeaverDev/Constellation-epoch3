@@ -25,6 +25,7 @@ import handleSounds from "./handlers/sounds";
 import handleSockets from "./handlers/sockets";
 import handlePasswords from "./handlers/passwords";
 import { mainThreadMessageHandler } from "./handlers/handler";
+import { makeChannel } from "sync-message";
 
 export default class Runtime {
 	#log: (message: Log) => void;
@@ -129,11 +130,18 @@ export default class Runtime {
 
 		const worker = new ConstellationWorker();
 
+		const atomicChannel = makeChannel({
+			atomics: { bufferSize: 5 * 1024 * 1024 } // 5 MB
+		});
+		if (!atomicChannel) {
+			throw new Error("Atomic channel not supported.");
+		}
+
 		const workerStore: WorkerStore = {
 			worker,
 			totalPrograms: 0,
-			computePercentage: 0,
-			lastKeepAlive: Date.now(),
+			sharedArrayBuffer: new SharedArrayBuffer(1024 ** 2), // 1 MB size
+			atomicChannel,
 			id: workerID,
 			name: workerName,
 			lock: false,
@@ -178,6 +186,7 @@ export default class Runtime {
 
 		implementWorkerFS(
 			handle,
+			workerStore,
 			this.#fs,
 			this.#kernel.users,
 			() => getProgram().user,
@@ -227,6 +236,8 @@ export default class Runtime {
 
 		// validation of passwords
 		handlePasswords(handle, getProgram, this.#kernel.users);
+
+		sendMessage(RuntimeMessageIntent.send_atomics_channel, atomicChannel);
 
 		this.workers.push(workerStore);
 		this.#log(`New worker created. (#${workerID})`);
@@ -294,7 +305,7 @@ export default class Runtime {
 		}
 	}
 
-	async execLoop() {
+	async dispatchPrograms() {
 		if (this.#exited) return;
 
 		for (const worker of this.workers) {

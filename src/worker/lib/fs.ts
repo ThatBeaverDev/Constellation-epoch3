@@ -1,24 +1,31 @@
 import { EnvironmentFilesystem, FileStats } from "@/types/worker";
 import { WorkerMessageIntent } from "../types/intents";
 import { WorkerMessageMap } from "../types/messages";
+import { Channel, readMessage, uuidv4 } from "sync-message";
+import {
+	SyncReaddirResponse,
+	SyncReadFileResponse,
+	SyncStatResponse
+} from "../../kernel/runtime/types";
 
 export class WorkerFS implements EnvironmentFilesystem {
 	ready = true;
 	waitForReady(): Promise<void> {
 		return new Promise((resolve) => resolve());
 	}
-	#sendMessage: <Intent extends WorkerMessageIntent>(
-		intent: Intent,
-		data: WorkerMessageMap[Intent]["data"]
-	) => Promise<WorkerMessageMap[Intent]["return"]>;
 
 	constructor(
-		sendMessage: <Intent extends WorkerMessageIntent>(
+		public sendMessage: <Intent extends WorkerMessageIntent>(
 			intent: Intent,
 			data: WorkerMessageMap[Intent]["data"]
-		) => Promise<WorkerMessageMap[Intent]["return"]>
+		) => Promise<WorkerMessageMap[Intent]["return"]>,
+		public emit: <Intent extends WorkerMessageIntent>(
+			intent: Intent,
+			data: WorkerMessageMap[Intent]["data"]
+		) => void,
+		public channel: Channel
 	) {
-		this.#sendMessage = sendMessage;
+		this.sendMessage = sendMessage;
 	}
 
 	readFile(path: string): Promise<string | void>;
@@ -35,7 +42,7 @@ export class WorkerFS implements EnvironmentFilesystem {
 		if (!["text", "json", undefined].includes(format))
 			throw new Error("Format must be 'text', 'json' or blank.");
 
-		return await this.#sendMessage(WorkerMessageIntent.fs_readFile, {
+		return await this.sendMessage(WorkerMessageIntent.fs_readFile, {
 			path,
 			format
 		});
@@ -45,7 +52,7 @@ export class WorkerFS implements EnvironmentFilesystem {
 		if (typeof contents !== "string")
 			throw new Error("Contents must be string");
 
-		return await this.#sendMessage(WorkerMessageIntent.fs_writeFile, {
+		return await this.sendMessage(WorkerMessageIntent.fs_writeFile, {
 			path,
 			contents
 		});
@@ -53,13 +60,13 @@ export class WorkerFS implements EnvironmentFilesystem {
 	async unlink(path: string): Promise<void> {
 		if (typeof path !== "string") throw new Error("Path must be string");
 
-		return await this.#sendMessage(WorkerMessageIntent.fs_unlink, { path });
+		return await this.sendMessage(WorkerMessageIntent.fs_unlink, { path });
 	}
 
 	async getMetadataEntry(path: string, entry: string) {
 		if (typeof path !== "string") throw new Error("Path must be string");
 
-		return await this.#sendMessage(
+		return await this.sendMessage(
 			WorkerMessageIntent.fs_get_metadata_entry,
 			{
 				path,
@@ -70,7 +77,7 @@ export class WorkerFS implements EnvironmentFilesystem {
 	async listMetadataEntries(path: string) {
 		if (typeof path !== "string") throw new Error("Path must be string");
 
-		return await this.#sendMessage(
+		return await this.sendMessage(
 			WorkerMessageIntent.fs_list_metadata_entries,
 			{ path }
 		);
@@ -82,7 +89,7 @@ export class WorkerFS implements EnvironmentFilesystem {
 	) {
 		if (typeof path !== "string") throw new Error("Path must be string");
 
-		return await this.#sendMessage(
+		return await this.sendMessage(
 			WorkerMessageIntent.fs_set_metadata_entry,
 			{
 				path,
@@ -98,7 +105,7 @@ export class WorkerFS implements EnvironmentFilesystem {
 	): Promise<boolean> {
 		if (typeof path !== "string") throw new Error("Path must be string");
 
-		return await this.#sendMessage(WorkerMessageIntent.fs_mkdir, {
+		return await this.sendMessage(WorkerMessageIntent.fs_mkdir, {
 			path,
 			options
 		});
@@ -110,7 +117,7 @@ export class WorkerFS implements EnvironmentFilesystem {
 		if (typeof targetPath !== "string")
 			throw new Error("Target path must be string");
 
-		return await this.#sendMessage(WorkerMessageIntent.fs_createAlias, {
+		return await this.sendMessage(WorkerMessageIntent.fs_createAlias, {
 			path,
 			targetPath
 		});
@@ -119,31 +126,67 @@ export class WorkerFS implements EnvironmentFilesystem {
 	async readdir(path: string): Promise<string[]> {
 		if (typeof path !== "string") throw new Error("Path must be string");
 
-		return await this.#sendMessage(WorkerMessageIntent.fs_readdir, {
+		return await this.sendMessage(WorkerMessageIntent.fs_readdir, {
 			path
 		});
 	}
 	async rmdir(path: string): Promise<void> {
 		if (typeof path !== "string") throw new Error("Path must be string");
 
-		return await this.#sendMessage(WorkerMessageIntent.fs_rmdir, { path });
+		return await this.sendMessage(WorkerMessageIntent.fs_rmdir, { path });
 	}
 
 	async rm(path: string): Promise<void> {
 		if (typeof path !== "string") throw new Error("Path must be string");
 
-		return await this.#sendMessage(WorkerMessageIntent.fs_rm, { path });
+		return await this.sendMessage(WorkerMessageIntent.fs_rm, { path });
 	}
 
 	async isDirectory(path: string): Promise<boolean> {
-		return await this.#sendMessage(WorkerMessageIntent.fs_isdir, { path });
+		return await this.sendMessage(WorkerMessageIntent.fs_isdir, { path });
 	}
 
 	async exists(path: string): Promise<boolean> {
-		return await this.#sendMessage(WorkerMessageIntent.fs_exists, { path });
+		return await this.sendMessage(WorkerMessageIntent.fs_exists, { path });
 	}
 
 	async stats(path: string): Promise<FileStats | undefined> {
-		return await this.#sendMessage(WorkerMessageIntent.fs_stats, { path });
+		return await this.sendMessage(WorkerMessageIntent.fs_stats, { path });
+	}
+
+	readFileSync(path: string): string | undefined {
+		const messageId = uuidv4();
+
+		this.emit(WorkerMessageIntent.fs_read_sync, { path, messageId });
+
+		const message: SyncReadFileResponse = readMessage(
+			this.channel,
+			messageId
+		);
+
+		return message.contents;
+	}
+
+	readdirSync(path: string): string[] | undefined {
+		const messageId = uuidv4();
+
+		this.emit(WorkerMessageIntent.fs_readdir_sync, { path, messageId });
+
+		const message: SyncReaddirResponse = readMessage(
+			this.channel,
+			messageId
+		);
+
+		return message.contents;
+	}
+
+	statSync(path: string): FileStats | undefined {
+		const messageId = uuidv4();
+
+		this.emit(WorkerMessageIntent.fs_stat_sync, { path, messageId });
+
+		const message: SyncStatResponse = readMessage(this.channel, messageId);
+
+		return message.stats;
 	}
 }

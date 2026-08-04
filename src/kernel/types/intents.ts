@@ -15,5 +15,7 @@ export enum RuntimeMessageIntent {
 	proxy_log = 9,
 	proxy_input = 10,
 	proxy_set_logs = 11,
-	proxy_get_dimensions = 12
+	proxy_get_dimensions = 12,
+
+	send_atomics_channel = 13
 }
