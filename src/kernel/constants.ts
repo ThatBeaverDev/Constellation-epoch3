@@ -29,3 +29,5 @@ export const IS_DEV_MODE =
 	new URL(globalThis?.location?.href ?? "https://node.js").searchParams.get(
 		"dev"
 	) !== null;
+
+export const FS_DB_NAME = "fs";
