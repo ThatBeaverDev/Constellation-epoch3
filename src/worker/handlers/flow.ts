@@ -87,8 +87,6 @@ export function handleFlow(
 	);
 
 	handle(RuntimeMessageIntent.dispatch_frame, () => {
-		const start = performance.now();
-
 		worker.programs.forEach(async (program) => {
 			if (program.locked) return;
 			program.locked = true;
@@ -132,39 +130,9 @@ export function handleFlow(
 			directory: item.directory
 		}));
 
-		const end = performance.now();
-
-		// Store this active compute period
-		worker.computeSlices.push({ start, end });
-
-		// Remove anything completely outside the window
-		const cutoff = end - worker.computeCalculationWindow;
-		while (
-			worker.computeSlices.length &&
-			worker.computeSlices[0].end < cutoff
-		) {
-			worker.computeSlices.shift();
-		}
-
-		// Calculate total active time within the last 2 seconds
-		let activeTime = 0;
-
-		for (const slice of worker.computeSlices) {
-			const overlapStart = Math.max(slice.start, cutoff);
-			const overlapEnd = slice.end;
-
-			if (overlapEnd > overlapStart) {
-				activeTime += overlapEnd - overlapStart;
-			}
-		}
-
-		const computePercentage =
-			(activeTime / worker.computeCalculationWindow) * 100;
-
 		const result = {
 			programs: programsData,
-			completePrograms: worker.completedQueue.splice(0),
-			computePercentage
+			completePrograms: worker.completedQueue.splice(0)
 		};
 
 		return result;

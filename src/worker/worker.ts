@@ -47,8 +47,6 @@ export class ConstellationWorker {
 	> = {};
 
 	completedQueue: { pid: number }[] = [];
-	computeCalculationWindow = 2000;
-	computeSlices: { start: number; end: number }[] = [];
 
 	atomicsChannel!: Channel;
 
