@@ -61,19 +61,27 @@ export function handleFlow(
 			store.env = newEnv(worker, store, workingDirectory);
 
 			try {
-				const generator = program(store.env, args ?? [], input);
+				const result = await program(store.env, args ?? [], input);
 
-				if (
-					generator &&
-					Object.keys(Object.getPrototypeOf(generator)).length == 0
-				) {
+				function isAnyIterable(obj: any) {
+					if (obj == null) return false;
+					return (
+						typeof obj[Symbol.iterator] === "function" ||
+						typeof obj[Symbol.asyncIterator] === "function"
+					);
+				}
+
+				const isGenerator = isAnyIterable(result);
+
+				if (result && isGenerator) {
 					// @ts-expect-error // probably a generator
-					store.generator = generator;
+					store.generator = result;
 				} else {
-					// not a generator, this is a return value, let's just pretend we're working with a generator.
-					store.generator = (function* emptyGenerator() {
-						return generator;
-					})();
+					// not a generator, this is a return value. Provide a blank, immediately completing generator.
+					const fn = function* emptyGenerator() {};
+					const blankGenerator = fn();
+
+					store.generator = blankGenerator;
 				}
 			} catch (e) {
 				console.error(e);
