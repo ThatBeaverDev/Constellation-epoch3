@@ -58,6 +58,10 @@ export enum WorkerMessageIntent {
 	fs_readdir_sync = 44,
 	fs_stat_sync = 45,
 
+	// fs sizes
+	fs_used_size = 46,
+	fs_max_size = 47,
+
 	change_password = 42,
 	validate_password = 43
 }

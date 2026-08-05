@@ -79,6 +79,8 @@ export function newEnv(
 		return result;
 	}
 
+	const pathlessFsMethods = new Set<string>(["usedSize", "maxSize"]);
+
 	const env: Environment = {
 		print(data: Log) {
 			emit(WorkerMessageIntent.log, { data });
@@ -151,6 +153,10 @@ export function newEnv(
 
 				if (typeof item[1] !== "function") return [name, , item[1]];
 				const fn = item[1].bind(worker.fs);
+
+				if (pathlessFsMethods.has(name)) {
+					return [name, fn];
+				}
 
 				return [
 					name,

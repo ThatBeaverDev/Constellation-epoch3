@@ -189,4 +189,12 @@ export class WorkerFS implements EnvironmentFilesystem {
 
 		return message.stats;
 	}
+
+	usedSize(): Promise<number> {
+		return this.sendMessage(WorkerMessageIntent.fs_used_size, undefined);
+	}
+
+	maxSize(): Promise<number> {
+		return this.sendMessage(WorkerMessageIntent.fs_max_size, undefined);
+	}
 }

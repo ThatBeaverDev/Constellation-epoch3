@@ -151,4 +151,7 @@ export function implementWorkerFS(
 
 		writeMessage(workerStore.atomicChannel, message, messageId);
 	});
+
+	handle(WorkerMessageIntent.fs_used_size, () => fs.getUsedSpace());
+	handle(WorkerMessageIntent.fs_max_size, () => fs.getAllowedSpace());
 }

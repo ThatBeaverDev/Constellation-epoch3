@@ -549,6 +549,9 @@ export interface EnvironmentFilesystem {
 	readFileSync(path: string): string | undefined;
 	readdirSync(path: string): string[] | undefined;
 	statSync(path: string): FileStats | undefined;
+
+	maxSize(): Promise<number>;
+	usedSize(): Promise<number>;
 }
 
 export interface Process {
@@ -583,8 +586,15 @@ export interface WorkerProgramStore {
 	exit?: boolean;
 }
 
+type MaybePromise<T> = Promise<T> | T;
+
 export type ConstellationProgram = (
 	env: Environment,
 	args: string[],
 	input?: Log[]
-) => Generator<any, Log, unknown> | AsyncGenerator<any, Log, unknown> | Log;
+) => MaybePromise<
+	| Generator<any, Log, unknown>
+	| AsyncGenerator<any, Log, unknown>
+	| Log
+	| undefined
+>;

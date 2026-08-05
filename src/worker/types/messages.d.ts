@@ -210,6 +210,14 @@ interface WorkerMessageMap {
 		data: { path: string; messageId: string };
 		return: void;
 	};
+	[WorkerMessageIntent.fs_used_size]: {
+		data: undefined;
+		return: number;
+	};
+	[WorkerMessageIntent.fs_max_size]: {
+		data: undefined;
+		return: number;
+	};
 
 	[WorkerMessageIntent.change_password]: {
 		data: { uid: number; newPassword: string };
