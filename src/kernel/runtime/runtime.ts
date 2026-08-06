@@ -332,6 +332,7 @@ export default class Runtime {
 
 	#rootLog(program: ProgramStore, log: Log) {
 		if (typeof log == "string") return log;
+		if (!(log instanceof Array)) return undefined;
 
 		const workingLog = structuredClone(log);
 
@@ -406,7 +407,10 @@ export default class Runtime {
 			},
 
 			onLog: (type, data) => {
+				if (data == undefined || data == null) return; // no logging
+
 				const rootedData = this.#rootLog(program, data);
+				if (!rootedData) return; // obviously not a valid data type
 
 				program.logs.push({ type, data: rootedData });
 
