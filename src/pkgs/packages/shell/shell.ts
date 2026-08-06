@@ -6,7 +6,7 @@ import {
 } from "../../../util/types/worker";
 import { logsToString } from "../../../util/lib/logs";
 import { user, usersByName } from "../../../util/lib/users";
-import { execName } from "../../../util/lib/exec";
+import { execName, resolveName } from "../../../util/lib/exec";
 
 export interface ShellCommand {
 	name: string;
@@ -227,7 +227,7 @@ export async function shellImpl(
 		switch (command.name) {
 			case "":
 				break;
-			case "cd":
+			case "cd": {
 				// resolve the directory
 				const path = env.path.resolve(
 					env.workingDirectory,
@@ -249,6 +249,7 @@ export async function shellImpl(
 				}
 
 				break;
+			}
 
 			case "clear":
 				for (const id of executionIdOrder) {
@@ -264,12 +265,12 @@ export async function shellImpl(
 			case "exit":
 				return executedCommandRequiresExitReturn;
 
-			case "which":
+			case "which": {
 				for (const commandName of command.args) {
-					const envExec = await env.execute("/sbin/env.js", [
+					const programDirectory = await resolveName(
+						env,
 						commandName
-					]);
-					const { return: programDirectory } = await envExec.onExit;
+					);
 
 					if (programDirectory) {
 						result.push(`${commandName}: ${programDirectory}`);
@@ -279,6 +280,7 @@ export async function shellImpl(
 				}
 
 				break;
+			}
 
 			case "su": {
 				const targetUID = command.args[0]
@@ -444,10 +446,7 @@ export async function shellImpl(
 				passEvent("resize");
 
 				// logs were already added live
-				const { return: programResult, logs: liveLogs } =
-					await programExec.onExit;
-
-				if (liveLogs) result.push(...liveLogs);
+				const { return: programResult } = await programExec.onExit;
 
 				for (const name in eventHandlers) {
 					// @ts-expect-error
@@ -463,8 +462,11 @@ export async function shellImpl(
 
 				if (returnLogs) {
 					io.print(returnLogs);
-					result.push(returnLogs);
 				}
+		}
+
+		for (const log of result) {
+			io.print(log);
 		}
 
 		if (command.output) {
