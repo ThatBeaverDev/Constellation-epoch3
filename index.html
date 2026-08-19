@@ -6,29 +6,6 @@
 	</head>
 
 	<body>
-		<script type="module">
-			import ConstellationWeb from "/dist/kernel.js";
-
-			const kernel = ConstellationWeb(async (fs) => {
-				await fs.mkdir("/bin");
-
-				// init
-				const initSrc = await (
-					await fetch("/dist/pkgs/packages/init/init.js")
-				).text();
-
-				await fs.writeFile("/bin/init.js", initSrc);
-
-				// installer
-				const installerSrc = await (
-					await fetch("/dist/pkgs/packages/installd/installd.js")
-				).text();
-
-				await fs.writeFile("/bin/installd.js", installerSrc);
-			});
-			kernel.init();
-
-			window.kernel = kernel;
-		</script>
+		<script type="module" src="./dist/portable.js"></script>
 	</body>
 </html>
