@@ -69,7 +69,7 @@ export default class WindowManager {
 		return this.windows[this.windowID];
 	}
 
-	#handleAltNavigation(key: string): boolean {
+	#handleNavigation(key: string): boolean {
 		const total = this.windows.length;
 
 		switch (key) {
@@ -267,7 +267,7 @@ export default class WindowManager {
 				return;
 			}
 
-			if (e.alt && this.#handleAltNavigation(key)) {
+			if ((e.alt || e.ctrl) && this.#handleNavigation(key)) {
 				return;
 			}
 
