@@ -15,10 +15,9 @@ export async function startServices(
 		)
 			continue;
 
+		let userState: { uid: number; password: string } | undefined =
+			undefined;
 		try {
-			let userState: { uid: number; password: string } | undefined =
-				undefined;
-
 			service.running = true;
 
 			if (service.askForUser) {
@@ -65,12 +64,23 @@ export async function startServices(
 
 			exec.onExit.then(() => (service.running = false));
 		} catch (e) {
+			if (
+				e instanceof Error &&
+				e.message.includes("Password is incorrect")
+			) {
+				// ask user again, get it to try again
+				service.running = false;
+			}
+
 			try {
 				if (service.fallback) {
 					const exec = await env.execute(
 						service.fallback,
 						service.args,
-						{ handOverDisplay: service.display }
+						{
+							handOverDisplay: service.display,
+							user: userState
+						}
 					);
 					service.running = true;
 					if (service.restartPolicy == "once") {
