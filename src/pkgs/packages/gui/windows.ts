@@ -459,7 +459,7 @@ export default class WindowManager {
 					if (!stats) continue;
 
 					if (stats.type == "file") {
-						names.add(name.substring(4));
+						names.add(name);
 
 						const metadata = await getAppMetadata(
 							this.env,
