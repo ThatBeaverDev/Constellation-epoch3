@@ -107,7 +107,11 @@ export default class WindowManager {
 		return false;
 	}
 
-	#handleWindowScroll(window: any, key: string, isShift: boolean): boolean {
+	#handleWindowScroll(
+		window: Window,
+		key: string,
+		isShift: boolean
+	): boolean {
 		if (key === "arrowup") {
 			if (isShift) {
 				window.scroll -= 100;
@@ -489,7 +493,6 @@ export default class WindowManager {
 const debugRendering = false;
 export abstract class Window {
 	scrollItem: number = 0;
-	#currentItemHeight?: number;
 
 	contents: Partial<WindowContentItem[]> = [];
 	hasSidebar: boolean = false;
@@ -562,8 +565,6 @@ export abstract class Window {
 			console.error("DEBUG RENDERING ENABLED");
 		}
 
-		this.#currentItemHeight = undefined;
-
 		// Window box
 		rect(
 			ctx,
@@ -613,9 +614,6 @@ export abstract class Window {
 							measurements.height + 6,
 							"rgb(65 65 65)"
 						);
-
-						this.#currentItemHeight =
-							item.y + measurements.height + 6;
 					}
 
 					drawLog(
@@ -658,9 +656,6 @@ export abstract class Window {
 							"rgb(65 65 65)",
 							"white"
 						);
-
-						this.#currentItemHeight =
-							item.y + measurements.height + 6;
 					}
 
 					text(ctx, xRoot + item.x, yRoot + item.y, displayText);
@@ -686,8 +681,6 @@ export abstract class Window {
 						measurements.height + 6,
 						itemFocused ? "rgb(100 100 100)" : "rgb(75 75 75)"
 					);
-
-					this.#currentItemHeight = item.y + measurements.height + 6;
 
 					drawLog(
 						ctx,
@@ -912,13 +905,13 @@ export abstract class Window {
 		if (focused && "y" in focused) {
 			const targetVisibleTop = focused.y - this.scroll;
 			const targetVisibleBottom =
-				(this.#currentItemHeight ?? focused.y + 15) - this.scroll;
+				focused.y + 15 + headerHeight - this.scroll;
 
 			if (targetVisibleBottom > contentHeight) {
-				this.scroll += Math.abs(targetVisibleBottom - contentHeight);
+				this.scroll += targetVisibleBottom - contentHeight + 5;
 			}
 			if (targetVisibleTop < headerHeight) {
-				this.scroll -= Math.abs(targetVisibleTop - headerHeight);
+				this.scroll -= headerHeight - targetVisibleTop - 5;
 			}
 
 			if (this.scroll < 0) {
