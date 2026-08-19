@@ -47,6 +47,8 @@ export default function handleNetwork(
 				response: response
 			};
 		} else {
+			console.warn(`Local netmap request to '${path} was not matched.'`);
+
 			return {
 				isOk: false,
 				statusCode: 400,
@@ -133,7 +135,10 @@ export default function handleNetwork(
 						? JSON.stringify(body)
 						: String(body);
 
-			const isLocal = !url.includes("://");
+			const isLocal =
+				!url.includes("://") &&
+				!url.startsWith("data:") &&
+				!url.startsWith("blob:");
 
 			if (netMap && isLocal) return handleWithNetmap(url, format);
 
