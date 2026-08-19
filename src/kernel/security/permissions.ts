@@ -15,17 +15,16 @@ export async function tryReadFile(
 ) {
 	const isPrivileged = await users.isPrivileged(user.UID);
 
-	if (isPrivileged) {
-		if (WORKER_READ_ROOT_BLACKLIST.has(path))
-			throw new PermissionError(
-				`Access Denied: May not read from ${path}.`
-			);
-	} else {
+	if (WORKER_READ_ROOT_BLACKLIST.has(path))
+		throw new PermissionError(
+			`Access Denied: Nobody, not even root, may read from ${path}.`
+		);
+
+	if (!isPrivileged)
 		if (WORKER_READ_BLACKLIST.has(path))
 			throw new PermissionError(
-				`Access Denied: May not read from ${path}. Root may be required.`
+				`Access Denied: May not read from ${path}. Root is required.`
 			);
-	}
 }
 
 export async function tryWriteFile(
@@ -35,15 +34,14 @@ export async function tryWriteFile(
 ) {
 	const isPrivileged = await users.isPrivileged(user.UID);
 
-	if (isPrivileged) {
-		if (WORKER_WRITE_ROOT_BLACKLIST.has(path))
-			throw new PermissionError(
-				`Access Denied: May not write to ${path}.`
-			);
-	} else {
+	if (WORKER_WRITE_ROOT_BLACKLIST.has(path))
+		throw new PermissionError(
+			`Access Denied: Nobody, not even root, may write to ${path}.`
+		);
+
+	if (!isPrivileged)
 		if (WORKER_WRITE_BLACKLIST.has(path))
 			throw new PermissionError(
-				`Access Denied: May not write to ${path}. Root may be required.`
+				`Access Denied: May not write to ${path}. Root is required.`
 			);
-	}
 }
