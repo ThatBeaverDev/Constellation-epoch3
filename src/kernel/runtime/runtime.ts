@@ -51,7 +51,7 @@ export default class Runtime {
 
 	programs: ProgramStore[];
 	#initProgram!: ProgramStore;
-	programByPid(id: number): ProgramStore {
+	programByPid = (id: number): ProgramStore => {
 		const index = this.programs.map((program) => program.pid).indexOf(id);
 
 		if (index == -1) {
@@ -59,7 +59,7 @@ export default class Runtime {
 		}
 
 		return this.programs[index];
-	}
+	};
 
 	#nextPID: number = 1;
 	#nextWorkerID: number = 1;
@@ -370,7 +370,11 @@ export default class Runtime {
 		args?: string[],
 		config?: ProgramConfig
 	): Promise<ProgramStore> {
-		this.#log("Executing program from " + directory);
+		this.#log(
+			"Executing program from " +
+				directory +
+				(parent ? `, child of ${parent.pid}` : "")
+		);
 
 		const pid = this.#nextPID++;
 		const worker = await this.#createWorker(directory, pid);
