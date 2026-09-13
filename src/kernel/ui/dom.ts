@@ -122,6 +122,7 @@ async function renderHtml(
 
 				const image = document.createElement("img");
 				image.src = src;
+				image.crossOrigin = "anonymous";
 				image.style.width = `${width}px`;
 				image.style.height = height == "auto" ? "auto" : `${height}px`;
 
