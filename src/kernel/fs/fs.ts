@@ -1,15 +1,16 @@
-import { FileStats, Log } from "@/types/worker";
-import SocketManager from "../runtime/sockets";
-import Epoch3Kernel from "../kernel";
-import { FS_DB_NAME, NEW_FS } from "../constants";
-
 /**
  * An interface to access a Filesystem.
  */
+export interface FileStats {
+	size: number;
+	type: "file" | "directory" | "socket";
+	modified: number;
+	created: number;
+}
+
 export interface FilesystemInterface {
 	ready: boolean;
 	waitForReady(): Promise<void>;
-	socketManager?: SocketManager;
 
 	init?(): Promise<void> | void;
 
@@ -21,6 +22,7 @@ export interface FilesystemInterface {
 	 */
 	readFile(path: string): Promise<string | undefined>;
 	readFile(path: string, format: "text"): Promise<string | undefined>;
+	readFile(path: string, format: "blob"): Promise<Blob | undefined>;
 	readFile<T extends Object = Object>(
 		path: string,
 		format: "json"
@@ -34,7 +36,7 @@ export interface FilesystemInterface {
 	 * @param path File to write to
 	 * @param contents Contents to write to the file
 	 */
-	writeFile(path: string, contents: string): Promise<void>;
+	writeFile(path: string, contents: string | Blob): Promise<void>;
 	/**
 	 * Deletes a file
 	 * @param path File to delete
@@ -200,9 +202,8 @@ export function basename(path: string): string {
 }
 
 class DomFs implements FilesystemInterface {
-	#log: (message: Log) => void;
-	#panic: Epoch3Kernel["panic"];
-	socketManager?: SocketManager;
+	#log: (message: string) => void;
+	#onFailure: (error: Error) => void;
 
 	#db?: IDBDatabase;
 
@@ -219,12 +220,14 @@ class DomFs implements FilesystemInterface {
 	}
 
 	constructor(
-		log: (message: Log) => void,
-		panic: Epoch3Kernel["panic"],
-		socketManager?: SocketManager
+		public readonly FS_DB_NAME: string,
+		public readonly NEW_FS: boolean,
+		log: (message: string) => void,
+		onFailure: (error: Error) => void
 	) {
 		this.#log = log;
-		this.#panic = panic;
+		this.#onFailure = onFailure;
+		this.#sync = new BroadcastChannel(`fs_sync_${FS_DB_NAME}`);
 
 		this.#sync.addEventListener(
 			"message",
@@ -236,15 +239,13 @@ class DomFs implements FilesystemInterface {
 			}
 		);
 
-		this.socketManager = socketManager;
-
 		this.#readyPromise = new Promise((resolve) => {
 			this.#onReady = resolve;
 		});
 	}
 
 	#index: Partial<Record<string, FilesystemStore>> = {};
-	#sync = new BroadcastChannel(`fs_sync_${FS_DB_NAME}`);
+	#sync: BroadcastChannel;
 	#listIndexEntries() {
 		return Object.keys(this.#index);
 	}
@@ -375,13 +376,15 @@ class DomFs implements FilesystemInterface {
 	================================ */
 
 	async init() {
-		if (NEW_FS) {
+		if (this.NEW_FS) {
 			this.#log("Erasing old DomFs...");
 
 			await new Promise<void>((resolve, reject) => {
-				const DBDeleteRequest = indexedDB.deleteDatabase(FS_DB_NAME);
+				const DBDeleteRequest = indexedDB.deleteDatabase(
+					this.FS_DB_NAME
+				);
 				DBDeleteRequest.onerror = () => {
-					this.#panic("fs", new Error("Error deleting database."));
+					this.#onFailure(new Error("Error deleting database."));
 					reject("Error deleting database.");
 				};
 				DBDeleteRequest.onsuccess = () => {
@@ -398,10 +401,10 @@ class DomFs implements FilesystemInterface {
 		}
 
 		const init = new Promise<void>((resolve, reject) => {
-			const request = indexedDB.open(FS_DB_NAME, FsVersions.initial);
+			const request = indexedDB.open(this.FS_DB_NAME, FsVersions.initial);
 
 			request.onerror = () => {
-				this.#panic("fs", new Error("Failed to open IndexedDB"));
+				this.#onFailure(new Error("Failed to open IndexedDB"));
 
 				reject("Failed to open IndexedDB");
 			};
@@ -653,8 +656,8 @@ class DomFs implements FilesystemInterface {
 
 	async readFile<T extends Object = Object>(
 		path: string,
-		format: "text" | "json" = "text"
-	): Promise<string | T | undefined> {
+		format: "text" | "json" | "blob" = "text"
+	): Promise<string | Blob | T | undefined> {
 		path = await this.resolve(path);
 
 		const file = await this.#getIndexEntry(path);
@@ -667,7 +670,8 @@ class DomFs implements FilesystemInterface {
 			const req: IDBRequest<IDBFile> = store.get(file.store);
 
 			req.onsuccess = () => {
-				const contents: string | void = req.result?.contents;
+				const contents = req.result?.contents as
+					string | Blob | undefined;
 
 				if (!contents) {
 					resolve(undefined);
@@ -687,6 +691,14 @@ class DomFs implements FilesystemInterface {
 						}
 						break;
 
+					case "blob":
+						if (contents instanceof Blob) return contents;
+						else {
+							return new Blob([contents], { type: "text/plain" });
+						}
+
+						break;
+
 					default:
 						throw new Error(
 							"Unrecognised readFile format: " + format
@@ -697,7 +709,7 @@ class DomFs implements FilesystemInterface {
 		});
 	}
 
-	async writeFile(path: string, contents: string) {
+	async writeFile(path: string, contents: string | Blob) {
 		path = await this.resolve(path);
 
 		const parentDir = parent(path);
@@ -717,6 +729,8 @@ class DomFs implements FilesystemInterface {
 		);
 		const fileStore = transaction.objectStore("files");
 
+		const size = contents instanceof Blob ? contents.size : contents.length;
+
 		return new Promise<void>(async (resolve, reject) => {
 			if (existing) {
 				// MODIFY
@@ -728,7 +742,7 @@ class DomFs implements FilesystemInterface {
 				fileStore.put({ id: existing.store, contents } as IDBFile);
 				const updated: DomFsFile = {
 					...existing,
-					size: contents.length,
+					size,
 					modified: now
 				};
 
@@ -743,7 +757,7 @@ class DomFs implements FilesystemInterface {
 				const fileId = req.result as number;
 				const entry: DomFsFile = {
 					store: fileId,
-					size: contents.length,
+					size: size,
 					creation: now,
 					modified: now,
 					type: "file"

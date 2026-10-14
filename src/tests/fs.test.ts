@@ -6,14 +6,17 @@ import DomFs, {
 	normalise,
 	parent
 } from "../kernel/fs/fs.js";
+import { FS_DB_NAME, NEW_FS } from "../kernel/constants.js";
 
 describe("Filesystem stress tests", async () => {
 	const fs: FilesystemInterface = new DomFs(
+		FS_DB_NAME,
+		NEW_FS,
 		(...data: any[]) => {
 			console.log(...data);
 			return -1;
 		},
-		(_, err) => {
+		(err) => {
 			throw err;
 		}
 	);

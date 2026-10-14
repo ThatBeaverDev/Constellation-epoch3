@@ -4,7 +4,7 @@ import Runtime from "./runtime/runtime";
 import UsersManager from "./security/users";
 import { UiManager } from "./ui/ui";
 import applyStringPrototypes from "../shared/strings";
-import { IS_DEV_MODE, IS_NODE } from "./constants";
+import { FS_DB_NAME, IS_DEV_MODE, IS_NODE, NEW_FS } from "./constants";
 
 export default class Epoch3Kernel {
 	ui: UiManager;
@@ -27,9 +27,14 @@ export default class Epoch3Kernel {
 
 		let log: UiManager["log"] | undefined = undefined;
 
-		this.fs = new Fs((message: Log) => {
-			log?.("fs", message);
-		}, this.panic);
+		this.fs = new Fs(
+			FS_DB_NAME,
+			NEW_FS,
+			(message: Log) => {
+				log?.("fs", message);
+			},
+			(error: Error) => this.panic("fs", error)
+		);
 
 		this.ui = new GivenUiManager(this.fs);
 

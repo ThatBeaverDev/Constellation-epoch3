@@ -47,37 +47,39 @@ async function makePortable() {
 
 	await writeFile("./dist/netcache.json", jsonString);
 
-	const portable = `const json = ${jsonString};
+	const portable = `(async () => {
+	const json = ${jsonString};
 
-function encodeBase64(input) {
-	return btoa(
-		new TextEncoder()
-			.encode(input)
-			.reduce((data, byte) => data + String.fromCharCode(byte), "")
-	);
-}
+    function encodeBase64(input) {
+    	return btoa(
+    		new TextEncoder()
+    			.encode(input)
+    			.reduce((data, byte) => data + String.fromCharCode(byte), "")
+    	);
+    }
 
-const kernelDataUrl = \`data:text/javascript;base64,\${encodeBase64(json["dist/kernel.js"])}\`
-const { default: ConstellationWeb } = await import(kernelDataUrl)
+    const kernelDataUrl = \`data:text/javascript;base64,\${encodeBase64(json["dist/kernel.js"])}\`
+    const { default: ConstellationWeb } = await import(kernelDataUrl)
 
-console.debug(ConstellationWeb)
+    console.debug(ConstellationWeb)
 
-const kernel = ConstellationWeb(async (fs) => {
-	await fs.mkdir("/bin");
+    const kernel = ConstellationWeb(async (fs) => {
+    	await fs.mkdir("/bin");
 
-	// init
-	const initSrc = json["dist/pkgs/packages/init/init.js"]
+    	// init
+    	const initSrc = json["dist/pkgs/packages/init/init.js"]
 
-	await fs.writeFile("/bin/init.js", initSrc);
+    	await fs.writeFile("/bin/init.js", initSrc);
 
-	// installer
-	const installerSrc = json["dist/pkgs/packages/installd/installd.js"]
+    	// installer
+    	const installerSrc = json["dist/pkgs/packages/installd/installd.js"]
 
-	await fs.writeFile("/bin/installd.js", installerSrc);
-}, json);
-kernel.init();
+    	await fs.writeFile("/bin/installd.js", installerSrc);
+    }, json);
+    kernel.init();
 
-window.kernel = kernel;`;
+    window.kernel = kernel;
+})()`;
 
 	await writeFile("./dist/portable.js", portable);
 }
