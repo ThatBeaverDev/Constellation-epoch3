@@ -43,7 +43,7 @@ export interface WorkerStore {
 	worker: Worker;
 	totalPrograms: number;
 
-	sharedArrayBuffer: SharedArrayBuffer;
+	sharedArrayBuffer?: SharedArrayBuffer;
 	atomicChannel: Channel;
 
 	id: number;

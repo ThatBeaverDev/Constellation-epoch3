@@ -111,9 +111,6 @@ export default class Runtime {
 			logWithSource.bind(undefined, "runtime/sockets"),
 			this.#fs
 		);
-		this.#fs.socketManager = this.#sockets;
-
-		this.#fs;
 
 		this.programs = [];
 		this.workers = [];
@@ -140,7 +137,6 @@ export default class Runtime {
 		const workerStore: WorkerStore = {
 			worker,
 			totalPrograms: 0,
-			sharedArrayBuffer: new SharedArrayBuffer(1024 ** 2), // 1 MB size
 			atomicChannel,
 			id: workerID,
 			name: workerName,
@@ -156,6 +152,10 @@ export default class Runtime {
 				);
 			}
 		};
+
+		if (globalThis.SharedArrayBuffer) {
+			workerStore.sharedArrayBuffer = new SharedArrayBuffer(1024 ** 2); // 1 MB size
+		}
 
 		const { sendMessage, handle, emit, withTransfer } =
 			await mainThreadMessageHandler(worker);
